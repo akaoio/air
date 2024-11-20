@@ -7,7 +7,7 @@
     "license": "MIT",
     "dependencies": {
         "aws-sdk": "^2.999.0",
-        "gun": "github:ioair/gun",
+        "gun": "https://github.com/akaoio/gun.git",
         "node-fetch": "^3.0.0"
     },
     "scripts": {
