@@ -6,8 +6,7 @@
     "main": "index.js",
     "license": "MIT",
     "dependencies": {
-        "aws-sdk": "^2.999.0",
-        "gun": "github:ioair/gun",
+        "gun": "github:akaoio/gun",
         "node-fetch": "^3.0.0"
     },
     "scripts": {
