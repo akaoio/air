@@ -74,45 +74,8 @@ export class Peer {
             options.key = fs.existsSync(key) ? fs.readFileSync(key) : null
             options.cert = fs.existsSync(cert) ? fs.readFileSync(cert) : null
         }
-
-        // Custom request handler to properly handle directory requests
-        const requestHandler = (req, res) => {
-            let url = req.url === "/" ? "/index.html" : req.url
-            const filePath = path.join(this.config[this.env].www, url)
-
-            // Check if path exists and is a file
-            if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
-                const contentType =
-                    {
-                        ".html": "text/html",
-                        ".css": "text/css",
-                        ".js": "text/javascript",
-                        ".json": "application/json",
-                        ".png": "image/png",
-                        ".jpg": "image/jpeg",
-                        ".gif": "image/gif"
-                    }[path.extname(filePath)] || "text/plain"
-
-                res.writeHead(200, { "Content-Type": contentType })
-                fs.createReadStream(filePath).pipe(res)
-            } else {
-                // Serve index.html for directory requests or non-existent files
-                const indexPath = path.join(this.config[this.env].www, "index.html")
-                if (fs.existsSync(indexPath)) {
-                    res.writeHead(200, { "Content-Type": "text/html" })
-                    fs.createReadStream(indexPath).pipe(res)
-                } else {
-                    res.writeHead(404, { "Content-Type": "text/plain" })
-                    res.end("404 Not Found")
-                }
-            }
-        }
-
-        if (options.key && options.cert) {
-            this.https = https.createServer(options, requestHandler).listen(this.config[this.env].port)
-        } else {
-            this.http = http.createServer(requestHandler).listen(this.config[this.env].port)
-        }
+        if (options.key && options.cert) this.https = https.createServer(options, GUN.serve(this.config[this.env].www)).listen(this.config[this.env].port)
+        else this.http = http.createServer(GUN.serve(this.config[this.env].www)).listen(this.config[this.env].port)
 
         this.server = this.https || this.http
 
