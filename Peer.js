@@ -24,6 +24,9 @@ export class Peer {
         // argv[11] -> priv
 
         this.config = config || {}
+        this.maxRestarts = 5
+        this.restarts = 0
+        this.delay = 5000 // 5 seconds
 
         const cwd = fileURLToPath(path.dirname(import.meta.url))
 
@@ -68,21 +71,71 @@ export class Peer {
 
         this.config[this.env].pair.epriv = process.env.EPRIV || process.argv[13] || this.config[this.env]?.pair?.epriv || null
 
-        const options = {}
+        this.options = {}
 
         if (key && cert) {
-            options.key = fs.existsSync(key) ? fs.readFileSync(key) : null
-            options.cert = fs.existsSync(cert) ? fs.readFileSync(cert) : null
+            this.options.key = fs.existsSync(key) ? fs.readFileSync(key) : null
+            this.options.cert = fs.existsSync(cert) ? fs.readFileSync(cert) : null
         }
-        if (options.key && options.cert) this.https = https.createServer(options, GUN.serve(this.config[this.env].www)).listen(this.config[this.env].port)
-        else this.http = http.createServer(GUN.serve(this.config[this.env].www)).listen(this.config[this.env].port)
 
-        this.server = this.https || this.http
+        this.init()
 
         this.GUN = GUN
         this.sea = sea
         this.gun = {}
         this.user = {}
+    }
+
+    init() {
+        if (this.server) this.server.close()
+
+        if (this.options.key && this.options.cert) {
+            this.https = https.createServer(this.options, GUN.serve(this.config[this.env].www))
+            this.server = this.https
+        } else {
+            this.http = http.createServer(GUN.serve(this.config[this.env].www))
+            this.server = this.http
+        }
+
+        // Add error handling
+        this.server.on('error', (error) => {
+            console.error('Server error:', error)
+            this.restart()
+        })
+
+        // Add close handling
+        this.server.on('close', () => {
+            console.log('Server closed. Attempting restart...')
+            this.restart()
+        })
+
+        try {
+            this.server.listen(this.config[this.env].port)
+            this.restarts = 0 // Reset counter on successful start
+            console.log(`Server started successfully on port ${this.config[this.env].port}`)
+        } catch (error) {
+            console.error('Failed to start server:', error)
+            this.restart()
+        }
+    }
+
+    restart() {
+        if (this.restarts < this.maxRestarts) {
+            this.restarts++
+            console.log(`Attempting restart ${this.restarts}/${this.maxRestarts} in ${this.delay/1000} seconds...`)
+            
+            setTimeout(() => {
+                try {
+                    this.init()
+                } catch (error) {
+                    console.error('Failed to restart server:', error)
+                    this.restart()
+                }
+            }, this.delay)
+        } else {
+            console.error(`Maximum restart attempts (${this.maxRestarts}) reached. Server will not restart automatically.`)
+            process.exit(1)
+        }
     }
 
     async start(callback = () => {}) {
