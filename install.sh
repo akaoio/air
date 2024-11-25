@@ -5,21 +5,23 @@ who=$USER
 config="air.json"
 root="" # Root folder of main.js
 bash="" # Root folder of Bash script files
-update=false
 env=""
 name=""
-domain=""
 port=""
+domain=""
 peers=()
 sync=""
 ssl=false
 ssl_key=""
 ssl_cert=""
+update=false
 godaddy_cron=false
 godaddy_key=""
 godaddy_secret=""
 godaddy_domain=""
 godaddy_host=""
+node_command="npm start"
+yes_or_no="Please answer [Y]es or [N]o."
 
 # Transform long options to short ones
 for arg in $@
@@ -28,34 +30,36 @@ do
     case $arg in
         --root)         set -- $@ -r;;
         --bash)         set -- $@ -b;;
-        --update)       set -- $@ -u;;
         --env)          set -- $@ -e;;
         --name)         set -- $@ -n;;
-        --domain)       set -- $@ -d;;
         --port)         set -- $@ -p;;
+        --domain)       set -- $@ -d;;
         --peers)        set -- $@ -P;;
         --sync)         set -- $@ -S;;
         --ssl)          set -- $@ -s;;
+        --update)       set -- $@ -u;;
         --godaddy_cron) set -- $@ -g;;
+        --node_command) set -- $@ -c;;
         *)              set -- $@ $arg
     esac
 done
 
 # Check flags
-while getopts "r:b:ue:n:d:p:P:S:sg" flag
+while getopts "r:b:e:n:p:d:P:S:sugc:" flag
 do
     case $flag in
         r) root=$OPTARG;;
         b) bash=$OPTARG;;
-        u) update=true;;
         e) env=$OPTARG;;
         n) name=$OPTARG;;
-        d) domain=$OPTARG;;
         p) port=$OPTARG;;
+        d) domain=$OPTARG;;
         P) [[ $OPTARG =~ ^([a-zA-Z0-9]+,)*[a-zA-Z0-9]+$ ]] && IFS=',' read -r -a peers <<< "$(echo "$OPTARG" | tr -d '[:space:]')";;
         S) sync=$OPTARG;;
         s) ssl=true;;
-        c) godaddy_cron=true
+        u) update=true;;
+        g) godaddy_cron=true;;
+        c) node_command=$OPTARG
     esac
 done
 
@@ -79,11 +83,11 @@ then
 
     [[ -z $name || $name = "null" ]] && name=`jq -r ".name" $root/$config`
 
-    domain=`jq -r ".domain" $root/$config`
-    [[ -z $domain || $domain = "null" ]] && domain=`jq -r ".$env.domain" $root/$config`
-
     port=`jq -r ".port" $root/$config`
     [[ -z $port || $port = "null" ]] && port=`jq -r ".$env.port" $root/$config`
+
+    domain=`jq -r ".domain" $root/$config`
+    [[ -z $domain || $domain = "null" ]] && domain=`jq -r ".$env.domain" $root/$config`
     
     peers=($(jq -r ".peers[]" "$root/$config" 2>/dev/null || jq -r ".$env.peers[]" "$root/$config" 2>/dev/null || echo ""))
     
@@ -95,6 +99,8 @@ then
     godaddy_secret=`jq -r ".$env.godaddy.secret" $root/$config`
     [[ -z $godaddy_secret || $godaddy_secret = "null" ]] && godaddy_secret=`jq -r ".$env.godaddy.secret" $root/$config`
 fi
+
+# CORE SETUP
 
 # Check if env exists
 while [ -z $env ] || [[ $env = "null" ]]
@@ -118,17 +124,6 @@ do
 done
 [ ! -z $name ] && echo "Peer name: $name"
 
-# Check if domain exists
-while [ -z $domain ] || [[ $domain = "null" ]]
-do
-    read -p "Please enter domain: " domain
-    if [ ! -z $domain ] && [[ $domain != "null" ]]
-    then
-        break
-    fi
-done
-[ ! -z $domain ] && echo "Domain: $domain"
-
 # Check if port exists
 while [ -z $port ] || [[ $port = "null" ]]
 do
@@ -141,6 +136,19 @@ do
     fi
 done
 [ ! -z $port ] && echo "Port: $port"
+
+# NETWORK SETUP
+
+# Check if domain exists
+while [ -z $domain ] || [[ $domain = "null" ]]
+do
+    read -p "Please enter domain: " domain
+    if [ ! -z $domain ] && [[ $domain != "null" ]]
+    then
+        break
+    fi
+done
+[ ! -z $domain ] && echo "Domain: $domain"
 
 # Ask if user wants to add peers
 added=false
@@ -159,7 +167,7 @@ do
                 added=true
             fi;;
         [Nn]*) break;;
-        *) echo "Please answer [Y]es or [N]o."
+        *) echo $yes_or_no
     esac
 done
 [ ! -z $peers ] && echo "Peers: ${peers[@]}"
@@ -173,25 +181,13 @@ then
         case $yn in
             [Yy]*) read -p "Please enter network config URL: " sync; break;;
             [Nn]*) break;;
-            *) echo "Please answer [Y]es or [N]o."
+            *) echo $yes_or_no
         esac
     done
 fi
 [ ! -z $sync ] && echo "Sync network config: $sync"
 
-# Ask if user wants automatically run system update
-if [ $update = false ]
-then
-    while true
-    do
-        read -p "Do you want to automatically run system update? [Y/n]" yn
-        case $yn in
-            [Yy]*) update=true; break;;
-            [Nn]*) update=false; break;;
-            *) echo "Please answer [Y]es or [N]o."
-        esac
-    done
-fi
+# SECURITY/DNS SETUP
 
 # Ask if user wants ssl
 if [ $ssl = false ]
@@ -202,7 +198,7 @@ then
         case $yn in
             [Yy]*) ssl=true; break;;
             [Nn]*) ssl=false; break;;
-            *) echo "Please answer [Y]es or [N]o."
+            *) echo $yes_or_no
         esac
     done
 fi
@@ -216,7 +212,7 @@ then
         case $yn in
             [Yy]*) godaddy_cron=true; break;;
             [Nn]*) godaddy_cron=false; break;;
-            *) echo "Please answer [Y]es or [N]o."
+            *) echo $yes_or_no
         esac
     done
 fi
@@ -244,7 +240,7 @@ then
                     godaddy_domain=$domain
                     godaddy_host="@"
                     break;;
-                *) echo "Please answer [Y]es or [N]o."
+                *) echo $yes_or_no
             esac
         done
     fi
@@ -268,6 +264,29 @@ then
     done
 fi
 
+# SYSTEM SETUP
+
+# Ask if user wants automatically run system update
+if [ $update = false ]
+then
+    while true
+    do
+        read -p "Do you want to automatically run system update? [Y/n]" yn
+        case $yn in
+            [Yy]*) update=true; break;;
+            [Nn]*) update=false; break;;
+            *) echo $yes_or_no
+        esac
+    done
+fi
+
+# Ask if user wants to set custom node command instead of "npm start"
+read -p "Do you want to set custom node command instead of '$node_command'? [Y/n]" yn
+case $yn in
+    [Yy]*) read -p "Please enter custom node command: " node_command;;
+    [Nn]*) ;;
+    *) echo $yes_or_no
+esac
 
 # BEGIN INSTALLATION PROCESS
 
@@ -383,7 +402,7 @@ User=$USER
 WorkingDirectory=$root
 StandardOutput=file:$root/$name.log
 StandardError=file:$root/$name.error.log
-ExecStart=sudo ROOT=$root BASH=$bash ENV=$env NAME=$name DOMAIN=$domain PORT=$port SSL_KEY=$ssl_key SSL_CERT=$ssl_cert npm start
+ExecStart=sudo ROOT=$root BASH=$bash ENV=$env NAME=$name DOMAIN=$domain PORT=$port SSL_KEY=$ssl_key SSL_CERT=$ssl_cert $node_command
 Restart=on-failure
 
 [Install]
