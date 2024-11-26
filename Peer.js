@@ -162,32 +162,32 @@ export class Peer {
     }
 
     syncConfig(callback = () => {}) {
-        if (this.config.sync)
-            return new Promise((resolve, reject) => {
-                fetch(this.config.sync)
-                    .then(response => response.json())
-                    .then(data => {
-                        data = data || {}
-                        data.system = data.system || {}
+        if (!this.config?.sync) return
+        return new Promise((resolve, reject) => {
+            fetch(this.config.sync)
+                .then(response => response.json())
+                .then(data => {
+                    data = data || {}
+                    data.system = data.system || {}
 
-                        this.config[this.env].system = data.system.pub && data.system.epub && data.system.cert ? data.system : {}
+                    this.config[this.env].system = data.system.pub && data.system.epub && data.system.cert ? data.system : {}
 
-                        // read config file content to this.config
-                        this.readConfig()
+                    // read config file content to this.config
+                    this.readConfig()
 
-                        // write config file content from this.config
-                        this.writeConfig()
-                        resolve()
-                    })
-                    .catch(e => reject(e))
-            }).then(
-                response => {
-                    if (callback) callback(response)
-                    setTimeout(() => this.syncConfig(), 60 * 60 * 1000)
-                    return this
-                },
-                e => console.error(e)
-            )
+                    // write config file content from this.config
+                    this.writeConfig()
+                    resolve()
+                })
+                .catch(e => reject(e))
+        }).then(
+            response => {
+                if (callback) callback(response)
+                setTimeout(() => this.syncConfig(), 60 * 60 * 1000)
+                return this
+            },
+            e => console.error(e)
+        )
     }
 
     run(callback = () => {}) {
@@ -203,7 +203,6 @@ export class Peer {
                     if (response.err) reject(response.err)
                     else if (response.pub && response.priv && response.epub && response.epriv) {
                         this.config[this.env].pair = response
-                        this.writeConfig()
                         resolve(response)
                     }
                 })
@@ -212,6 +211,7 @@ export class Peer {
             console.log(`Environment: ${this.env}\nHTTPS: ${this.https ? true : false}\nHTTP: ${this.http ? true : false}\nPort: ${this.config[this.env].port}`)
         }).then(
             response => {
+                this.writeConfig()
                 if (callback) callback(response)
                 return this
             },
