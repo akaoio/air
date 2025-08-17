@@ -98,14 +98,14 @@ export class Peer {
         }
 
         // Add error handling
-        this.server.on('error', (error) => {
-            console.error('Server error:', error)
+        this.server.on("error", error => {
+            console.error("Server error:", error)
             this.restart()
         })
 
         // Add close handling
-        this.server.on('close', () => {
-            console.log('Server closed. Attempting restart...')
+        this.server.on("close", () => {
+            console.log("Server closed. Attempting restart...")
             this.restart()
         })
 
@@ -114,7 +114,7 @@ export class Peer {
             this.restarts = 0 // Reset counter on successful start
             console.log(`Server started successfully on port ${this.config[this.env].port}`)
         } catch (error) {
-            console.error('Failed to start server:', error)
+            console.error("Failed to start server:", error)
             this.restart()
         }
     }
@@ -122,13 +122,13 @@ export class Peer {
     restart() {
         if (this.restarts < this.maxRestarts) {
             this.restarts++
-            console.log(`Attempting restart ${this.restarts}/${this.maxRestarts} in ${this.delay/1000} seconds...`)
-            
+            console.log(`Attempting restart ${this.restarts}/${this.maxRestarts} in ${this.delay / 1000} seconds...`)
+
             setTimeout(() => {
                 try {
                     this.init()
                 } catch (error) {
-                    console.error('Failed to restart server:', error)
+                    console.error("Failed to restart server:", error)
                     this.restart()
                 }
             }, this.delay)
@@ -313,42 +313,36 @@ export class Peer {
         const defaults = {
             timeout: 5000,
             dnstimeout: 3000,
-            agent: 'Air-GUN-Peer/1.0',
+            agent: "Air-GUN-Peer/1.0",
             dns: [
-                { hostname: 'myip.opendns.com', resolver: 'resolver1.opendns.com' },
-                { hostname: 'myip.opendns.com', resolver: 'resolver2.opendns.com' }
+                { hostname: "myip.opendns.com", resolver: "resolver1.opendns.com" },
+                { hostname: "myip.opendns.com", resolver: "resolver2.opendns.com" }
             ],
             http: [
-                { url: 'https://checkip.amazonaws.com', format: 'text' },
-                { url: 'https://ipv4.icanhazip.com', format: 'text' }
+                { url: "https://checkip.amazonaws.com", format: "text" },
+                { url: "https://ipv4.icanhazip.com", format: "text" }
             ]
         }
-        
+
         // Read current config (which includes ip if present)
         this.readConfig()
-        
+
         // Check if ip config exists in air.json
         if (this.config.ip) {
             const ip = this.config.ip
-            
+
             // Build configuration from air.json with environment overrides
             const config = {
-                timeout: process.env.IP_TIMEOUT ? 
-                         parseInt(process.env.IP_TIMEOUT) :
-                         (ip.timeout || defaults.timeout),
-                
-                dnsTimeout: process.env.IP_DNS_TIMEOUT ? 
-                            parseInt(process.env.IP_DNS_TIMEOUT) :
-                            (ip.dnstimeout || defaults.dnstimeout),
-                
-                userAgent: process.env.IP_AGENT || 
-                           ip.agent || 
-                           defaults.agent,
-                
+                timeout: process.env.IP_TIMEOUT ? parseInt(process.env.IP_TIMEOUT) : ip.timeout || defaults.timeout,
+
+                dnsTimeout: process.env.IP_DNS_TIMEOUT ? parseInt(process.env.IP_DNS_TIMEOUT) : ip.dnstimeout || defaults.dnstimeout,
+
+                userAgent: process.env.IP_AGENT || ip.agent || defaults.agent,
+
                 dnsServices: ip.dns || defaults.dns,
                 httpServices: ip.http || defaults.http
             }
-            
+
             return config
         } else {
             // If no ip in config, add it for future use
@@ -359,18 +353,14 @@ export class Peer {
                 dns: defaults.dns,
                 http: defaults.http
             }
-            
+
             // Save the default config to air.json for next time
             this.writeConfig()
-            
+
             // Return default config with environment overrides
             return {
-                timeout: process.env.IP_TIMEOUT ? 
-                         parseInt(process.env.IP_TIMEOUT) : 
-                         defaults.timeout,
-                dnsTimeout: process.env.IP_DNS_TIMEOUT ? 
-                            parseInt(process.env.IP_DNS_TIMEOUT) :
-                            defaults.dnstimeout,
+                timeout: process.env.IP_TIMEOUT ? parseInt(process.env.IP_TIMEOUT) : defaults.timeout,
+                dnsTimeout: process.env.IP_DNS_TIMEOUT ? parseInt(process.env.IP_DNS_TIMEOUT) : defaults.dnstimeout,
                 userAgent: process.env.IP_AGENT || defaults.agent,
                 dnsServices: defaults.dns,
                 httpServices: defaults.http
@@ -381,31 +371,26 @@ export class Peer {
     validateIP(ip) {
         const ipRegex = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/
         if (!ipRegex.test(ip)) return false
-        
+
         // Additional validation for valid IP ranges
-        const parts = ip.split('.').map(Number)
+        const parts = ip.split(".").map(Number)
         if (parts.some(part => part > 255)) return false
-        
+
         // Exclude private/reserved ranges
         const [first, second] = parts
-        if (first === 10 ||
-            (first === 172 && second >= 16 && second <= 31) ||
-            (first === 192 && second === 168) ||
-            first === 127 ||
-            first === 0 ||
-            first >= 224) {
+        if (first === 10 || (first === 172 && second >= 16 && second <= 31) || (first === 192 && second === 168) || first === 127 || first === 0 || first >= 224) {
             return false
         }
-        
+
         return true
     }
 
     async tryDNSMethod(service, config) {
         try {
-            const { exec } = await import('child_process')
-            const { promisify } = await import('util')
+            const { exec } = await import("child_process")
+            const { promisify } = await import("util")
             const execAsync = promisify(exec)
-            
+
             // Try dig first
             try {
                 const digCommand = `dig +short ${service.hostname} @${service.resolver}`
@@ -418,22 +403,18 @@ export class Peer {
             } catch (digError) {
                 console.log(`DNS dig failed for ${service.hostname}@${service.resolver}:`, digError.message)
             }
-            
+
             // Try nslookup as fallback
             try {
                 const nslookupCommand = `nslookup ${service.hostname} ${service.resolver}`
                 const { stdout } = await execAsync(nslookupCommand, { timeout: config.dnsTimeout })
-                const lines = stdout.split('\n')
+                const lines = stdout.split("\n")
                 for (const line of lines) {
                     const match = line.match(/Address:\s*(\d+\.\d+\.\d+\.\d+)/)
                     if (match) {
                         const ip = match[1]
                         // Skip resolver IP addresses
-                        if (this.validateIP(ip) && 
-                            !ip.startsWith('208.67.222.') && 
-                            !ip.startsWith('208.67.220.') &&
-                            !ip.startsWith('8.8.8.') &&
-                            !ip.startsWith('8.8.4.')) {
+                        if (this.validateIP(ip) && !ip.startsWith("208.67.222.") && !ip.startsWith("208.67.220.") && !ip.startsWith("8.8.8.") && !ip.startsWith("8.8.4.")) {
                             console.log(`IP detected via DNS (nslookup): ${service.hostname}@${service.resolver} = ${ip}`)
                             return ip
                         }
@@ -443,9 +424,9 @@ export class Peer {
                 console.log(`DNS nslookup failed for ${service.hostname}@${service.resolver}:`, nslookupError.message)
             }
         } catch (importError) {
-            console.log('DNS method unavailable:', importError.message)
+            console.log("DNS method unavailable:", importError.message)
         }
-        
+
         return null
     }
 
@@ -453,29 +434,29 @@ export class Peer {
         try {
             const controller = new AbortController()
             const timeoutId = setTimeout(() => controller.abort(), config.timeout)
-            
+
             const response = await fetch(service.url, {
                 signal: controller.signal,
-                headers: { 'User-Agent': config.userAgent }
+                headers: { "User-Agent": config.userAgent }
             })
-            
+
             clearTimeout(timeoutId)
-            
+
             if (response.ok) {
-                let ip = ''
-                
-                if (service.format === 'json') {
+                let ip = ""
+
+                if (service.format === "json") {
                     const data = await response.json()
                     ip = service.field ? data[service.field] : data.ip
-                    if (service.field === 'origin' && ip?.includes(',')) {
-                        ip = ip.split(',')[0]
+                    if (service.field === "origin" && ip?.includes(",")) {
+                        ip = ip.split(",")[0]
                     }
                 } else {
                     ip = await response.text()
                 }
-                
-                ip = ip?.toString().trim().replace(/\r?\n/g, '') || ''
-                
+
+                ip = ip?.toString().trim().replace(/\r?\n/g, "") || ""
+
                 if (this.validateIP(ip)) {
                     console.log(`IP detected via HTTP: ${service.url} = ${ip}`)
                     return ip
@@ -484,14 +465,14 @@ export class Peer {
         } catch (error) {
             console.log(`HTTP service ${service.url} failed:`, error.message)
         }
-        
+
         return null
     }
 
     async getPublicIP() {
         const config = this.getIPDetectionConfig()
-        console.log('Attempting to detect public IP address...')
-        
+        console.log("Attempting to detect public IP address...")
+
         // Method 1: Try DNS-based detection (fastest and most reliable)
         for (const service of config.dnsServices) {
             console.log(`Trying DNS method: ${service.hostname}@${service.resolver}`)
@@ -500,7 +481,7 @@ export class Peer {
                 return ip
             }
         }
-        
+
         // Method 2: Try HTTP-based detection
         for (const service of config.httpServices) {
             console.log(`Trying HTTP method: ${service.url}`)
@@ -509,8 +490,8 @@ export class Peer {
                 return ip
             }
         }
-        
-        console.error('All IP detection methods failed')
+
+        console.error("All IP detection methods failed")
         return null
     }
 
@@ -555,7 +536,7 @@ export class Peer {
                             }
                         )
                     } else {
-                        reject(new Error('Unable to detect public IP'))
+                        reject(new Error("Unable to detect public IP"))
                     }
                 })
                 .catch(e => reject(e))
