@@ -118,3 +118,6 @@ tmp/
 *.temp
 test-output*
 full-test*
+
+# SSL certificates
+ssl/

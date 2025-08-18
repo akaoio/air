@@ -74,6 +74,9 @@ class Uninstaller {
             // Remove cron jobs
             this.removecron()
             
+            // Clean up SSL certificates
+            this.removessl()
+            
             // Clean up PID files
             this.cleanpid()
             
@@ -130,12 +133,64 @@ class Uninstaller {
         console.log('Removing cron jobs...')
         
         try {
-            // Remove cron jobs containing the root path
-            const cronCmd = `crontab -l 2>/dev/null | grep -v "${this.config.root}" | crontab -`
-            execSync(cronCmd, { shell: '/bin/bash' })
-            console.log('✓ Cron jobs removed')
+            // Remove cron jobs for this specific Air instance
+            const cronIdentifier = `# Air DDNS for ${this.config.name}`
+            const cronPath = `cd ${this.config.root} && /usr/bin/node ddns.js`
+            
+            // Get current crontab
+            let currentCron = ''
+            try {
+                currentCron = execSync('crontab -l 2>/dev/null', { encoding: 'utf8' })
+            } catch {
+                // No crontab exists
+                console.log('✓ No cron jobs found')
+                return
+            }
+            
+            // Filter out Air-related entries for this instance
+            const lines = currentCron.split('\n')
+            const filtered = lines.filter(line => {
+                return !line.includes(cronIdentifier) && 
+                       !line.includes(cronPath) &&
+                       !line.includes(`air-${this.config.name}-ddns.log`)
+            })
+            
+            // Update crontab
+            if (filtered.length < lines.length) {
+                const newCron = filtered.join('\n')
+                execSync(`echo "${newCron}" | crontab -`, { shell: '/bin/bash' })
+                console.log('✓ Cron jobs removed')
+            } else {
+                console.log('✓ No Air cron jobs found')
+            }
         } catch (e) {
-            console.log('⚠ No cron jobs found or already removed')
+            console.log('⚠ Cron removal failed: ' + e.message)
+        }
+    }
+
+    removessl() {
+        console.log('Cleaning SSL configuration...')
+        
+        try {
+            // Remove SSL directory if it exists
+            const sslDir = path.join(this.config.root, 'ssl')
+            if (fs.existsSync(sslDir)) {
+                fs.rmSync(sslDir, { recursive: true, force: true })
+                console.log('✓ SSL directory removed')
+            }
+            
+            // Remove renewal hook
+            const hookPath = '/etc/letsencrypt/renewal-hooks/deploy/air-copy-certs.sh'
+            if (fs.existsSync(hookPath)) {
+                try {
+                    execSync(`sudo rm ${hookPath}`, { stdio: 'ignore' })
+                    console.log('✓ Certificate renewal hook removed')
+                } catch {
+                    console.log('⚠ Could not remove renewal hook (may require sudo)')
+                }
+            }
+        } catch (e) {
+            console.log('⚠ SSL cleanup failed: ' + e.message)
         }
     }
 

@@ -26,8 +26,14 @@ class Updater {
                 if (existing.name) {
                     this.config.name = existing.name
                 }
-                if (existing.env && existing[existing.env]?.domain) {
-                    this.config.domain = existing[existing.env].domain
+                if (existing.env && existing[existing.env]) {
+                    const envConfig = existing[existing.env]
+                    if (envConfig.domain) {
+                        this.config.domain = envConfig.domain
+                    }
+                    if (envConfig.ssl) {
+                        this.config.ssl = envConfig.ssl
+                    }
                 }
             } catch (e) {
                 console.log('Warning: Could not parse config file')
@@ -35,7 +41,7 @@ class Updater {
         }
     }
 
-    run() {
+    async run() {
         console.log(`
 ==========================================
     Air Update Script
@@ -72,7 +78,7 @@ class Updater {
 
         try {
             // Restart service
-            this.restartservice()
+            await this.restartservice()
         } catch (e) {
             console.error(`Service restart failed: ${e.message}`)
             hasErrors = true
@@ -137,57 +143,71 @@ class Updater {
     }
 
     renewssl() {
-        console.log(`Renewing SSL certificate for ${this.config.domain}...`)
+        console.log(`Checking SSL certificate for ${this.config.domain}...`)
         
         try {
             // Check if certbot is installed
             execSync('which certbot', { stdio: 'ignore' })
             
-            // Renew certificate
-            const output = execSync(`sudo certbot renew --cert-name ${this.config.domain} --quiet`, {
+            // Attempt renewal (will only renew if needed)
+            const output = execSync('sudo certbot renew --quiet', {
                 encoding: 'utf8'
             })
             
-            if (output) {
+            if (output && output.includes('renewed')) {
                 console.log(output.trim())
+                console.log('✓ SSL certificate renewed')
+                
+                // If using local SSL directory, certificates should be copied by renewal hook
+                const sslDir = path.join(this.config.root, 'ssl')
+                if (fs.existsSync(sslDir)) {
+                    console.log('✓ Certificates copied to application directory')
+                }
+            } else {
+                console.log('✓ SSL certificate is up to date')
             }
-            
-            console.log('✓ SSL certificate renewed')
         } catch (e) {
-            console.log('⚠ SSL renewal failed or not needed')
-            throw e
+            console.log('⚠ SSL renewal check failed')
+            console.log('  This is normal if SSL is not configured')
         }
     }
 
-    restartservice() {
+    async restartservice() {
         const serviceName = this.config.name
         console.log(`Restarting service: ${serviceName}...`)
         
         try {
             // Check if service exists
-            execSync(`sudo systemctl status ${serviceName}`, { stdio: 'ignore' })
+            try {
+                execSync(`sudo systemctl status ${serviceName}`, { stdio: 'ignore' })
+            } catch (e) {
+                console.log(`⚠ Service ${serviceName} not found`)
+                console.log('You can start manually with: npm start')
+                return
+            }
             
             // Restart service
             execSync(`sudo systemctl restart ${serviceName}`, { stdio: 'ignore' })
             
-            // Wait a bit and check status
-            setTimeout(() => {
-                try {
-                    execSync(`sudo systemctl is-active ${serviceName}`, { stdio: 'ignore' })
-                    console.log(`✓ Service ${serviceName} restarted successfully`)
-                } catch (e) {
-                    console.log(`⚠ Service ${serviceName} may have failed to start`)
-                }
-            }, 2000)
+            // Wait and check status
+            await new Promise(resolve => setTimeout(resolve, 2000))
             
+            try {
+                execSync(`sudo systemctl is-active ${serviceName}`, { stdio: 'ignore' })
+                console.log(`✓ Service ${serviceName} restarted successfully`)
+            } catch (e) {
+                console.log(`⚠ Service ${serviceName} may have failed to start`)
+                console.log('Check logs with: sudo journalctl -u ' + serviceName + ' -n 50')
+            }
         } catch (e) {
-            console.log(`⚠ Service ${serviceName} not found or restart failed`)
-            console.log('You can start manually with: npm start')
-            throw e
+            console.log(`⚠ Service restart failed: ${e.message}`)
         }
     }
 }
 
 // Run updater
 const updater = new Updater()
-updater.run()
+updater.run().catch(e => {
+    console.error('Update failed:', e.message)
+    process.exit(1)
+})

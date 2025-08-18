@@ -362,13 +362,18 @@ class AirInstaller {
             this.config.godaddy = { domain, host, key, secret }
             this.terminal.success('GoDaddy DDNS configured')
             
-            // Setup cron job
-            const cronJob = `*/5 * * * * cd ${this.config.root} && /usr/bin/node ddns.js >> /var/log/air-ddns.log 2>&1`
+            // Setup cron job with unique identifier
+            const cronIdentifier = `# Air DDNS for ${this.config.name}`
+            const cronJob = `*/5 * * * * cd ${this.config.root} && /usr/bin/node ddns.js >> /tmp/air-${this.config.name}-ddns.log 2>&1`
             try {
-                execSync(`(crontab -l 2>/dev/null | grep -v "ddns.js"; echo "${cronJob}") | crontab -`)
+                // Remove any existing cron job for this instance
+                execSync(`(crontab -l 2>/dev/null | grep -v "${cronIdentifier}" | grep -v "cd ${this.config.root} && /usr/bin/node ddns.js") | crontab -`, { stdio: 'ignore' })
+                // Add new cron job with identifier
+                execSync(`(crontab -l 2>/dev/null; echo "${cronIdentifier}"; echo "${cronJob}") | crontab -`)
                 this.terminal.success('DDNS cron job created')
+                console.log(gray(`Log file: /tmp/air-${this.config.name}-ddns.log`))
             } catch (e) {
-                this.terminal.warning('Could not create cron job')
+                this.terminal.warning('Could not create cron job: ' + e.message)
             }
         }
     }
@@ -523,57 +528,80 @@ class AirInstaller {
             
             execSync(certbotCmd, { stdio: 'inherit' })
             
-            // Fix certificate permissions for the service user
-            console.log(gray('Setting up certificate permissions...'))
+            // Copy certificates to app directory for proper access
+            console.log(gray('Setting up certificate access...'))
             try {
-                // Create a group for certificate access
-                try {
-                    execSync('sudo groupadd -f letsencrypt', { stdio: 'ignore' })
-                } catch {}
+                const sslDir = path.join(this.config.root, 'ssl')
                 
-                // Add current user to the group
-                execSync(`sudo usermod -a -G letsencrypt ${process.env.USER}`, { stdio: 'ignore' })
+                // Create SSL directory
+                if (!fs.existsSync(sslDir)) {
+                    fs.mkdirSync(sslDir, { mode: 0o700 })
+                }
                 
-                // Set proper ownership and permissions
-                execSync(`sudo chgrp -R letsencrypt /etc/letsencrypt/live/${this.config.domain}`, { stdio: 'ignore' })
-                execSync(`sudo chgrp -R letsencrypt /etc/letsencrypt/archive/${this.config.domain}`, { stdio: 'ignore' })
+                // Copy certificates to app directory
+                const certSource = `/etc/letsencrypt/live/${this.config.domain}/cert.pem`
+                const keySource = `/etc/letsencrypt/live/${this.config.domain}/privkey.pem`
+                const fullchainSource = `/etc/letsencrypt/live/${this.config.domain}/fullchain.pem`
                 
-                // Make certificates readable by group
-                execSync(`sudo chmod 750 /etc/letsencrypt/live/${this.config.domain}`, { stdio: 'ignore' })
-                execSync(`sudo chmod 750 /etc/letsencrypt/archive/${this.config.domain}`, { stdio: 'ignore' })
-                execSync(`sudo chmod 640 /etc/letsencrypt/archive/${this.config.domain}/*.pem`, { stdio: 'ignore' })
+                const certDest = path.join(sslDir, 'cert.pem')
+                const keyDest = path.join(sslDir, 'privkey.pem')
+                const fullchainDest = path.join(sslDir, 'fullchain.pem')
                 
-                this.terminal.success('Certificate permissions configured')
+                execSync(`sudo cp ${certSource} ${certDest}`, { stdio: 'ignore' })
+                execSync(`sudo cp ${keySource} ${keyDest}`, { stdio: 'ignore' })
+                execSync(`sudo cp ${fullchainSource} ${fullchainDest}`, { stdio: 'ignore' })
                 
-                // Create renewal hook inline
-                try {
-                    const hookContent = `#!/bin/bash
-# Auto-fix permissions after certificate renewal
-chgrp -R letsencrypt /etc/letsencrypt/live/${this.config.domain}
-chgrp -R letsencrypt /etc/letsencrypt/archive/${this.config.domain}
-chmod 750 /etc/letsencrypt/live/${this.config.domain}
-chmod 750 /etc/letsencrypt/archive/${this.config.domain}
-chmod 640 /etc/letsencrypt/archive/${this.config.domain}/*.pem
-systemctl restart ${this.config.name} 2>/dev/null || true`
-                    
-                    fs.writeFileSync('/tmp/air-ssl-hook.sh', hookContent)
-                    execSync('sudo cp /tmp/air-ssl-hook.sh /etc/letsencrypt/renewal-hooks/deploy/air-fix-permissions.sh', { stdio: 'ignore' })
-                    execSync('sudo chmod +x /etc/letsencrypt/renewal-hooks/deploy/air-fix-permissions.sh', { stdio: 'ignore' })
-                    fs.unlinkSync('/tmp/air-ssl-hook.sh')
-                    console.log(gray('Installed certificate renewal hook'))
-                } catch {}
+                // Set proper ownership (current user owns the copies)
+                execSync(`sudo chown ${process.env.USER}:${process.env.USER} ${sslDir}/*.pem`, { stdio: 'ignore' })
+                execSync(`chmod 600 ${keyDest}`, { stdio: 'ignore' })
+                execSync(`chmod 644 ${certDest} ${fullchainDest}`, { stdio: 'ignore' })
                 
-                console.log(yellow('Note: You may need to logout and login for group changes to take effect'))
+                this.terminal.success('Certificates copied to application directory')
+                
+                // Create renewal hook to copy certificates after renewal
+                const hookContent = `#!/bin/bash
+# Copy renewed certificates to Air directory
+DOMAIN="${this.config.domain}"
+APP_ROOT="${this.config.root}"
+SSL_DIR="$APP_ROOT/ssl"
+USER="${process.env.USER}"
+
+# Copy certificates
+cp /etc/letsencrypt/live/$DOMAIN/cert.pem $SSL_DIR/cert.pem
+cp /etc/letsencrypt/live/$DOMAIN/privkey.pem $SSL_DIR/privkey.pem
+cp /etc/letsencrypt/live/$DOMAIN/fullchain.pem $SSL_DIR/fullchain.pem
+
+# Fix ownership
+chown $USER:$USER $SSL_DIR/*.pem
+chmod 600 $SSL_DIR/privkey.pem
+chmod 644 $SSL_DIR/cert.pem $SSL_DIR/fullchain.pem
+
+# Restart service
+systemctl restart ${this.config.name} 2>/dev/null || true
+
+echo "Certificates copied and service restarted for $DOMAIN"`
+                
+                fs.writeFileSync('/tmp/air-ssl-hook.sh', hookContent)
+                execSync('sudo cp /tmp/air-ssl-hook.sh /etc/letsencrypt/renewal-hooks/deploy/air-copy-certs.sh', { stdio: 'ignore' })
+                execSync('sudo chmod +x /etc/letsencrypt/renewal-hooks/deploy/air-copy-certs.sh', { stdio: 'ignore' })
+                fs.unlinkSync('/tmp/air-ssl-hook.sh')
+                console.log(gray('Installed certificate renewal hook'))
+                
+                // Use local certificates
+                this.config.ssl = {
+                    key: keyDest,
+                    cert: certDest
+                }
+                
+                this.terminal.success('SSL certificates configured successfully!')
             } catch (e) {
-                this.terminal.warning('Could not set certificate permissions automatically')
-                console.log('Manual fix: sudo chmod 644 /etc/letsencrypt/archive/' + this.config.domain + '/*.pem')
+                this.terminal.error('Failed to copy certificates: ' + e.message)
+                // Fallback to original paths
+                this.config.ssl = {
+                    key: `/etc/letsencrypt/live/${this.config.domain}/privkey.pem`,
+                    cert: `/etc/letsencrypt/live/${this.config.domain}/cert.pem`
+                }
             }
-            
-            this.config.ssl = {
-                key: `/etc/letsencrypt/live/${this.config.domain}/privkey.pem`,
-                cert: `/etc/letsencrypt/live/${this.config.domain}/cert.pem`
-            }
-            this.terminal.success('SSL certificate installed successfully!')
         } catch {
             this.terminal.error('SSL certificate installation failed')
             console.log('')
