@@ -126,7 +126,7 @@ class TestContext {
 
 // Assertion helpers
 // Simple assert function
-global.assert = function(condition, message) {
+global.assert = (condition, message) => {
     if (!condition) {
         throw new Error(message || 'Assertion failed')
     }

@@ -12,13 +12,13 @@ const ddnsScript = path.join(__dirname, '..', '..', 'ddns.js')
 suite('ddns tests', () => {
     let testIndex = 0
     
-    function createTestDir() {
+    const createTestDir = () => {
         const dir = path.join(__dirname, '..', 'fixtures', `test-${Date.now()}-${testIndex++}`)
         fs.mkdirSync(dir, { recursive: true })
         return dir
     }
     
-    function cleanupTestDir(dir) {
+    const cleanupTestDir = (dir) => {
         try {
             if (fs.existsSync(dir)) {
                 fs.rmSync(dir, { recursive: true, force: true })
@@ -28,7 +28,7 @@ suite('ddns tests', () => {
         }
     }
     
-    function assert(condition, message) {
+    const assert = (condition, message) => {
         if (!condition) throw new Error(message)
     }
     
@@ -202,7 +202,7 @@ suite('ddns tests', () => {
             const validIPs = ['1.1.1.1', '192.168.1.1', '255.255.255.255']
             const invalidIPs = ['256.1.1.1', '1.1.1', 'not.an.ip', '']
             
-            function isValidIP(ip) {
+            const isValidIP = (ip) => {
                 const ipPattern = /^(\d{1,3}\.){3}\d{1,3}$/
                 if (!ipPattern.test(ip)) return false
                 

@@ -16,7 +16,7 @@ suite('installer lifecycle integration tests', () => {
     }
     
     // Helper to create unique test directory for each test
-    function createTestDir() {
+    const createTestDir = () => {
         const dir = path.join(fixturesDir, `lifecycle-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
         if (!fs.existsSync(fixturesDir)) {
             fs.mkdirSync(fixturesDir, { recursive: true })
@@ -26,7 +26,7 @@ suite('installer lifecycle integration tests', () => {
     }
     
     // Helper to cleanup test directory
-    function cleanupTestDir(dir) {
+    const cleanupTestDir = (dir) => {
         try {
             if (fs.existsSync(dir)) {
                 fs.rmSync(dir, { recursive: true, force: true })

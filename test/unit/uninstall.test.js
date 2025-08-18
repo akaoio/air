@@ -11,7 +11,7 @@ suite('uninstaller tests', () => {
     const uninstallScript = path.join(process.cwd(), 'script/uninstall.js')
     
     // Helper to create unique test directory
-    function createTestDir() {
+    const createTestDir = () => {
         const dir = path.join(fixturesDir, `uninstall-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
         if (!fs.existsSync(fixturesDir)) {
             fs.mkdirSync(fixturesDir, { recursive: true })
@@ -21,7 +21,7 @@ suite('uninstaller tests', () => {
     }
     
     // Helper to cleanup test directory
-    function cleanupTestDir(dir) {
+    const cleanupTestDir = (dir) => {
         try {
             if (fs.existsSync(dir)) {
                 fs.rmSync(dir, { recursive: true, force: true })

@@ -12,13 +12,13 @@ const installScript = path.join(__dirname, '..', '..', 'install.js')
 suite('install tests', () => {
     let testIndex = 0
     
-    function createTestDir() {
+    const createTestDir = () => {
         const dir = path.join(__dirname, '..', 'fixtures', `test-${Date.now()}-${testIndex++}`)
         fs.mkdirSync(dir, { recursive: true })
         return dir
     }
     
-    function cleanupTestDir(dir) {
+    const cleanupTestDir = (dir) => {
         try {
             if (fs.existsSync(dir)) {
                 fs.rmSync(dir, { recursive: true, force: true })
@@ -28,7 +28,7 @@ suite('install tests', () => {
         }
     }
     
-    function assert(condition, message) {
+    const assert = (condition, message) => {
         if (!condition) throw new Error(message)
     }
     
