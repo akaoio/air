@@ -37,7 +37,7 @@ class AirInstaller {
             nonInteractive: false,
             checkOnly: false,
             quick: false,
-            auto: false,  // New auto mode for postinstall
+            check: false,  // Check mode for postinstall
             root: null,
             name: null,
             env: null,
@@ -54,11 +54,11 @@ class AirInstaller {
                 this.args.nonInteractive = true
             } else if (arg === '--check-only') {
                 this.args.checkOnly = true
-            } else if (arg === '--quick') {
+            } else if (arg === '--quick' || arg === '--default') {
                 this.args.quick = true
-                this.args.nonInteractive = true  // Quick mode implies non-interactive
-            } else if (arg === '--auto') {
-                this.args.auto = true  // Auto mode for postinstall
+                // Quick mode: use all defaults, skip prompts
+            } else if (arg === '--check') {
+                this.args.check = true  // Check mode for postinstall
             } else if (arg === '--root' && argv[i + 1]) {
                 this.args.root = argv[++i]
             } else if (arg === '--name' && argv[i + 1]) {
@@ -84,9 +84,9 @@ class AirInstaller {
     }
 
     async run() {
-        // Auto mode for postinstall
-        if (this.args.auto) {
-            return this.runAutoMode()
+        // Check mode for postinstall
+        if (this.args.check) {
+            return this.checkAndInform()
         }
         
         // Check-only mode for tests
@@ -125,7 +125,7 @@ class AirInstaller {
         return true
     }
     
-    runAutoMode() {
+    checkAndInform() {
         // Skip if CI environment
         if (process.env.CI || process.env.CONTINUOUS_INTEGRATION) {
             console.log(chalk.gray('CI environment detected, skipping auto setup'))

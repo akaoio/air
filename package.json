@@ -19,7 +19,7 @@
         "test": "node test/runner.js",
         "format": "npx prettier --write .",
         "setup": "node install.js",
-        "postinstall": "node install.js --auto"
+        "postinstall": "node install.js --check"
     },
     "devDependencies": {
         "prettier": "^2.4.1"
