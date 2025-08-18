@@ -13,6 +13,55 @@ import "gun/nts.js"
 const sea = GUN.SEA
 const execAsync = promisify(exec)
 
+const defaults = {
+    port: {
+        development: 8765,
+        production: 443
+    },
+    domain: {
+        development: 'localhost',
+        production: null
+    },
+    environment: 'development',
+    restart: {
+        max: 5,
+        delay: 5000,
+        limit: 60000,
+        jitter: 0.2
+    },
+    timeout: {
+        ip: 5000,
+        dns: 3000,
+        beat: 60000,
+        update: 300000,
+        ddns: 300000,
+        sync: 3600000
+    },
+    ip: {
+        agent: 'air-gun-peer/1.0',
+        dns: [
+            { hostname: 'myip.opendns.com', resolver: 'resolver1.opendns.com' },
+            { hostname: 'myip.opendns.com', resolver: 'resolver2.opendns.com' }
+        ],
+        http: [
+            { url: 'https://checkip.amazonaws.com', format: 'text' },
+            { url: 'https://api.ipify.org?format=json', format: 'json', field: 'ip' },
+            { url: 'https://ipinfo.io/ip', format: 'text' },
+            { url: 'https://ifconfig.me/ip', format: 'text' }
+        ]
+    },
+    system: {
+        min: 1,
+        max: 65535
+    },
+    path: {
+        config: 'air.json',
+        prefix: '.air-',
+        suffix: '.pid',
+        data: 'radata'
+    }
+}
+
 export class Peer {
     constructor(config = {}) {
         // argv[2] -> root
@@ -28,12 +77,12 @@ export class Peer {
 
         this.config = config || {}
         this.restarts = {
-            max: 5, // Maximum restart attempts
-            count: 0 // Current restart count
+            max: defaults.restart.max,
+            count: 0
         }
         this.delay = {
-            base: 5000, // 5 seconds base delay
-            max: 60000 // 60 seconds max delay
+            base: defaults.restart.delay,
+            max: defaults.restart.limit
         }
         this.pidFile = null // Will be set after config initialization
 
@@ -41,10 +90,20 @@ export class Peer {
 
         this.config.root = this.config.root || process.env.ROOT || process.argv[2] || process.env.PWD || process.cwd() || cwd
 
+        // Validate root path to prevent path traversal BEFORE using it
+        const rootStr = String(this.config.root || '')
+        if (rootStr.includes('..') || 
+            rootStr.includes('~') || 
+            rootStr.includes('%2e') || 
+            rootStr.includes('%2E') ||
+            rootStr.includes('\\')) {
+            throw new Error('Invalid root path: potential path traversal detected')
+        }
+
         this.config.bash = (this.config.bash || process.env.BASH || process.argv[3] || cwd).replace(/\/\s*$/, "")
 
         // Path of the config file
-        this.config.path = path.join(this.config.root, "air.json")
+        this.config.path = path.join(this.config.root, defaults.path.config)
 
         this.read()
 
@@ -82,15 +141,6 @@ export class Peer {
 
         this.options = {}
 
-        // Validate root path to prevent path traversal
-        const rootStr = String(this.config.root || '')
-        if (rootStr.includes('..') || 
-            rootStr.includes('~') || 
-            rootStr.includes('%2e') || 
-            rootStr.includes('%2E') ||
-            rootStr.includes('\\')) {
-            throw new Error('Invalid root path: potential path traversal detected')
-        }
         const rootPath = path.resolve(this.config.root)
 
         if (key && cert) {
@@ -99,7 +149,7 @@ export class Peer {
         }
 
         // Set PID file path
-        this.pidFile = path.join(this.config.root, `.air-${this.config.name || 'default'}.pid`)
+        this.pidFile = path.join(this.config.root, `${defaults.path.prefix}${this.config.name || 'default'}${defaults.path.suffix}`)
 
         // Check for existing instance (skip if in test mode with skipPidCheck)
         if (!config?.skipPidCheck) {
@@ -141,12 +191,11 @@ export class Peer {
                     process.kill(oldPid, 0) // Signal 0 just checks if process exists
                     console.log(`Air instance already running with PID ${oldPid}`)
                     console.log(`Reusing existing instance on port ${this.config[this.env].port}`)
-                    console.log(`If you need to restart, kill process ${oldPid} first`)
-                    // Only exit if not in test environment
-                    if (process.env.NODE_ENV !== 'test') {
-                        process.exit(0) // Exit cleanly as instance is already running
-                    }
-                    return // Just return for tests
+                    console.log(`Connecting to existing GUN network...`)
+                    
+                    // Instead of exiting, connect to existing instance as peer
+                    this.reuse = true
+                    return // Continue with connection to existing instance
                 } catch (e) {
                     // Process not running, clean up stale PID file
                     console.log(`Removing stale PID file for non-existent process ${oldPid}`)
@@ -164,8 +213,6 @@ export class Peer {
                 
                 const cleanup = () => {
                     // Clean up all Air PID files for this process
-                    const fs = require('fs')
-                    const path = require('path')
                     try {
                         const files = fs.readdirSync(this.config.root || '.')
                         files.forEach(file => {
@@ -218,6 +265,12 @@ export class Peer {
     }
 
     init() {
+        // If reusing existing instance, skip server creation
+        if (this.reuse) {
+            console.log('Skipping server creation - reusing existing instance')
+            return
+        }
+
         if (this.server) this.server.close()
 
         if (this.options.key && this.options.cert) {
@@ -268,7 +321,31 @@ export class Peer {
             this.restart()
         })
 
+        // Skip server listen if reusing existing instance
+        if (this.reuse) {
+            console.log('Connected to existing Air instance - ready for GUN operations')
+            return
+        }
+
         try {
+            // Validate and set port
+            const current = this.config[this.env].port
+            const fallback = defaults.port.development
+            
+            if (typeof current === 'string' && current !== 'localhost') {
+                this.config[this.env].port = fallback
+                console.log(`invalid port "${current}", using default ${fallback}`)
+            } else if (typeof current === 'number') {
+                if (current < defaults.system.min || current > defaults.system.max || !Number.isInteger(current) || isNaN(current)) {
+                    this.config[this.env].port = fallback
+                    console.log(`invalid port ${current}, using default ${fallback}`)
+                }
+            } else if (current === null || current === undefined || current === '' || 
+                       Array.isArray(current) || typeof current === 'object') {
+                this.config[this.env].port = fallback
+                console.log(`invalid port type, using default ${fallback}`)
+            }
+            
             this.server.listen(this.config[this.env].port)
             this.restarts.count = 0 // Reset counter on successful start
             console.log(`Server started successfully on port ${this.config[this.env].port}`)
@@ -340,11 +417,78 @@ export class Peer {
 
     read() {
         if (fs.existsSync(this.config.path)) {
-            let config = fs.readFileSync(this.config.path, "utf8")
-            config = JSON.parse(config)
-            this.config = merge(this.config, config)
+            try {
+                let config = fs.readFileSync(this.config.path, "utf8")
+                // validate JSON before parsing
+                if (!config.trim()) {
+                    throw new Error('Config file is empty')
+                }
+                config = JSON.parse(config)
+                this.config = merge(this.config, config)
+            } catch (error) {
+                console.error(`Failed to read config file ${this.config.path}:`, error.message)
+                throw new Error(`Invalid config file: ${error.message}`)
+            }
+        } else {
+            // Generate air.json from defaults if it doesn't exist
+            const config = this.generate(this.env || 'development')
+            // Merge with any existing config passed to constructor
+            this.config = merge(config, this.config)
+            // Write the generated config to create air.json
+            this.write()
         }
         return this.config
+    }
+
+    generate(env = defaults.environment) {
+        const dev = env === 'development'
+        
+        return {
+            name: dev ? 'localhost' : null,
+            env,
+            root: process.cwd(),
+            bash: process.cwd(),
+            sync: null,
+            
+            [env]: {
+                domain: dev ? defaults.domain.development : defaults.domain.production,
+                port: dev ? defaults.port.development : defaults.port.production,
+                www: './',
+                peers: [],
+                ssl: {
+                    key: null,
+                    cert: null
+                },
+                pair: {
+                    pub: null,
+                    priv: null,
+                    epub: null,
+                    epriv: null
+                },
+                godaddy: {},
+                system: {}
+            },
+            
+            ip: {
+                timeout: defaults.timeout.ip,
+                dnstimeout: defaults.timeout.dns,
+                agent: defaults.ip.agent,
+                dns: defaults.ip.dns,
+                http: defaults.ip.http
+            },
+            restart: {
+                max: defaults.restart.max,
+                delay: defaults.restart.delay,
+                limit: defaults.restart.limit,
+                jitter: defaults.restart.jitter
+            },
+            intervals: {
+                beat: defaults.timeout.beat,
+                update: defaults.timeout.update,
+                ddns: defaults.timeout.ddns,
+                sync: defaults.timeout.sync
+            }
+        }
     }
 
     write() {
@@ -384,10 +528,15 @@ export class Peer {
 
     run(callback = () => {}) {
         return new Promise((resolve, reject) => {
-            this.gun = GUN({
+            // If reusing existing instance, connect as peer to existing server
+            const gunConfig = this.reuse ? {
+                peers: [`ws://localhost:${this.config[this.env].port}/gun`, ...this.config[this.env].peers]
+            } : {
                 web: this.server,
                 peers: this.config[this.env].peers
-            })
+            }
+            
+            this.gun = GUN(gunConfig)
             this.user = this.gun.user()
 
             if (!this.config[this.env]?.pair?.pub && !this.config[this.env]?.pair?.priv)
@@ -525,25 +674,25 @@ export class Peer {
 
             // Build configuration from air.json with environment overrides
             const config = {
-                timeout: process.env.IP_TIMEOUT ? parseInt(process.env.IP_TIMEOUT) : ip.timeout || defaults.timeout,
+                timeout: process.env.IP_TIMEOUT ? parseInt(process.env.IP_TIMEOUT) : ip.timeout || defaults.timeout.ip,
 
-                dnsTimeout: process.env.IP_DNS_TIMEOUT ? parseInt(process.env.IP_DNS_TIMEOUT) : ip.dnstimeout || defaults.dnstimeout,
+                dnsTimeout: process.env.IP_DNS_TIMEOUT ? parseInt(process.env.IP_DNS_TIMEOUT) : ip.dnstimeout || defaults.timeout.dns,
 
-                userAgent: process.env.IP_AGENT || ip.agent || defaults.agent,
+                userAgent: process.env.IP_AGENT || ip.agent || defaults.ip.agent,
 
-                dnsServices: ip.dns || defaults.dns,
-                httpServices: ip.http || defaults.http
+                dnsServices: ip.dns || defaults.ip.dns,
+                httpServices: ip.http || defaults.ip.http
             }
 
             return config
         } else {
             // If no ip in config, add it for future use
             this.config.ip = {
-                timeout: defaults.timeout,
-                dnstimeout: defaults.dnstimeout,
-                agent: defaults.agent,
-                dns: defaults.dns,
-                http: defaults.http
+                timeout: defaults.timeout.ip,
+                dnstimeout: defaults.timeout.dns,
+                agent: defaults.ip.agent,
+                dns: defaults.ip.dns,
+                http: defaults.ip.http
             }
 
             // Save the default config to air.json for next time
@@ -551,11 +700,11 @@ export class Peer {
 
             // Return default config with environment overrides
             return {
-                timeout: process.env.IP_TIMEOUT ? parseInt(process.env.IP_TIMEOUT) : defaults.timeout,
-                dnsTimeout: process.env.IP_DNS_TIMEOUT ? parseInt(process.env.IP_DNS_TIMEOUT) : defaults.dnstimeout,
-                userAgent: process.env.IP_AGENT || defaults.agent,
-                dnsServices: defaults.dns,
-                httpServices: defaults.http
+                timeout: process.env.IP_TIMEOUT ? parseInt(process.env.IP_TIMEOUT) : defaults.timeout.ip,
+                dnsTimeout: process.env.IP_DNS_TIMEOUT ? parseInt(process.env.IP_DNS_TIMEOUT) : defaults.timeout.dns,
+                userAgent: process.env.IP_AGENT || defaults.ip.agent,
+                dnsServices: defaults.ip.dns,
+                httpServices: defaults.ip.http
             }
         }
     }

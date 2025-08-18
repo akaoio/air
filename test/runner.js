@@ -169,8 +169,14 @@ global.assert = {
             throw new Error(message || 'Expected function to throw')
         }
 
-        if (expectedError && !error.message.includes(expectedError)) {
-            throw new Error(message || `Expected error containing "${expectedError}", got "${error.message}"`)
+        if (expectedError) {
+            const matches = expectedError instanceof RegExp 
+                ? expectedError.test(error.message)
+                : error.message.includes(expectedError)
+            
+            if (!matches) {
+                throw new Error(message || `Expected error matching "${expectedError}", got "${error.message}"`)
+            }
         }
     },
 
@@ -189,8 +195,14 @@ global.assert = {
             throw new Error(message || 'Expected async function to reject')
         }
 
-        if (expectedError && !error.message.includes(expectedError)) {
-            throw new Error(message || `Expected error containing "${expectedError}", got "${error.message}"`)
+        if (expectedError) {
+            const matches = expectedError instanceof RegExp 
+                ? expectedError.test(error.message)
+                : error.message.includes(expectedError)
+            
+            if (!matches) {
+                throw new Error(message || `Expected error matching "${expectedError}", got "${error.message}"`)
+            }
         }
     },
 

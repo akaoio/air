@@ -69,10 +69,17 @@ done
 # Config bash directory
 [ -z $bash ] && bash=$(cd `dirname $0` && pwd) # Root folder of Bash script files
 
-# Check if jq is installed? Install jq if jq doesn's exist.
+# Check if jq is installed? Install jq if jq doesn't exist.
 if ! command -v jq &> /dev/null
 then
     sudo apt install jq
+fi
+
+# Check if DNS tools are installed (dig and nslookup)
+if ! command -v dig &> /dev/null || ! command -v nslookup &> /dev/null
+then
+    echo "Installing DNS tools (dig and nslookup) for IP detection..."
+    sudo apt install -y dnsutils
 fi
 
 # If config file exists, try to assign variables
@@ -301,8 +308,8 @@ then
     sudo apt update
     echo "Upgrading system"
     sudo apt upgrade
-    echo "Installing required programs: nodejs npm certbot curl"
-    sudo apt install nodejs npm certbot curl
+    echo "Installing required programs: nodejs npm certbot curl dnsutils"
+    sudo apt install nodejs npm certbot curl dnsutils
     sudo npm install
     # Remove old crontab commands if exists
     sudo crontab -u $USER -l | grep -v "$bash/update.sh" | crontab -u $USER -

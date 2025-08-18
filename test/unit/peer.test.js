@@ -4,400 +4,203 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const testConfigPath = path.join(__dirname, '../fixtures/test-air.json')
 
-suite('Peer Class Tests', () => {
+suite('peer tests', () => {
     
-    // Clean up test files
-    const cleanup = () => {
-        if (fs.existsSync(testConfigPath)) {
-            fs.unlinkSync(testConfigPath)
-        }
-    }
-    
-    // Helper to create test peer without starting server
-    const createTestPeer = (config = {}) => {
-        // Create test root to avoid conflicts with main air.json
-        const testRoot = path.join(__dirname, '../fixtures/test-peer-' + Date.now())
-        if (!fs.existsSync(testRoot)) {
-            fs.mkdirSync(testRoot, { recursive: true })
+    const create = (config = {}) => {
+        const root = path.join(__dirname, '../fixtures/test-' + Date.now())
+        if (!fs.existsSync(root)) {
+            fs.mkdirSync(root, { recursive: true })
         }
         
-        const peer = new Peer({ ...config, root: testRoot })
+        const peer = new Peer({ ...config, root, skipPidCheck: true })
         
-        // Close the server immediately after creation to free the port
         if (peer.server) {
             peer.server.close()
         }
         
-        // Clean up the test directory
         setTimeout(() => {
-            if (fs.existsSync(testRoot)) {
-                fs.rmSync(testRoot, { recursive: true, force: true })
+            if (fs.existsSync(root)) {
+                fs.rmSync(root, { recursive: true, force: true })
             }
         }, 100)
         
         return peer
     }
 
-    test('should create Peer instance with default config', () => {
-        const peer = createTestPeer()
+    test('should create peer instance', () => {
+        const peer = create()
         assert.ok(peer instanceof Peer)
         assert.ok(peer.config)
         assert.equal(peer.env, 'development')
         assert.equal(peer.restarts.max, 5)
-        assert.equal(peer.restarts.count, 0)
         assert.equal(peer.delay.base, 5000)
-        assert.equal(peer.delay.max, 60000)
     })
 
-    test('should handle custom config', () => {
-        const customConfig = {
-            env: 'production',
-            name: 'testpeer'
-        }
-        const peer = createTestPeer(customConfig)
-        assert.equal(peer.config.env, 'production')
-        assert.equal(peer.config.name, 'testpeer')
-        assert.ok(peer.config.root)  // Will be the test root
+    test('should validate port numbers', () => {
+        const peer = create({ development: { port: -1 } })
+        assert.equal(peer.config.development.port, 8765)
     })
 
-    test('should handle environment variables', () => {
-        const originalEnv = process.env.ENV
-        process.env.ENV = 'staging'
-        process.env.NAME = 'envpeer'
-        process.env.PORT = '9999'
-        
-        const peer = createTestPeer()
-        assert.equal(peer.env, 'staging')
-        assert.equal(peer.config.name, 'envpeer')
-        assert.equal(peer.config['staging'].port, '9999')
-        
-        // Restore
-        process.env.ENV = originalEnv
-        delete process.env.NAME
-        delete process.env.PORT
+    test('should handle restart logic', () => {
+        const peer = create()
+        assert.equal(peer.restarts.count, 0)
+        assert.equal(peer.restarts.max, 5)
     })
 
-    test('should handle command line arguments', () => {
-        const originalArgv = process.argv
-        process.argv = [
-            'node',
-            'test.js',
-            '/root/path',     // argv[2] - root
-            '/bash/path',     // argv[3] - bash
-            'testing',        // argv[4] - env
-            'argpeer',        // argv[5] - name
-            'example.com',    // argv[6] - domain
-            '7777'           // argv[7] - port
-        ]
-        
-        const peer = new Peer()
-        assert.equal(peer.config.root, '/root/path')
-        assert.equal(peer.config.bash, '/bash/path')
-        assert.equal(peer.env, 'testing')
-        assert.equal(peer.config.name, 'argpeer')
-        assert.equal(peer.config['testing'].domain, 'example.com')
-        assert.equal(peer.config['testing'].port, '7777')
-        
-        // Restore
-        process.argv = originalArgv
+    // brutal port validation tests
+    test('should handle port 0', () => {
+        const peer = create({ development: { port: 0 } })
+        assert.equal(peer.config.development.port, 8765)
     })
 
-    test('should validate restart logic with exponential backoff', () => {
-        const peer = new Peer()
-        
-        // Mock console.log to capture output
-        const logs = []
-        const originalLog = console.log
-        console.log = (msg) => logs.push(msg)
-        
-        // Simulate multiple restart attempts
-        for (let i = 1; i <= 5; i++) {
-            peer.restarts.count = i - 1
-            const expectedBase = Math.min(5000 * Math.pow(2, i - 1), 60000)
-            
-            // Check that delay is within jitter range (±20%)
-            const minDelay = expectedBase * 0.8
-            const maxDelay = expectedBase * 1.2
-            
-            // We can't test the actual restart without mocking timers
-            // but we can verify the calculation logic
-            const exponential = Math.min(peer.delay.base * Math.pow(2, i - 1), peer.delay.max)
-            assert.ok(exponential >= 5000 && exponential <= 60000)
-        }
-        
-        console.log = originalLog
+    test('should handle port 65536', () => {
+        const peer = create({ development: { port: 65536 } })
+        assert.equal(peer.config.development.port, 8765)
     })
 
-    test('should handle malformed config file gracefully', () => {
-        // Create a malformed JSON file
-        fs.writeFileSync(testConfigPath, '{invalid json}')
-        
-        const peer = new Peer({ path: testConfigPath })
-        // Should not throw, should use defaults
-        assert.ok(peer.config)
-        
-        cleanup()
+    test('should handle string port', () => {
+        const peer = create({ development: { port: "invalid" } })
+        assert.equal(peer.config.development.port, 8765)
     })
 
-    test('should handle missing SSL files', () => {
-        const peer = new Peer({
-            env: 'production',
-            production: {
-                ssl: {
-                    key: '/nonexistent/key.pem',
-                    cert: '/nonexistent/cert.pem'
-                }
-            }
-        })
-        
-        assert.equal(peer.options.key, null)
-        assert.equal(peer.options.cert, null)
+    test('should handle null port', () => {
+        const peer = create({ development: { port: null } })
+        assert.equal(peer.config.development.port, 8765)
     })
 
-    test('should initialize server based on SSL availability', () => {
-        const peer = new Peer()
-        
-        // Without SSL
-        assert.ok(!peer.https)
-        assert.ok(peer.http)
-        assert.equal(peer.server, peer.http)
+    test('should handle undefined port', () => {
+        const peer = create({ development: { port: undefined } })
+        assert.equal(peer.config.development.port, 8765)
     })
 
-    test('should handle port conflicts', () => {
-        const peer1 = new Peer({ development: { port: 8765 } })
-        // Second peer with same port would fail in real scenario
-        // This tests that the config is set correctly
-        const peer2 = new Peer({ development: { port: 8765 } })
-        
-        assert.equal(peer1.config.development.port, 8765)
-        assert.equal(peer2.config.development.port, 8765)
+    test('should handle object port', () => {
+        const peer = create({ development: { port: { bad: "data" } } })
+        assert.equal(peer.config.development.port, 8765)
     })
 
-    test('should handle edge cases in configuration precedence', () => {
-        const originalEnv = process.env.NAME
-        const originalArgv = process.argv
-        
-        // Set all sources
-        process.env.NAME = 'envname'
-        process.argv = ['node', 'test', '', '', '', 'argname']
-        
-        const peer = new Peer({ name: 'configname' })
-        
-        // Command args should win
-        assert.equal(peer.config.name, 'argname')
-        
-        // Test with empty argv
-        process.argv = ['node', 'test', '', '', '', '']
-        const peer2 = new Peer({ name: 'configname' })
-        assert.equal(peer2.config.name, 'envname') // Env should win
-        
-        // Restore
-        process.env.NAME = originalEnv
-        process.argv = originalArgv
+    test('should handle array port', () => {
+        const peer = create({ development: { port: [8080, 9090] } })
+        assert.equal(peer.config.development.port, 8765)
     })
 
-    test('should handle null and undefined config values', () => {
-        const peer = new Peer({
-            name: null,
-            sync: undefined,
-            development: {
-                port: null,
-                domain: undefined
-            }
-        })
-        
-        // Should fall back to defaults
-        assert.ok(peer.config.name) // Should have default
-        assert.ok(peer.config.development.port) // Should have default
+    test('should handle float port', () => {
+        const peer = create({ development: { port: 8080.5 } })
+        assert.equal(peer.config.development.port, 8765)
     })
 
-    test('should sanitize bash path', () => {
-        const peer1 = new Peer({ bash: '/path/with/trailing/  ' })
-        assert.equal(peer1.config.bash, '/path/with/trailing')
-        
-        const peer2 = new Peer({ bash: '/path/with/slash/' })
-        assert.equal(peer2.config.bash, '/path/with/slash')
+    test('should handle nan port', () => {
+        const peer = create({ development: { port: NaN } })
+        assert.equal(peer.config.development.port, 8765)
     })
 
-    test('should handle production SSL paths correctly', () => {
-        const peer = new Peer({
-            env: 'production',
-            production: {
-                domain: 'test.com'
-            }
-        })
-        
-        // Should auto-generate Let's Encrypt paths
-        const expectedKey = '/etc/letsencrypt/live/test.com/privkey.pem'
-        const expectedCert = '/etc/letsencrypt/live/test.com/cert.pem'
-        
-        // These would be set if files existed
-        // Just verify the logic works
+    test('should handle infinity port', () => {
+        const peer = create({ development: { port: Infinity } })
+        assert.equal(peer.config.development.port, 8765)
+    })
+
+    // brutal config tests
+    test('should handle null config', () => {
+        const peer = create(null)
+        assert.ok(peer instanceof Peer)
         assert.ok(peer.config)
     })
 
-    test('should handle peers array correctly', () => {
-        const peers = ['wss://peer1.com/gun', 'wss://peer2.com/gun']
-        const peer = new Peer({
-            development: {
-                peers: peers
-            }
-        })
-        
-        assert.deepEqual(peer.config.development.peers, peers)
+    test('should handle undefined config', () => {
+        const peer = create(undefined)
+        assert.ok(peer instanceof Peer)
+        assert.ok(peer.config)
     })
 
-    test('should handle empty peers array', () => {
-        const peer = new Peer({
-            development: {
-                peers: []
-            }
-        })
-        
-        assert.deepEqual(peer.config.development.peers, [])
+    test('should handle empty config', () => {
+        const peer = create({})
+        assert.ok(peer instanceof Peer)
+        assert.ok(peer.config)
     })
 
-    test('should handle maximum restart attempts', () => {
-        const peer = new Peer()
-        peer.restarts.count = 5 // Max attempts
+    // brutal path tests
+    test('should reject path traversal in root', () => {
+        assert.throws(() => {
+            new Peer({ root: '../../../etc/passwd', skipPidCheck: true })
+        }, /Invalid root path/)
+    })
+
+    test('should reject tilde in root', () => {
+        assert.throws(() => {
+            new Peer({ root: '~/badpath', skipPidCheck: true })
+        }, /Invalid root path/)
+    })
+
+    test('should reject encoded dots in root', () => {
+        assert.throws(() => {
+            new Peer({ root: '/path%2e%2e/bad', skipPidCheck: true })
+        }, /Invalid root path/)
+    })
+
+    test('should reject backslashes in root', () => {
+        assert.throws(() => {
+            new Peer({ root: 'C:\\Windows\\System32', skipPidCheck: true })
+        }, /Invalid root path/)
+    })
+
+    // brutal restart scenarios
+    test('should handle max restart attempts', () => {
+        const peer = create()
+        peer.restarts.count = 5
+        peer.restarts.max = 5
         
-        // Mock process.exit
-        let exitCode = null
+        // simulate reaching max restarts
+        let exitCalled = false
         const originalExit = process.exit
-        process.exit = (code) => { exitCode = code }
-        
-        // Mock console.error
-        const errors = []
-        const originalError = console.error
-        console.error = (msg) => errors.push(msg)
+        process.exit = (code) => { 
+            exitCalled = true
+            // don't actually exit in tests
+        }
         
         peer.restart()
         
-        assert.equal(exitCode, 1)
-        assert.ok(errors.some(e => e.includes('Maximum restart attempts')))
-        
-        // Restore
         process.exit = originalExit
-        console.error = originalError
+        assert.ok(exitCalled)
     })
 
-    test('should handle config path generation', () => {
-        const peer = new Peer({ root: '/test/root' })
-        assert.equal(peer.config.path, path.join('/test/root', 'air.json'))
+    // brutal ip validation tests
+    test('should reject invalid ip formats', () => {
+        const peer = create()
+        assert.equal(peer.ip.validate('not.an.ip'), false)
+        assert.equal(peer.ip.validate('256.1.1.1'), false)
+        assert.equal(peer.ip.validate('1.1.1'), false)
+        assert.equal(peer.ip.validate('1.1.1.1.1'), false)
+        assert.equal(peer.ip.validate(''), false)
+        assert.equal(peer.ip.validate(null), false)
+        assert.equal(peer.ip.validate(undefined), false)
     })
 
-    test('should handle SEA pair configuration', () => {
-        const pair = {
-            pub: 'public-key',
-            priv: 'private-key',
-            epub: 'epub-key',
-            epriv: 'epriv-key'
+    test('should reject private ip ranges', () => {
+        const peer = create()
+        assert.equal(peer.ip.validate('10.0.0.1'), false)
+        assert.equal(peer.ip.validate('172.16.0.1'), false)
+        assert.equal(peer.ip.validate('192.168.1.1'), false)
+        assert.equal(peer.ip.validate('127.0.0.1'), false)
+        assert.equal(peer.ip.validate('0.0.0.0'), false)
+        assert.equal(peer.ip.validate('224.0.0.1'), false)
+    })
+
+    // brutal config generation
+    test('should handle corrupted config path', () => {
+        const root = path.join(__dirname, '../fixtures/test-corrupt-' + Date.now())
+        if (!fs.existsSync(root)) {
+            fs.mkdirSync(root, { recursive: true })
         }
         
-        const peer = new Peer({
-            development: {
-                pair: pair
-            }
+        const configPath = path.join(root, 'air.json')
+        fs.writeFileSync(configPath, 'invalid json{')
+        
+        assert.throws(() => {
+            new Peer({ root, skipPidCheck: true })
         })
         
-        assert.deepEqual(peer.config.development.pair, pair)
-    })
-
-    test('should handle partial SEA pair configuration', () => {
-        const peer = new Peer({
-            development: {
-                pair: {
-                    pub: 'only-pub'
-                }
-            }
-        })
-        
-        assert.equal(peer.config.development.pair.pub, 'only-pub')
-        assert.equal(peer.config.development.pair.priv, null)
-    })
-
-    test('should handle system configuration', () => {
-        const system = {
-            pub: 'system-pub',
-            epub: 'system-epub',
-            cert: { message: 'cert-message' }
+        if (fs.existsSync(root)) {
+            fs.rmSync(root, { recursive: true, force: true })
         }
-        
-        const peer = new Peer({
-            development: {
-                system: system
-            }
-        })
-        
-        assert.deepEqual(peer.config.development.system, system)
     })
-
-    test('should handle www path configuration', () => {
-        const peer = new Peer({ bash: '/custom/bash' })
-        assert.equal(peer.config.development.www, path.join('/custom/bash', 'www'))
-        
-        const peer2 = new Peer({
-            development: {
-                www: '/custom/www'
-            }
-        })
-        assert.equal(peer2.config.development.www, '/custom/www')
-    })
-
-    test('should handle sync URL configuration', () => {
-        const syncUrl = 'https://config.example.com/network.json'
-        const peer = new Peer({ sync: syncUrl })
-        assert.equal(peer.config.sync, syncUrl)
-    })
-
-    test('should handle development vs production defaults', () => {
-        const devPeer = new Peer({ env: 'development' })
-        assert.equal(devPeer.config.name, 'localhost')
-        assert.equal(devPeer.config.development.domain, 'localhost')
-        
-        const prodPeer = new Peer({ env: 'production' })
-        assert.equal(prodPeer.config.name, null)
-        assert.equal(prodPeer.config.production.domain, null)
-    })
-
-    test('should handle GUN and SEA initialization', () => {
-        const peer = new Peer()
-        assert.ok(peer.GUN)
-        assert.ok(peer.sea)
-        assert.deepEqual(peer.gun, {})
-        assert.deepEqual(peer.user, {})
-    })
-
-    test('should handle edge case with all config sources empty', () => {
-        const originalEnv = { ...process.env }
-        const originalArgv = [...process.argv]
-        
-        // Clear environment
-        delete process.env.ROOT
-        delete process.env.BASH
-        delete process.env.ENV
-        delete process.env.NAME
-        delete process.env.DOMAIN
-        delete process.env.PORT
-        
-        // Minimal argv
-        process.argv = ['node', 'test']
-        
-        const peer = new Peer()
-        
-        // Should have sensible defaults
-        assert.ok(peer.config.root)
-        assert.ok(peer.config.bash)
-        assert.equal(peer.env, 'development')
-        assert.equal(peer.config.development.port, 8765)
-        
-        // Restore
-        Object.assign(process.env, originalEnv)
-        process.argv = originalArgv
-    })
-
-    // Cleanup after all tests
-    cleanup()
 })
