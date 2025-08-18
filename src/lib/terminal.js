@@ -32,136 +32,7 @@ const bold = text => color(text, colors.bold)
 const dim = text => color(text, colors.dim)
 
 /**
- * Screen buffer for differential rendering
- */
-class ScreenBuffer {
-    constructor() {
-        this.lines = new Map() // line number -> content
-        this.cursorY = 0
-        this.cursorX = 0
-        this.savedPosition = null
-    }
-
-    /**
-     * Save current cursor position
-     */
-    saveCursor() {
-        process.stdout.write('\x1b[s')
-        this.savedPosition = { x: this.cursorX, y: this.cursorY }
-    }
-
-    /**
-     * Restore saved cursor position
-     */
-    restoreCursor() {
-        process.stdout.write('\x1b[u')
-        if (this.savedPosition) {
-            this.cursorX = this.savedPosition.x
-            this.cursorY = this.savedPosition.y
-        }
-    }
-
-    /**
-     * Move cursor to specific position
-     * @param {number} x - Column (0-based)
-     * @param {number} y - Row (0-based)
-     */
-    moveTo(x, y) {
-        process.stdout.write(`\x1b[${y + 1};${x + 1}H`)
-        this.cursorX = x
-        this.cursorY = y
-    }
-
-    /**
-     * Write line at specific position with differential rendering
-     * @param {number} y - Line number
-     * @param {string} content - Line content
-     */
-    writeLine(y, content) {
-        const oldContent = this.lines.get(y)
-        
-        // Only update if content changed
-        if (oldContent !== content) {
-            this.saveCursor()
-            this.moveTo(0, y)
-            process.stdout.write('\x1b[2K') // Clear line
-            process.stdout.write(content)
-            this.lines.set(y, content)
-            this.restoreCursor()
-        }
-    }
-
-    /**
-     * Update specific part of a line
-     * @param {number} y - Line number
-     * @param {number} x - Starting column
-     * @param {string} content - New content
-     */
-    updatePartial(y, x, content) {
-        this.saveCursor()
-        this.moveTo(x, y)
-        process.stdout.write(content)
-        
-        // Update stored line content
-        const currentLine = this.lines.get(y) || ''
-        const before = currentLine.substring(0, x)
-        const after = currentLine.substring(x + content.length)
-        this.lines.set(y, before + content + after.padEnd(Math.max(0, currentLine.length - before.length - content.length)))
-        
-        this.restoreCursor()
-    }
-
-    /**
-     * Clear lines from start to end
-     * @param {number} startY - Start line
-     * @param {number} endY - End line
-     */
-    clearLines(startY, endY) {
-        this.saveCursor()
-        for (let y = startY; y <= endY; y++) {
-            this.moveTo(0, y)
-            process.stdout.write('\x1b[2K')
-            this.lines.delete(y)
-        }
-        this.restoreCursor()
-    }
-
-    /**
-     * Clear entire buffer
-     */
-    clear() {
-        this.lines.clear()
-        this.cursorX = 0
-        this.cursorY = 0
-        process.stdout.write('\x1b[2J\x1b[0f')
-    }
-
-    /**
-     * Get current cursor position (requires async)
-     * @returns {Promise<{x: number, y: number}>}
-     */
-    async getCursorPosition() {
-        return new Promise((resolve) => {
-            const onData = (data) => {
-                process.stdin.removeListener('data', onData)
-                const match = /\[(\d+);(\d+)R/.exec(data)
-                if (match) {
-                    this.cursorY = parseInt(match[1]) - 1
-                    this.cursorX = parseInt(match[2]) - 1
-                    resolve({ x: this.cursorX, y: this.cursorY })
-                } else {
-                    resolve({ x: this.cursorX, y: this.cursorY })
-                }
-            }
-            
-            process.stdin.once('data', onData)
-            process.stdout.write('\x1b[6n') // Request cursor position
-        })
-    }
-}
-
-/**
- * Terminal interaction utility class with differential rendering
+ * Terminal interaction utility class
  * Provides consistent interface for user input/output in CLI
  */
 class Terminal {
@@ -169,7 +40,6 @@ class Terminal {
         this.rl = null
         this.width = process.stdout.columns || 80
         this.height = process.stdout.rows || 24
-        this.buffer = new ScreenBuffer()
         
         // Update dimensions on resize
         if (process.stdout.isTTY) {
@@ -283,7 +153,7 @@ class Terminal {
     }
 
     /**
-     * Interactive select with arrow key navigation and differential rendering
+     * Interactive select with arrow key navigation (simplified version)
      * @param {string} prompt - The question to ask
      * @param {Array} choices - Array of choices
      * @param {*} defaultChoice - Default choice
@@ -296,32 +166,30 @@ class Terminal {
         let selectedIndex = defaultChoice ? choices.indexOf(defaultChoice) : 0
         if (selectedIndex < 0) selectedIndex = 0
         
-        // Get starting position for menu
-        const startY = this.buffer.cursorY + 1
-        
-        // Initial render - write all lines
-        choices.forEach((choice, i) => {
-            const line = i === selectedIndex 
-                ? green('▶ ') + bold(choice)
-                : '  ' + choice
-            console.log(line)
-            this.buffer.lines.set(startY + i, line)
-        })
-        
-        // Differential render - only update changed lines
-        const render = (oldIndex, newIndex) => {
-            // Update old selection (remove highlight)
-            if (oldIndex >= 0 && oldIndex < choices.length) {
-                const oldLine = '  ' + choices[oldIndex]
-                this.buffer.writeLine(startY + oldIndex, oldLine)
-            }
+        // Initial render
+        const render = () => {
+            // Move up to start of menu
+            this.moveUp(choices.length)
             
-            // Update new selection (add highlight)
-            if (newIndex >= 0 && newIndex < choices.length) {
-                const newLine = green('▶ ') + bold(choices[newIndex])
-                this.buffer.writeLine(startY + newIndex, newLine)
-            }
+            // Render all choices
+            choices.forEach((choice, i) => {
+                this.clearLine()
+                if (i === selectedIndex) {
+                    console.log(green('▶ ') + bold(choice))
+                } else {
+                    console.log('  ' + choice)
+                }
+            })
         }
+        
+        // Initial display
+        choices.forEach((choice, i) => {
+            if (i === selectedIndex) {
+                console.log(green('▶ ') + bold(choice))
+            } else {
+                console.log('  ' + choice)
+            }
+        })
         
         // Enable raw mode for arrow key input
         this.enableRawMode()
@@ -329,14 +197,13 @@ class Terminal {
         let result = null
         while (result === null) {
             const key = await this.keypress()
-            const oldIndex = selectedIndex
             
             if (key.name === 'up') {
                 selectedIndex = (selectedIndex - 1 + choices.length) % choices.length
-                render(oldIndex, selectedIndex)
+                render()
             } else if (key.name === 'down') {
                 selectedIndex = (selectedIndex + 1) % choices.length
-                render(oldIndex, selectedIndex)
+                render()
             } else if (key.name === 'enter') {
                 result = choices[selectedIndex]
             } else if (key.name === 'escape' || key.name === 'ctrl-c') {
@@ -346,17 +213,14 @@ class Terminal {
                 // Number key shortcut
                 const num = parseInt(key.name) - 1
                 if (num < choices.length) {
-                    render(selectedIndex, num)
                     selectedIndex = num
+                    render()
                     result = choices[selectedIndex]
                 }
             }
         }
         
         this.disableRawMode()
-        
-        // Move cursor to end of menu
-        this.buffer.moveTo(0, startY + choices.length)
         console.log() // New line after selection
         
         return result
@@ -435,7 +299,7 @@ class Terminal {
     }
 
     /**
-     * Interactive menu with arrow navigation and differential rendering
+     * Interactive menu with arrow navigation
      * @param {string} title - Menu title
      * @param {Array} items - Menu items
      * @param {Object} options - Options {fullscreen, loop}
@@ -511,7 +375,7 @@ class Terminal {
     }
 
     /**
-     * Interactive multi-select with arrow keys, space to toggle, and differential rendering
+     * Interactive multi-select with arrow keys and space to toggle
      * @param {string} prompt - The question to ask
      * @param {Array} choices - Array of choices
      * @param {Array} preSelected - Pre-selected choices
@@ -524,42 +388,30 @@ class Terminal {
         let selectedIndex = 0
         const selected = new Set(preSelected)
         
-        // Get starting position
-        const startY = this.buffer.cursorY + 1
+        // Render function
+        const render = () => {
+            this.moveUp(choices.length)
+            
+            choices.forEach((choice, i) => {
+                this.clearLine()
+                const marker = selected.has(choice) ? green('[✓]') : '[ ]'
+                if (i === selectedIndex) {
+                    console.log(cyan('▶ ') + marker + ' ' + bold(choice))
+                } else {
+                    console.log('  ' + marker + ' ' + choice)
+                }
+            })
+        }
         
         // Initial render
         choices.forEach((choice, i) => {
             const marker = selected.has(choice) ? green('[✓]') : '[ ]'
-            const line = i === selectedIndex
-                ? cyan('▶ ') + marker + ' ' + bold(choice)
-                : '  ' + marker + ' ' + choice
-            console.log(line)
-            this.buffer.lines.set(startY + i, line)
+            if (i === selectedIndex) {
+                console.log(cyan('▶ ') + marker + ' ' + bold(choice))
+            } else {
+                console.log('  ' + marker + ' ' + choice)
+            }
         })
-        
-        // Differential render
-        const render = (oldIndex, newIndex, toggledIndex = -1) => {
-            // Update old cursor position
-            if (oldIndex >= 0 && oldIndex < choices.length && oldIndex !== newIndex) {
-                const marker = selected.has(choices[oldIndex]) ? green('[✓]') : '[ ]'
-                const line = '  ' + marker + ' ' + choices[oldIndex]
-                this.buffer.writeLine(startY + oldIndex, line)
-            }
-            
-            // Update new cursor position
-            if (newIndex >= 0 && newIndex < choices.length) {
-                const marker = selected.has(choices[newIndex]) ? green('[✓]') : '[ ]'
-                const line = cyan('▶ ') + marker + ' ' + bold(choices[newIndex])
-                this.buffer.writeLine(startY + newIndex, line)
-            }
-            
-            // Update toggled item if different from cursor
-            if (toggledIndex >= 0 && toggledIndex !== newIndex) {
-                const marker = selected.has(choices[toggledIndex]) ? green('[✓]') : '[ ]'
-                const line = '  ' + marker + ' ' + choices[toggledIndex]
-                this.buffer.writeLine(startY + toggledIndex, line)
-            }
-        }
         
         // Enable raw mode
         this.enableRawMode()
@@ -567,14 +419,13 @@ class Terminal {
         let done = false
         while (!done) {
             const key = await this.keypress()
-            const oldIndex = selectedIndex
             
             if (key.name === 'up') {
                 selectedIndex = (selectedIndex - 1 + choices.length) % choices.length
-                render(oldIndex, selectedIndex)
+                render()
             } else if (key.name === 'down') {
                 selectedIndex = (selectedIndex + 1) % choices.length
-                render(oldIndex, selectedIndex)
+                render()
             } else if (key.name === 'space') {
                 const choice = choices[selectedIndex]
                 if (selected.has(choice)) {
@@ -582,7 +433,7 @@ class Terminal {
                 } else {
                     selected.add(choice)
                 }
-                render(selectedIndex, selectedIndex, selectedIndex)
+                render()
             } else if (key.name === 'enter') {
                 done = true
             } else if (key.name === 'escape' || key.name === 'ctrl-c') {
@@ -591,14 +442,11 @@ class Terminal {
             } else if (key.name === 'a' && key.ctrl) {
                 // Ctrl+A to select all
                 choices.forEach(c => selected.add(c))
-                choices.forEach((_, i) => render(i, selectedIndex, i))
+                render()
             }
         }
         
         this.disableRawMode()
-        
-        // Move cursor to end
-        this.buffer.moveTo(0, startY + choices.length)
         console.log() // New line after selection
         
         return Array.from(selected)
@@ -731,18 +579,13 @@ class Terminal {
         console.log(colorFn('└' + '─'.repeat(width - 2) + '┘'))
     }
     
-    // Progress methods with differential rendering
+    // Progress methods
     startSpinner(text) {
         const frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
         let i = 0
         
-        // Save initial position
-        this.spinnerY = this.buffer.cursorY
-        console.log() // Create line for spinner
-        
         this.spinner = setInterval(() => {
-            const line = `${cyan(frames[i])} ${text}`
-            this.buffer.writeLine(this.spinnerY, line)
+            process.stdout.write(`\r${cyan(frames[i])} ${text}`)
             i = (i + 1) % frames.length
         }, 80)
     }
@@ -751,15 +594,13 @@ class Terminal {
         if (this.spinner) {
             clearInterval(this.spinner)
             this.spinner = null
-            
-            // Clear spinner line
-            this.buffer.writeLine(this.spinnerY, '')
-            
+            process.stdout.write('\r' + ' '.repeat(80) + '\r')
             if (message) {
-                const line = success 
-                    ? green('✓ ' + message)
-                    : red('✗ ' + message)
-                this.buffer.writeLine(this.spinnerY, line)
+                if (success) {
+                    this.success(message)
+                } else {
+                    this.error(message)
+                }
             }
         }
     }
@@ -768,7 +609,7 @@ class Terminal {
      * Clear screen
      */
     clear() {
-        this.buffer.clear()
+        process.stdout.write('\x1b[2J\x1b[0f')
     }
 
     /**
@@ -777,7 +618,6 @@ class Terminal {
      */
     moveUp(lines = 1) {
         process.stdout.write(`\x1b[${lines}A`)
-        this.buffer.cursorY = Math.max(0, this.buffer.cursorY - lines)
     }
 
     /**
@@ -785,7 +625,6 @@ class Terminal {
      */
     clearLine() {
         process.stdout.write('\x1b[2K\r')
-        this.buffer.lines.delete(this.buffer.cursorY)
     }
 
     /**
@@ -833,7 +672,7 @@ class Terminal {
     }
 
     /**
-     * Display a responsive progress bar with differential rendering
+     * Display a responsive progress bar
      * @param {number} current - Current value
      * @param {number} total - Total value
      * @param {string} label - Optional label
@@ -848,42 +687,11 @@ class Terminal {
         const bar = green('█'.repeat(filled)) + gray('░'.repeat(empty))
         const percentage = Math.floor(percent * 100)
         
-        // Use differential rendering for smooth updates
-        const line = `${label} ${bar} ${percentage}%`
-        
-        if (!this.progressBarY) {
-            this.progressBarY = this.buffer.cursorY
-            console.log() // Create line for progress bar
-        }
-        
-        this.buffer.writeLine(this.progressBarY, line)
+        this.clearLine()
+        process.stdout.write(`${label} ${bar} ${percentage}%`)
         
         if (current >= total) {
-            this.progressBarY = null // Reset for next use
             console.log() // New line when complete
-        }
-    }
-
-    /**
-     * Live update text (replaces previous line)
-     * @param {string} text - Text to display
-     */
-    liveUpdate(text) {
-        if (!this.liveUpdateY) {
-            this.liveUpdateY = this.buffer.cursorY
-            console.log() // Create line for live updates
-        }
-        
-        this.buffer.writeLine(this.liveUpdateY, text)
-    }
-
-    /**
-     * End live update mode
-     */
-    endLiveUpdate() {
-        if (this.liveUpdateY) {
-            this.liveUpdateY = null
-            console.log() // New line after updates
         }
     }
 
