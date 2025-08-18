@@ -160,7 +160,7 @@ class Updater {
     }
 
     restartservice() {
-        const serviceName = `air-${this.config.name}`
+        const serviceName = this.config.name
         console.log(`Restarting service: ${serviceName}...`)
         
         try {

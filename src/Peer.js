@@ -56,7 +56,7 @@ const defaults = {
     },
     path: {
         config: 'air.json',
-        prefix: '.air-',
+        prefix: '.',
         suffix: '.pid',
         data: 'radata'
     }
@@ -230,7 +230,7 @@ export class Peer {
                     try {
                         const files = fs.readdirSync(this.config.root || '.')
                         files.forEach(file => {
-                            if (file.startsWith('.air-') && file.endsWith('.pid')) {
+                            if (file.startsWith('.') && file.endsWith('.pid') && !file.startsWith('.git')) {
                                 const pidFile = path.join(this.config.root || '.', file)
                                 try {
                                     const pid = parseInt(fs.readFileSync(pidFile, 'utf8').trim())

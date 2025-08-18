@@ -98,8 +98,8 @@ suite('utils tests', () => {
     test('should handle circular references', () => {
         const a = { x: 1 }
         const b = { y: 2 }
-        a.self = a
-        b.self = b
+        a.soul = a
+        b.soul = b
         
         // should not crash or infinite loop
         const result = merge(a, b)

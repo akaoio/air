@@ -90,7 +90,7 @@ class Uninstaller {
     }
 
     removeservice() {
-        const serviceName = `air-${this.config.name}`
+        const serviceName = this.config.name
         console.log(`Removing systemd service: ${serviceName}`)
         
         try {
@@ -148,7 +148,7 @@ class Uninstaller {
             let pidCount = 0
             
             files.forEach(file => {
-                if (file.startsWith('.air-') && file.endsWith('.pid')) {
+                if (file.startsWith('.') && file.endsWith('.pid') && !file.startsWith('.git')) {
                     fs.unlinkSync(path.join(this.config.root, file))
                     pidCount++
                 }

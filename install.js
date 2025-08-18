@@ -593,7 +593,7 @@ iface ${iface} inet static
         console.log(chalk.green(`✓ Configuration saved to ${configPath}`))
         
         // Create systemd service
-        const serviceName = `air-${this.config.name}`
+        const serviceName = this.config.name
         const serviceContent = `[Unit]
 Description=Air GUN Database - ${this.config.name}
 After=network.target
@@ -640,10 +640,10 @@ WantedBy=multi-user.target
         }
         
         console.log(chalk.cyan('\nUseful commands:'))
-        console.log(chalk.white(`  Status:     sudo systemctl status air-${this.config.name}`))
-        console.log(chalk.white(`  Logs:       sudo journalctl -u air-${this.config.name} -f`))
-        console.log(chalk.white(`  Restart:    sudo systemctl restart air-${this.config.name}`))
-        console.log(chalk.white(`  Stop:       sudo systemctl stop air-${this.config.name}`))
+        console.log(chalk.white(`  Status:     sudo systemctl status ${this.config.name}`))
+        console.log(chalk.white(`  Logs:       sudo journalctl -u ${this.config.name} -f`))
+        console.log(chalk.white(`  Restart:    sudo systemctl restart ${this.config.name}`))
+        console.log(chalk.white(`  Stop:       sudo systemctl stop ${this.config.name}`))
         
         if (this.config.network.staticIP) {
             console.log(chalk.yellow(`\n⚠ Note: Static IP ${this.config.network.staticIP} configured.`))
