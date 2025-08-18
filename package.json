@@ -20,7 +20,8 @@
         "format": "npx prettier --write .",
         "setup": "node install.js",
         "setup:quick": "node install.js --quick",
-        "configure": "node install.js"
+        "configure": "node install.js",
+        "postinstall": "node scripts/postinstall.js"
     },
     "devDependencies": {
         "prettier": "^2.4.1"
