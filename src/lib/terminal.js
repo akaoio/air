@@ -608,11 +608,13 @@ class Terminal {
     
     // Formatting methods
     header(text) {
-        const width = Math.min(this.width - 4, text.length + 10)
-        const padding = Math.floor((width - text.length) / 2)
-        const line = '═'.repeat(width)
+        const width = Math.min(this.width - 4, Math.max(text.length + 10, 40))
+        const padding = Math.max(0, Math.floor((width - text.length) / 2))
+        const line = '═'.repeat(Math.max(1, width))
+        const leftPad = ' '.repeat(padding)
+        const rightPad = ' '.repeat(Math.max(0, width - text.length - padding))
         console.log(cyan(line))
-        console.log(cyan(bold(' '.repeat(padding) + text + ' '.repeat(padding))))
+        console.log(cyan(bold(leftPad + text + rightPad)))
         console.log(cyan(line))
     }
     
@@ -629,21 +631,24 @@ class Terminal {
         const { borderColor = 'cyan', padding = 1 } = options
         const lines = text.split('\n')
         const maxLength = Math.max(...lines.map(l => l.length))
-        const width = Math.min(this.width - 4, maxLength + padding * 2 + 2)
+        const width = Math.min(this.width - 4, Math.max(maxLength + padding * 2 + 2, 20))
         
         const colorFn = colors[borderColor] ? (t) => color(t, colors[borderColor]) : cyan
         
         // Top border
-        console.log(colorFn('┌' + '─'.repeat(width - 2) + '┐'))
+        console.log(colorFn('┌' + '─'.repeat(Math.max(1, width - 2)) + '┐'))
         
         // Content with padding
         lines.forEach(line => {
-            const paddedLine = ' '.repeat(padding) + line + ' '.repeat(width - line.length - padding * 2 - 2)
+            const contentWidth = width - padding * 2 - 2
+            const truncatedLine = line.length > contentWidth ? line.substring(0, contentWidth - 3) + '...' : line
+            const remainingSpace = Math.max(0, width - truncatedLine.length - padding * 2 - 2)
+            const paddedLine = ' '.repeat(padding) + truncatedLine + ' '.repeat(remainingSpace)
             console.log(colorFn('│') + paddedLine + colorFn('│'))
         })
         
         // Bottom border
-        console.log(colorFn('└' + '─'.repeat(width - 2) + '┘'))
+        console.log(colorFn('└' + '─'.repeat(Math.max(1, width - 2)) + '┘'))
     }
     
     // Progress methods
