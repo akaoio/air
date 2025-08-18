@@ -36,6 +36,7 @@ class AirInstaller {
         this.args = {
             nonInteractive: false,
             checkOnly: false,
+            quick: false,
             root: null,
             name: null,
             env: null,
@@ -52,6 +53,9 @@ class AirInstaller {
                 this.args.nonInteractive = true
             } else if (arg === '--check-only') {
                 this.args.checkOnly = true
+            } else if (arg === '--quick') {
+                this.args.quick = true
+                this.args.nonInteractive = true  // Quick mode implies non-interactive
             } else if (arg === '--root' && argv[i + 1]) {
                 this.args.root = argv[++i]
             } else if (arg === '--name' && argv[i + 1]) {

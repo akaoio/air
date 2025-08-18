@@ -6,7 +6,7 @@
     "main": "index.js",
     "license": "MIT",
     "bin": {
-        "air-install": "./installer.js"
+        "air-install": "./install.js"
     },
     "dependencies": {
         "gun": "github:akaoio/gun",
@@ -18,9 +18,9 @@
         "start": "node main.js",
         "test": "node test/runner.js",
         "format": "npx prettier --write .",
-        "setup": "node installer.js",
-        "setup:quick": "node installer.js --quick",
-        "configure": "node installer.js"
+        "setup": "node install.js",
+        "setup:quick": "node install.js --quick",
+        "configure": "node install.js"
     },
     "devDependencies": {
         "prettier": "^2.4.1"
