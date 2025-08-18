@@ -397,7 +397,8 @@ network:
             fs.writeFileSync('/tmp/netplan-config.yaml', netplanContent)
             execSync(`sudo cp /tmp/netplan-config.yaml ${netplanConfig}`)
             execSync(`sudo chmod 600 ${netplanConfig}`)  // Fix permissions
-            execSync('sudo netplan apply')
+            // Suppress openvswitch warning - it's harmless if not using OVS
+            execSync('sudo netplan apply 2>&1 | grep -v "Cannot call openvswitch" || true')
             
             console.log(chalk.green(`✓ Static IP ${ip} configured via netplan`))
             this.config.network.staticIP = ip
