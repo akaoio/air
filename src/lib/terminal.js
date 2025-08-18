@@ -151,56 +151,24 @@ class Terminal {
     }
 
     /**
-     * Ask for a password (hidden input)
+     * Ask for a password (uses normal input for simplicity and reliability)
+     * Note: Password will be visible while typing. For production use,
+     * consider using a more sophisticated approach or external package.
      * @param {string} prompt - The question to ask
      * @returns {Promise<string>} Password
      */
     async password(prompt) {
         this.init()
         
-        return new Promise(resolve => {
-            // Save current settings
-            const stdin = process.stdin
-            const wasRaw = stdin.isRaw
-            
-            // Hide input
-            stdin.setRawMode(true)
-            process.stdout.write(prompt + ' ')
-            
-            let password = ''
-            stdin.on('data', function onData(char) {
-                char = char.toString('utf8')
-                
-                switch (char) {
-                    case '\n':
-                    case '\r':
-                    case '\u0004':
-                        // Enter or Ctrl+D
-                        stdin.setRawMode(wasRaw)
-                        stdin.removeListener('data', onData)
-                        process.stdout.write('\n')
-                        resolve(password)
-                        break
-                    case '\u0003':
-                        // Ctrl+C
-                        process.exit()
-                        break
-                    case '\u007f':
-                    case '\b':
-                        // Backspace
-                        if (password.length > 0) {
-                            password = password.slice(0, -1)
-                            process.stdout.write('\b \b')
-                        }
-                        break
-                    default:
-                        // Add character
-                        password += char
-                        process.stdout.write('*')
-                        break
-                }
-            })
-        })
+        // For now, use regular question but warn user
+        console.log(yellow('⚠ Note: Password will be visible while typing'))
+        const password = await this.question(prompt)
+        
+        // Clear the line after password entry for security
+        process.stdout.write('\x1b[1A\x1b[2K') // Move up and clear line
+        console.log(`${prompt} ${'*'.repeat(password.length || 8)}`)
+        
+        return password
     }
 
     // Output methods
