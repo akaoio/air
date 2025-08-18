@@ -379,8 +379,11 @@ class AirInstaller {
             if (peer && peer.startsWith('ws')) {
                 this.config.peers.push(peer)
                 console.log(green('✓') + ' Peer added')
+                addMore = await this.confirm('Add another peer?', false)
+            } else {
+                // If no valid peer entered, stop asking
+                addMore = false
             }
-            addMore = await this.confirm('Add another peer?', false)
         }
     }
 
