@@ -104,9 +104,9 @@ class AirInstaller {
             this.config.network.currentIP = currentIP
 
             // Get interface name
-            const interface = execSync("ip route | grep default | awk '{print $5}' | head -1").toString().trim()
-            console.log(chalk.cyan(`Interface: ${interface}`))
-            this.config.network.interface = interface
+            const iface = execSync("ip route | grep default | awk '{print $5}' | head -1").toString().trim()
+            console.log(chalk.cyan(`Interface: ${iface}`))
+            this.config.network.interface = iface
 
             // Get gateway
             const gateway = execSync("ip route | grep default | awk '{print $3}' | head -1").toString().trim()
@@ -114,7 +114,7 @@ class AirInstaller {
             this.config.network.gateway = gateway
 
             // Get MAC address
-            const mac = execSync(`ip link show ${interface} | grep ether | awk '{print $2}'`).toString().trim()
+            const mac = execSync(`ip link show ${iface} | grep ether | awk '{print $2}'`).toString().trim()
             console.log(chalk.cyan(`MAC Address: ${mac}`))
             this.config.network.mac = mac
 
@@ -164,7 +164,7 @@ class AirInstaller {
     async setupStaticIP(ip) {
         console.log(chalk.yellow(`\n📍 Setting up static IP ${ip}...`))
         
-        const interface = this.config.network.interface
+        const iface = this.config.network.interface
         const gateway = this.config.network.gateway
         
         // Method 1: Using nmcli (NetworkManager)
@@ -172,15 +172,15 @@ class AirInstaller {
             console.log(chalk.cyan('Trying NetworkManager (nmcli)...'))
             
             // Check if connection exists
-            const connections = execSync(`nmcli con show | grep ${interface} || true`).toString()
-            let connectionName = interface
+            const connections = execSync(`nmcli con show | grep ${iface} || true`).toString()
+            let connectionName = iface
             
             if (connections) {
                 connectionName = connections.split(/\s+/)[0]
                 console.log(chalk.cyan(`Found connection: ${connectionName}`))
             } else {
                 // Create new connection
-                execSync(`sudo nmcli con add con-name ${interface} ifname ${interface} type ethernet`)
+                execSync(`sudo nmcli con add con-name ${iface} ifname ${iface} type ethernet`)
             }
             
             // Set static IP
@@ -209,7 +209,7 @@ network:
   version: 2
   renderer: networkd
   ethernets:
-    ${interface}:
+    ${iface}:
       dhcp4: no
       addresses:
         - ${ip}/24
@@ -234,8 +234,8 @@ network:
         // Method 3: Using /etc/network/interfaces (Debian/older systems)
         try {
             const interfacesContent = `
-auto ${interface}
-iface ${interface} inet static
+auto ${iface}
+iface ${iface} inet static
     address ${ip}
     netmask 255.255.255.0
     gateway ${gateway}
