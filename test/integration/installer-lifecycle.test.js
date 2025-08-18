@@ -8,7 +8,6 @@ const __dirname = path.dirname(__filename)
 
 suite('installer lifecycle integration tests', () => {
     const fixturesDir = path.join(__dirname, '../fixtures')
-    const testDir = path.join(fixturesDir, `lifecycle-test-${Date.now()}`)
     const scripts = {
         install: path.join(process.cwd(), 'install.js'),
         uninstall: path.join(process.cwd(), 'uninstall.js'),
@@ -16,28 +15,33 @@ suite('installer lifecycle integration tests', () => {
         ddns: path.join(process.cwd(), 'ddns.js')
     }
     
-    setup(() => {
+    // Helper to create unique test directory for each test
+    function createTestDir() {
+        const dir = path.join(fixturesDir, `lifecycle-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
         if (!fs.existsSync(fixturesDir)) {
             fs.mkdirSync(fixturesDir, { recursive: true })
         }
-        if (!fs.existsSync(testDir)) {
-            fs.mkdirSync(testDir, { recursive: true })
-        }
-    })
+        fs.mkdirSync(dir, { recursive: true })
+        return dir
+    }
     
-    teardown(() => {
+    // Helper to cleanup test directory
+    function cleanupTestDir(dir) {
         try {
-            if (fs.existsSync(testDir)) {
-                fs.rmSync(testDir, { recursive: true, force: true })
+            if (fs.existsSync(dir)) {
+                fs.rmSync(dir, { recursive: true, force: true })
             }
         } catch (e) {
             // Ignore cleanup errors
         }
-    })
+    }
     
     test('should complete full install -> update -> uninstall cycle', () => {
-        const peerName = 'lifecycle-test'
-        const configPath = path.join(testDir, 'air.json')
+        const testDir = createTestDir()
+        
+        try {
+            const peerName = 'lifecycle-test'
+            const configPath = path.join(testDir, 'air.json')
         
         // Step 1: Install
         // Input: Clean directory
@@ -127,10 +131,16 @@ suite('installer lifecycle integration tests', () => {
         
         // Config should still exist (uninstaller doesn't remove it)
         assert(fs.existsSync(configPath), 'Config file should remain after uninstall')
+        } finally {
+            cleanupTestDir(testDir)
+        }
     })
     
     test('should handle reinstallation with config preservation', () => {
-        const configPath = path.join(testDir, 'air.json')
+        const testDir = createTestDir()
+        
+        try {
+            const configPath = path.join(testDir, 'air.json')
         
         // First installation
         try {
@@ -166,11 +176,17 @@ suite('installer lifecycle integration tests', () => {
         assert(config.customField === 'should-be-preserved', 'Custom field should be preserved')
         assert(config.production.customSetting === 'also-preserved', 'Custom setting should be preserved')
         assert(config.production.port === 8888, 'Port should be preserved')
+        } finally {
+            cleanupTestDir(testDir)
+        }
     })
     
     test('should maintain data consistency across operations', () => {
-        const configPath = path.join(testDir, 'air.json')
-        const ddnsPath = path.join(testDir, 'ddns.json')
+        const testDir = createTestDir()
+        
+        try {
+            const configPath = path.join(testDir, 'air.json')
+            const ddnsPath = path.join(testDir, 'ddns.json')
         
         // Install with specific configuration
         const testConfig = {
@@ -214,10 +230,16 @@ suite('installer lifecycle integration tests', () => {
         assert(ddnsState.newIP, 'DDNS should have newIP')
         assert(ddnsState.timestamp, 'DDNS should have timestamp')
         assert(typeof ddnsState.timestamp === 'number', 'Timestamp should be number')
+        } finally {
+            cleanupTestDir(testDir)
+        }
     })
     
     test('should handle error recovery in lifecycle', () => {
-        const configPath = path.join(testDir, 'air.json')
+        const testDir = createTestDir()
+        
+        try {
+            const configPath = path.join(testDir, 'air.json')
         
         // Create corrupted config
         fs.writeFileSync(configPath, '{ broken json')
@@ -255,13 +277,18 @@ suite('installer lifecycle integration tests', () => {
         }
         
         assert(ddnsOutput.includes('development'), 'Should work after config fix')
+        } finally {
+            cleanupTestDir(testDir)
+        }
     })
     
     test('should validate inter-script dependencies', () => {
-        // This test ensures scripts can work together correctly
+        const testDir = createTestDir()
         
-        // Install creates config that other scripts can read
         try {
+            // This test ensures scripts can work together correctly
+            
+            // Install creates config that other scripts can read
             execSync(`node ${scripts.install} --root ${testDir} --name deps-test --non-interactive`, {
                 stdio: 'pipe'
             })
@@ -301,5 +328,8 @@ suite('installer lifecycle integration tests', () => {
         
         assert(ddnsOutput.includes(config.env), 
             'DDNS should read environment from config')
+        } finally {
+            cleanupTestDir(testDir)
+        }
     })
 })
