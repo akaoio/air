@@ -302,7 +302,7 @@ suite('Configuration Tests', () => {
 
     test('should create default IP config if missing', () => {
         const peer = new Peer()
-        const ipConfig = peer.ipconfig()
+        const ipConfig = peer.ip.config()
         
         assert.ok(ipConfig)
         assert.equal(ipConfig.timeout, 5000)
@@ -334,7 +334,7 @@ suite('Configuration Tests', () => {
             }
         })
         
-        const ipConfig = peer.ipconfig()
+        const ipConfig = peer.ip.config()
         
         assert.equal(ipConfig.timeout, 15000)
         assert.equal(ipConfig.dnsTimeout, 7000)
@@ -352,7 +352,7 @@ suite('Configuration Tests', () => {
         process.env.IP_AGENT = 'EnvAgent/3.0'
         
         const peer = new Peer()
-        const ipConfig = peer.ipconfig()
+        const ipConfig = peer.ip.config()
         
         assert.equal(ipConfig.timeout, 20000)
         assert.equal(ipConfig.dnsTimeout, 8000)
@@ -425,7 +425,7 @@ suite('Configuration Tests', () => {
         
         fs.writeFileSync(testConfigPath, JSON.stringify(config, null, 2))
         
-        const peer = new Peer({ path: testConfigPath })
+        const peer = new Peer({ root: testDir })
         peer.config.path = testConfigPath
         const readConfig = peer.read()
         
@@ -484,7 +484,7 @@ suite('Configuration Tests', () => {
         
         fs.writeFileSync(testConfigPath, JSON.stringify(config, null, 2))
         
-        const peer = new Peer({ path: testConfigPath })
+        const peer = new Peer({ root: testDir })
         peer.config.path = testConfigPath
         const readConfig = peer.read()
         

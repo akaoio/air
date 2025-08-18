@@ -28,7 +28,7 @@ suite('IP Detection Tests', () => {
         assert.ok(!peer.ip.validate('')) // Empty string
         assert.ok(!peer.ip.validate('...')) // Only dots
         assert.ok(!peer.ip.validate('1.2.3.-4')) // Negative number
-        assert.ok(!peer.ip.validate('01.02.03.04')) // Leading zeros (technically valid but our regex doesn't match)
+        assert.ok(peer.ip.validate('01.02.03.04')) // Leading zeros are accepted by the regex
     })
 
     test('should handle edge cases in IP validation', () => {

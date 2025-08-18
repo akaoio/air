@@ -82,6 +82,17 @@ export class Peer {
 
         this.options = {}
 
+        // Validate root path to prevent path traversal
+        const rootStr = String(this.config.root || '')
+        if (rootStr.includes('..') || 
+            rootStr.includes('~') || 
+            rootStr.includes('%2e') || 
+            rootStr.includes('%2E') ||
+            rootStr.includes('\\')) {
+            throw new Error('Invalid root path: potential path traversal detected')
+        }
+        const rootPath = path.resolve(this.config.root)
+
         if (key && cert) {
             this.options.key = fs.existsSync(key) ? fs.readFileSync(key) : null
             this.options.cert = fs.existsSync(cert) ? fs.readFileSync(cert) : null
@@ -90,8 +101,10 @@ export class Peer {
         // Set PID file path
         this.pidFile = path.join(this.config.root, `.air-${this.config.name || 'default'}.pid`)
 
-        // Check for existing instance
-        this.checkpid()
+        // Check for existing instance (skip if in test mode with skipPidCheck)
+        if (!config?.skipPidCheck) {
+            this.checkpid()
+        }
 
         this.init()
 
@@ -145,16 +158,45 @@ export class Peer {
             fs.writeFileSync(this.pidFile, process.pid.toString())
             console.log(`Created PID file: ${this.pidFile} with PID ${process.pid}`)
             
-            // Clean up PID file on exit
-            process.on('exit', () => this.cleanpid())
-            process.on('SIGINT', () => {
-                this.cleanpid()
-                process.exit(0)
-            })
-            process.on('SIGTERM', () => {
-                this.cleanpid()
-                process.exit(0)
-            })
+            // Clean up PID file on exit (only register once per process)
+            if (!process._airPidHandlersRegistered) {
+                process._airPidHandlersRegistered = true
+                
+                const cleanup = () => {
+                    // Clean up all Air PID files for this process
+                    const fs = require('fs')
+                    const path = require('path')
+                    try {
+                        const files = fs.readdirSync(this.config.root || '.')
+                        files.forEach(file => {
+                            if (file.startsWith('.air-') && file.endsWith('.pid')) {
+                                const pidFile = path.join(this.config.root || '.', file)
+                                try {
+                                    const pid = parseInt(fs.readFileSync(pidFile, 'utf8').trim())
+                                    if (pid === process.pid) {
+                                        fs.unlinkSync(pidFile)
+                                        console.log(`Cleaned up PID file: ${pidFile}`)
+                                    }
+                                } catch (e) {
+                                    // Ignore errors
+                                }
+                            }
+                        })
+                    } catch (e) {
+                        // Ignore errors
+                    }
+                }
+                
+                process.on('exit', cleanup)
+                process.on('SIGINT', () => {
+                    cleanup()
+                    process.exit(0)
+                })
+                process.on('SIGTERM', () => {
+                    cleanup()
+                    process.exit(0)
+                })
+            }
             
         } catch (error) {
             console.error('Error checking for existing instance:', error)

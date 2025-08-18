@@ -6,18 +6,18 @@
 
 ## Project Overview
 
-Air is a production-ready wrapper for the GUN distributed graph database that provides peer-to-peer synchronization, automatic SSL management, and dynamic DNS updates. It's built on a custom enhanced version of GUN from akaoio/gun.
+Air is a production-ready wrapper for the GUN distributed graph database that provides peer-to-peer synchronization, automatic SSL management, and dynamic DNS updates. It is built on a custom enhanced version of GUN from akaoio/gun.
 
 ## Quick Reference for AI Assistants
 
-When working on this codebase:
-1. **Function naming convention**: All functions must be single words. Related functions are grouped using dot notation.
-   - Single word functions: `read()`, `write()`, `sync()`, `init()`, `restart()`, `start()`, `run()`, `online()`, `activate()`
+When working with this codebase:
+1. **Function naming convention**: All functions must use single-word names. Related functions are grouped using dot notation.
+   - Single-word functions: `read()`, `write()`, `sync()`, `init()`, `restart()`, `start()`, `run()`, `online()`, `activate()`
    - Grouped functions: `ip.get()`, `ip.validate()`, `status.ddns()`, `status.ip()`, `status.alive()`
    - No camelCase, underscores, or hyphens in function names
 2. **Test everything**: Run `npm test` before committing changes
-3. **Check PID files**: Air uses PID files to prevent duplicate instances
-4. **Configuration precedence**: CLI args > ENV vars > config file > defaults
+3. **PID file management**: Air uses PID files to prevent duplicate instances
+4. **Configuration precedence**: CLI arguments > environment variables > configuration file > defaults
 5. **Restart behavior**: Exponential backoff with jitter (5s, 10s, 20s, 40s, 60s max)
 
 ## Architecture & Core Components
@@ -35,7 +35,7 @@ The `Peer` class is the heart of the application, managing:
 -   HTTP/HTTPS server creation with SSL support
 -   GUN database initialization and peer connections
 -   Configuration management (reading/writing air.json)
--   Automatic restart on crashes (max 5 attempts with 5-second delays)
+-   Automatic restart on crashes (maximum 5 attempts with exponential backoff)
 -   User authentication using GUN SEA cryptographic pairs
 -   Public IP detection using multiple methods (DNS and HTTP)
 -   Dynamic DNS updates for GoDaddy
@@ -44,7 +44,7 @@ The `Peer` class is the heart of the application, managing:
 
 Key methods in Peer.js:
 
-**Core Methods (single words):**
+**Core Methods (single-word naming):**
 -   `start()` - Main initialization sequence (sync → run → online)
 -   `init()` - Server initialization with error handling and restart logic
 -   `restart()` - Handles server restart attempts with progressive delays
@@ -67,12 +67,12 @@ Key methods in Peer.js:
 -   `status.ip()` - Reports current public IP (runs every 5 minutes)
 -   `status.alive()` - Sends heartbeat status (runs every minute)
 
-**Process Management (single words):**
+**Process Management (single-word naming):**
 -   `checkpid()` - Checks for running instances via PID file
 -   `cleanpid()` - Removes PID file on exit
 -   `findport()` - Finds process using specific port
 
-**Internal helper methods (single words):**
+**Internal Helper Methods (single-word naming):**
 -   `getip()` - Internal method for IP detection
 -   `dnsip()` - Internal DNS IP detection
 -   `httpip()` - Internal HTTP IP detection
@@ -147,7 +147,7 @@ The application supports configuration via environment variables:
 
 ### Command Line Arguments
 
-The application also accepts command-line arguments (processed in order):
+The application accepts command-line arguments (processed sequentially):
 
 1. `argv[2]` - root directory
 2. `argv[3]` - bash directory
@@ -169,7 +169,7 @@ The application also accepts command-line arguments (processed in order):
 
 ### install.sh
 
-Interactive installer that sets up:
+An interactive installer that configures:
 
 -   Environment configuration
 -   SSL certificates (Let's Encrypt)
@@ -181,7 +181,7 @@ Supports both interactive and command-line argument modes.
 
 ### update.sh
 
-Automated update script that:
+An automated update script that:
 
 -   Pulls Git updates
 -   Updates npm packages
@@ -190,11 +190,11 @@ Automated update script that:
 
 ### ddns.sh
 
-Updates GoDaddy DNS A-records with current public IP.
+Updates GoDaddy DNS A records with the current public IP address.
 
 ### uninstall.sh
 
-Removes systemd service and cleans up cron jobs.
+Removes the systemd service and cleans up cron jobs.
 
 ## Code Style & Conventions
 
@@ -202,7 +202,7 @@ Removes systemd service and cleans up cron jobs.
 
 -   ES6 modules (`import`/`export`)
 -   Modern JavaScript features (arrow functions, async/await, optional chaining)
--   Configuration precedence: Command args > Environment vars > Config file > Defaults
+-   Configuration precedence: Command arguments > environment variables > configuration file > defaults
 -   Error handling with try/catch blocks and Promise chains
 -   Automatic retry logic for critical operations
 
@@ -242,17 +242,17 @@ npm run format     # Format all files with Prettier
 
 The Peer class implements automatic restart on server errors:
 
--   Maximum 5 restart attempts
+-   Maximum of 5 restart attempts
 -   Progressive delay with exponential backoff:
     -   Base delay: 5 seconds
-    -   Doubles each attempt: 5s → 10s → 20s → 40s → 60s (capped at 60s)
-    -   Includes ±20% jitter to prevent thundering herd problem
--   Resets counter on successful start
--   Exits process after max attempts
+    -   Doubles with each attempt: 5s → 10s → 20s → 40s → 60s (capped at 60s)
+    -   Includes ±20% jitter to prevent the thundering herd problem
+-   Resets counter upon successful start
+-   Exits process after maximum attempts are reached
 
 ### IP Detection Strategy
 
-Multiple fallback methods for detecting public IP:
+Multiple fallback methods for detecting the public IP address:
 
 1. DNS queries using dig (fastest)
 2. DNS queries using nslookup (fallback)
@@ -261,7 +261,7 @@ Multiple fallback methods for detecting public IP:
 
 ### Configuration Merging
 
-Deep merge strategy with precedence:
+Deep merge strategy with the following precedence:
 
 1. Command-line arguments (highest priority)
 2. Environment variables
@@ -273,7 +273,7 @@ Deep merge strategy with precedence:
 -   SEA cryptographic authentication
 -   SSL/TLS support with automatic certificate management
 -   Secure key storage in configuration
--   IP validation to prevent private IP exposure
+-   IP validation to prevent private IP address exposure
 
 ## Monitoring & Status
 
@@ -290,8 +290,8 @@ All status updates are written to the authenticated GUN user node.
 
 The application includes comprehensive error handling:
 
--   Server errors trigger automatic restart
--   Failed operations log errors but don't crash
+-   Server errors trigger automatic restarts
+-   Failed operations log errors without crashing
 -   Promise rejections are caught and logged
 -   Network timeouts are configurable
 -   Graceful degradation when optional features fail
@@ -316,13 +316,13 @@ main()
 
 ## GUN SEA Access
 
-Air exposes GUN's complete SEA API through:
+Air exposes the complete GUN SEA API through:
 - `db.GUN` - GUN constructor
 - `db.gun` - GUN instance  
 - `db.sea` - SEA cryptographic functions
 - `db.user` - Air's authenticated user (keys from air.json `[env].pair`)
 
-Example implementations available in `examples/` directory.
+Example implementations are available in the `examples/` directory.
 
 ## Environment-Specific Behavior
 
@@ -371,7 +371,7 @@ npm test  # Run all tests
 ## Recent Changes & Improvements
 
 ### December 2024
-1. **Refactored method names**: Removed all camelCase in favor of single words or dot notation
+1. **Refactored method names**: Removed all camelCase in favor of single-word names or dot notation
 2. **Added PID file management**: Prevents duplicate instances
 3. **Enhanced port conflict detection**: Better error messages and process identification
 4. **Comprehensive test suite**: 135+ test cases covering all components
@@ -384,21 +384,21 @@ npm test  # Run all tests
 
 2. **Type Checking**: Consider adding TypeScript or JSDoc type annotations
 
-4. **Logging**: Currently uses console.log/error. Consider implementing structured logging.
+3. **Logging**: Currently uses console.log/error. Consider implementing structured logging.
 
-5. **Monitoring**: Status updates are written to GUN. Consider adding external monitoring/alerting.
+4. **Monitoring**: Status updates are written to GUN. Consider adding external monitoring/alerting.
 
-6. **Documentation**: API documentation for module usage could be expanded.
+5. **Documentation**: API documentation for module usage could be expanded.
 
-7. **Security**: Review cryptographic key management and consider implementing key rotation.
+6. **Security**: Review cryptographic key management and consider implementing key rotation.
 
-8. **Performance**: IP detection runs every 5 minutes. Consider caching or event-based updates.
+7. **Performance**: IP detection runs every 5 minutes. Consider caching or event-based updates.
 
 ## Common Tasks
 
 ### Adding a New Peer
 
-Edit air.json and add to the peers array:
+Edit air.json and add the new peer to the peers array:
 
 ```json
 "peers": [
@@ -409,7 +409,7 @@ Edit air.json and add to the peers array:
 
 ### Changing Port
 
-Update in air.json under the appropriate environment:
+Update the port in air.json under the appropriate environment:
 
 ```json
 "production": {
@@ -419,9 +419,9 @@ Update in air.json under the appropriate environment:
 
 ### Enabling SSL
 
-1. Obtain domain and point to server
-2. Run installer with --ssl flag
-3. Or manually add SSL configuration to air.json
+1. Obtain a domain and point it to the server
+2. Run the installer with the --ssl flag
+3. Alternatively, manually add SSL configuration to air.json
 
 ### Debugging
 
@@ -436,30 +436,47 @@ Update in air.json under the appropriate environment:
 ## Best Practices
 
 ### When Modifying Code
-1. **Run tests first**: `npm test` to ensure nothing is broken
-2. **Follow naming convention**: 
-   - All functions must be single words (e.g., `read()`, `write()`, `sync()`)
+1. **Run tests first**: Execute `npm test` to ensure nothing is broken
+2. **Follow the naming convention**: 
+   - All functions must use single-word names (e.g., `read()`, `write()`, `sync()`)
    - Use dot notation to group related functions (e.g., `ip.get()`, `status.ddns()`)
    - Never use camelCase, underscores, or hyphens in function names
-3. **Add tests for new features**: Place in appropriate test file
-4. **Update documentation**: Both README.md and CLAUDE.md
-5. **Format code**: `npm run format` before committing
-6. **Use tmp/ for temporary files**: ALL temporary files, test outputs, and development artifacts MUST go in `tmp/` directory (which is gitignored). Never create test/report/trash files in the root or other directories
+3. **Add tests for new features**: Place them in the appropriate test file
+4. **Update documentation**: Update both README.md and CLAUDE.md
+5. **Format code**: Run `npm run format` before committing
+6. **Use tmp/ for temporary files**: ALL temporary files, test outputs, and development artifacts MUST be placed in the `tmp/` directory (which is gitignored). Never create test, report, or trash files in the root or other directories
 
 ### Configuration Management
 1. **Never commit secrets**: Keep API keys in environment variables
-2. **Use config precedence**: CLI > ENV > file for flexibility
-3. **Validate config values**: Check for null/undefined before use
-4. **Backup air.json**: Before major changes
+2. **Use configuration precedence**: CLI > ENV > file for flexibility
+3. **Validate configuration values**: Check for null/undefined before use
+4. **Back up air.json**: Create a backup before making major changes
 
 ### Error Handling
-1. **Don't suppress errors**: Log them for debugging
-2. **Use try-catch**: For async operations
-3. **Implement fallbacks**: Especially for network operations
-4. **Test error scenarios**: Include in test suite
+1. **Do not suppress errors**: Log them for debugging
+2. **Use try-catch blocks**: Especially for asynchronous operations
+3. **Implement fallbacks**: Particularly for network operations
+4. **Test error scenarios**: Include them in the test suite
 
 ### Performance Considerations
-1. **IP detection caching**: Runs every 5 minutes, consider if more frequent needed
+1. **IP detection caching**: Runs every 5 minutes; consider if more frequent updates are needed
 2. **Restart delays**: Exponential backoff prevents resource exhaustion
-3. **PID file checks**: Prevents duplicate instances and port conflicts
-4. **Config sync interval**: Every hour, adjust if needed
+3. **PID file checks**: Prevent duplicate instances and port conflicts
+4. **Configuration sync interval**: Runs every hour; adjust if needed
+
+## Important Guidelines
+
+### Naming Conventions
+- **Do not use camelCase**: All function names must be single words
+- **Do not use hyphens or underscores**: Only single-word naming is allowed
+- **Use dot notation for grouping**: Related functions can be grouped using dot notation (e.g., `ip.get()`, `status.alive()`)
+
+### File Management
+- **Temporary files**: All temporary files, test outputs, and development artifacts must be placed in the `tmp/` directory
+- **Keep root clean**: Never create test, report, or trash files in the root directory or other project directories
+- **Git ignore tmp/**: The `tmp/` directory must be included in `.gitignore`
+
+### Development Workflow
+- **Test before committing**: Always run `npm test` and ensure all tests pass before committing
+- **Commit completed features**: Always commit and push when features are fixed or added
+- **Maintain test coverage**: Add tests for all new features and bug fixes

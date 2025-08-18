@@ -246,9 +246,7 @@ async function runTests() {
     }
 
     // Run all tests
-    console.log(`Running ${context.tests.length} tests...`)
     const success = await context.run()
-    console.log(`\nTests completed: ${context.passed} passed, ${context.failed} failed`)
     
     // Force cleanup of any remaining resources
     // Give enough time for all tests to complete then force exit
