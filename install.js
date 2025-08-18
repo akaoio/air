@@ -37,6 +37,7 @@ class AirInstaller {
             nonInteractive: false,
             checkOnly: false,
             quick: false,
+            auto: false,  // New auto mode for postinstall
             root: null,
             name: null,
             env: null,
@@ -56,6 +57,8 @@ class AirInstaller {
             } else if (arg === '--quick') {
                 this.args.quick = true
                 this.args.nonInteractive = true  // Quick mode implies non-interactive
+            } else if (arg === '--auto') {
+                this.args.auto = true  // Auto mode for postinstall
             } else if (arg === '--root' && argv[i + 1]) {
                 this.args.root = argv[++i]
             } else if (arg === '--name' && argv[i + 1]) {
@@ -81,6 +84,11 @@ class AirInstaller {
     }
 
     async run() {
+        // Auto mode for postinstall
+        if (this.args.auto) {
+            return this.runAutoMode()
+        }
+        
         // Check-only mode for tests
         if (this.args.checkOnly) {
             return this.checkSystemSimple()
@@ -115,6 +123,55 @@ class AirInstaller {
             console.log('✗ npm not found')
         }
         return true
+    }
+    
+    runAutoMode() {
+        // Skip if CI environment
+        if (process.env.CI || process.env.CONTINUOUS_INTEGRATION) {
+            console.log(chalk.gray('CI environment detected, skipping auto setup'))
+            return
+        }
+        
+        // Skip if global install
+        if (process.env.npm_config_global === 'true') {
+            console.log(chalk.gray('Global install detected, skipping setup'))
+            return
+        }
+        
+        // Check if already configured
+        const configPath = path.join(this.config.root, 'air.json')
+        if (fs.existsSync(configPath)) {
+            console.log('\n' + chalk.green('✓') + ' Air is already configured!')
+            console.log(chalk.gray('  Config: ') + chalk.white('air.json'))
+            console.log(chalk.gray('  To reconfigure: ') + chalk.cyan('npm run setup'))
+            console.log(chalk.gray('  To start: ') + chalk.cyan('npm start'))
+            return
+        }
+        
+        // Show setup instructions for new installation
+        console.log('\n' + chalk.cyan('══════════════════════════════════════'))
+        console.log(chalk.cyan.bold('     🚀 Air Installation Complete!'))
+        console.log(chalk.cyan('══════════════════════════════════════\n'))
+        
+        console.log(chalk.yellow('⚠') + ' No configuration found.\n')
+        console.log('To set up Air, run:')
+        console.log('  ' + chalk.cyan('npm run setup') + '\n')
+        
+        // Check for CGNAT
+        try {
+            const publicIP = execSync('curl -s --max-time 2 https://checkip.amazonaws.com', { encoding: 'utf8' }).trim()
+            if (publicIP) {
+                const parts = publicIP.split('.')
+                if (parts[0] === '100' && parseInt(parts[1]) >= 64 && parseInt(parts[1]) <= 127) {
+                    console.log(chalk.yellow('💡 Tip: ') + 'CGNAT detected! Air supports IPv6 for external access.')
+                    console.log(chalk.gray('   Learn more: ') + chalk.white('cat CGNAT_SETUP.md\n'))
+                }
+            }
+        } catch (e) {
+            // Ignore errors in optional check
+        }
+        
+        console.log(chalk.gray('Documentation: https://github.com/akaoio/air'))
     }
     
     async runNonInteractive() {
