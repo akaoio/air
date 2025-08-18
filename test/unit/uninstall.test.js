@@ -8,7 +8,7 @@ const __dirname = path.dirname(__filename)
 
 suite('uninstaller tests', () => {
     const fixturesDir = path.join(__dirname, '../fixtures')
-    const uninstallScript = path.join(process.cwd(), 'uninstall.js')
+    const uninstallScript = path.join(process.cwd(), 'script/uninstall.js')
     
     // Helper to create unique test directory
     function createTestDir() {

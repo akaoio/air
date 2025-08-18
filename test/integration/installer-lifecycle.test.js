@@ -10,8 +10,8 @@ suite('installer lifecycle integration tests', () => {
     const fixturesDir = path.join(__dirname, '../fixtures')
     const scripts = {
         install: path.join(process.cwd(), 'install.js'),
-        uninstall: path.join(process.cwd(), 'uninstall.js'),
-        update: path.join(process.cwd(), 'update.js'),
+        uninstall: path.join(process.cwd(), 'script/uninstall.js'),
+        update: path.join(process.cwd(), 'script/update.js'),
         ddns: path.join(process.cwd(), 'ddns.js')
     }
     
