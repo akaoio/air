@@ -4,34 +4,10 @@ import { execSync, exec } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
-import readline from 'readline'
 import { fileURLToPath } from 'url'
+import { Terminal, red, green, yellow, blue, cyan, gray, white, bold } from './src/libs/terminal.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-
-// Native ANSI color codes
-const colors = {
-    reset: '\x1b[0m',
-    red: '\x1b[31m',
-    green: '\x1b[32m',
-    yellow: '\x1b[33m',
-    blue: '\x1b[34m',
-    cyan: '\x1b[36m',
-    gray: '\x1b[90m',
-    white: '\x1b[37m',
-    bold: '\x1b[1m'
-}
-
-// Simple color helpers
-const color = (text, ...codes) => codes.join('') + text + colors.reset
-const red = text => color(text, colors.red)
-const green = text => color(text, colors.green)
-const yellow = text => color(text, colors.yellow)
-const blue = text => color(text, colors.blue)
-const cyan = text => color(text, colors.cyan)
-const gray = text => color(text, colors.gray)
-const white = text => color(text, colors.white)
-const bold = text => color(text, colors.bold)
 
 class AirInstaller {
     constructor() {
@@ -52,7 +28,7 @@ class AirInstaller {
         }
         this.platform = os.platform()
         this.hostname = os.hostname()
-        this.rl = null
+        this.terminal = new Terminal()
     }
     
     parseArgs() {
@@ -71,48 +47,6 @@ class AirInstaller {
         }
     }
 
-    // Native readline question helper
-    async question(prompt, defaultValue = '') {
-        if (!this.rl) {
-            this.rl = readline.createInterface({
-                input: process.stdin,
-                output: process.stdout
-            })
-        }
-        
-        return new Promise(resolve => {
-            const displayPrompt = defaultValue 
-                ? `${prompt} ${gray(`(${defaultValue})`)} ` 
-                : `${prompt} `
-            
-            this.rl.question(displayPrompt, answer => {
-                resolve(answer || defaultValue)
-            })
-        })
-    }
-    
-    async confirm(prompt, defaultValue = true) {
-        const answer = await this.question(
-            prompt + (defaultValue ? ' (Y/n)' : ' (y/N)'),
-            defaultValue ? 'y' : 'n'
-        )
-        const normalized = answer.toLowerCase().trim()
-        if (defaultValue) {
-            // Default is yes, so only return false if explicitly 'n' or 'no'
-            return normalized !== 'n' && normalized !== 'no'
-        } else {
-            // Default is no, so only return true if explicitly 'y' or 'yes'
-            return normalized === 'y' || normalized === 'yes'
-        }
-    }
-    
-    closeReadline() {
-        if (this.rl) {
-            this.rl.close()
-            this.rl = null
-        }
-    }
-
     async run() {
         // Check mode for postinstall
         if (this.args.check) {
@@ -125,9 +59,8 @@ class AirInstaller {
         }
         
         // Interactive mode
-        console.log(cyan('\n══════════════════════════════════════'))
-        console.log(cyan(bold('     Air GUN Database Installer')))
-        console.log(cyan('══════════════════════════════════════\n'))
+        this.terminal.header('Air GUN Database Installer')
+        console.log('')
 
         await this.checkSystem()
         await this.detectNetwork()
@@ -138,7 +71,7 @@ class AirInstaller {
         await this.createService()
         await this.showSummary()
         
-        this.closeReadline()
+        this.terminal.close()
     }
 
     async checkAndInform() {
@@ -158,15 +91,14 @@ class AirInstaller {
             return
         }
         
-        console.log('\n' + cyan('══════════════════════════════════════'))
-        console.log(cyan(bold('     🚀 Air Installation Complete!')))
-        console.log(cyan('══════════════════════════════════════\n'))
+        this.terminal.header('🚀 Air Installation Complete!')
+        console.log('')
         
-        console.log(yellow('⚠') + ' No configuration found.\n')
+        this.terminal.warning('No configuration found.\n')
         
         // Check if TTY
         if (process.stdout.isTTY && process.stdin.isTTY) {
-            const shouldSetup = await this.confirm('Would you like to configure Air now?')
+            const shouldSetup = await this.terminal.confirm('Would you like to configure Air now?')
             if (shouldSetup) {
                 console.log('')
                 await this.runInteractive()
@@ -178,13 +110,13 @@ class AirInstaller {
         console.log('  ' + cyan('npm run setup') + '\n')
         console.log(gray('Documentation: https://github.com/akaoio/air'))
         
-        this.closeReadline()
+        this.terminal.close()
     }
 
     quickSetup() {
         const configPath = path.join(this.config.root, 'air.json')
         if (fs.existsSync(configPath)) {
-            console.log(yellow('Configuration already exists. Use npm run setup to reconfigure.'))
+            this.terminal.warning('Configuration already exists. Use npm run setup to reconfigure.')
             return
         }
         
@@ -201,7 +133,7 @@ class AirInstaller {
             }
         }
         fs.writeFileSync(configPath, JSON.stringify(defaultConfig, null, 4))
-        console.log(green('✓') + ' Default configuration created')
+        this.terminal.success('Default configuration created')
         console.log(gray('  Start with: ') + cyan('npm start'))
         console.log(gray('  Customize with: ') + cyan('npm run setup'))
     }
@@ -215,11 +147,11 @@ class AirInstaller {
         await this.saveConfig()
         await this.createService()
         await this.showSummary()
-        this.closeReadline()
+        this.terminal.close()
     }
 
     async checkSystem() {
-        console.log(blue('🔍 Checking system...'))
+        this.terminal.section('🔍 Checking system...')
         
         try {
             // Check OS
@@ -228,34 +160,34 @@ class AirInstaller {
                 : ''
             
             if (osRelease.includes('ID=debian') || osRelease.includes('ID=ubuntu')) {
-                console.log(green('✓') + ' Debian/Ubuntu detected')
+                this.terminal.success('Debian/Ubuntu detected')
             } else if (osRelease.includes('ID=armbian')) {
-                console.log(green('✓') + ' Armbian detected')
+                this.terminal.success('Armbian detected')
             } else {
-                console.log(yellow('⚠') + ' Unknown OS')
+                this.terminal.warning('Unknown OS')
             }
             
             // Check Node.js
             const nodeVersion = process.version
-            console.log(green('✓') + ' Node.js ' + nodeVersion)
+            this.terminal.success('Node.js ' + nodeVersion)
             
             // Check tools
             const tools = ['jq', 'dig', 'nslookup', 'ip', 'nmcli']
             for (const tool of tools) {
                 try {
                     execSync(`which ${tool}`, { stdio: 'ignore' })
-                    console.log(green('✓') + ` ${tool} installed`)
+                    this.terminal.success(`${tool} installed`)
                 } catch {
-                    console.log(yellow('⚠') + ` ${tool} not found`)
+                    this.terminal.warning(`${tool} not found`)
                 }
             }
         } catch (e) {
-            console.log(red('Error checking system:'), e.message)
+            this.terminal.error('Error checking system: ' + e.message)
         }
     }
 
     async detectNetwork() {
-        console.log(blue('\n🌐 Detecting network configuration...'))
+        this.terminal.section('🌐 Detecting network configuration...')
         
         try {
             // Get current IP
@@ -288,26 +220,26 @@ class AirInstaller {
                 }
             }
         } catch (e) {
-            console.log(yellow('Could not detect all network settings'))
+            this.terminal.warning('Could not detect all network settings')
         }
     }
 
     async configureNetwork() {
-        console.log(blue('\n⚙️ Network Configuration'))
+        this.terminal.section('⚙️ Network Configuration')
         
-        const setupStatic = await this.confirm('Do you want to set up a static IP address?', false)
+        const setupStatic = await this.terminal.confirm('Do you want to set up a static IP address?', false)
         
         if (setupStatic) {
-            const staticIP = await this.question('Enter desired static IP:', this.config.network.currentIP)
+            const staticIP = await this.terminal.question('Enter desired static IP:', this.config.network.currentIP)
             
-            if (staticIP && await this.confirm(`Configure static IP ${staticIP} on ${this.config.network.interface}?`)) {
+            if (staticIP && await this.terminal.confirm(`Configure static IP ${staticIP} on ${this.config.network.interface}?`)) {
                 await this.setupStaticIP(staticIP)
             }
         }
     }
 
     async setupStaticIP(ip) {
-        console.log(blue(`\n📍 Setting up static IP ${ip}...`))
+        this.terminal.section(`📍 Setting up static IP ${ip}...`)
         
         try {
             // Try NetworkManager first
@@ -325,12 +257,12 @@ class AirInstaller {
                     execSync(`sudo nmcli con mod "${connectionName}" ipv4.dns "8.8.8.8 8.8.4.4"`, { stdio: 'inherit' })
                     execSync(`sudo nmcli con mod "${connectionName}" ipv4.method manual`, { stdio: 'inherit' })
                     execSync(`sudo nmcli con up "${connectionName}"`, { stdio: 'inherit' })
-                    console.log(green('✓') + ` Static IP ${ip} configured via NetworkManager`)
+                    this.terminal.success(`Static IP ${ip} configured via NetworkManager`)
                     this.config.network.staticIP = ip
                     return
                 }
             } catch (e) {
-                console.log(yellow('⚠') + ' NetworkManager not available, trying netplan...')
+                this.terminal.warning('NetworkManager not available, trying netplan...')
             }
             
             // Try netplan
@@ -357,23 +289,23 @@ class AirInstaller {
                 execSync(`sudo chmod 600 ${netplanConfig}`)
                 execSync('sudo netplan apply 2>&1 | grep -v "Cannot call openvswitch" || true')
                 
-                console.log(green('✓') + ` Static IP ${ip} configured via netplan`)
+                this.terminal.success(`Static IP ${ip} configured via netplan`)
                 this.config.network.staticIP = ip
             }
         } catch (e) {
-            console.log(red('✗') + ' Failed to configure static IP:', e.message)
+            this.terminal.error('Failed to configure static IP: ' + e.message)
         }
     }
 
     async configureBasic() {
-        console.log(blue('\n📝 Basic Configuration'))
+        this.terminal.section('📝 Basic Configuration')
         
-        this.config.env = await this.question('Environment (development/production):', this.config.env)
-        this.config.name = await this.question('Instance name:', this.config.name)
-        this.config.port = parseInt(await this.question('Port:', String(this.config.port)))
-        this.config.domain = await this.question('Domain:', this.config.network.staticIP || this.config.domain)
+        this.config.env = await this.terminal.question('Environment (development/production):', this.config.env)
+        this.config.name = await this.terminal.question('Instance name:', this.config.name)
+        this.config.port = await this.terminal.number('Port:', this.config.port, 1, 65535)
+        this.config.domain = await this.terminal.question('Domain:', this.config.network.staticIP || this.config.domain)
         
-        const addPeers = await this.confirm('Add external peers?', false)
+        const addPeers = await this.terminal.confirm('Add external peers?', false)
         if (addPeers) {
             await this.addPeers()
         }
@@ -382,11 +314,11 @@ class AirInstaller {
     async addPeers() {
         let addMore = true
         while (addMore) {
-            const peer = await this.question('Peer address (e.g., wss://peer.example.com/gun):')
+            const peer = await this.terminal.question('Peer address (e.g., wss://peer.example.com/gun):')
             if (peer && peer.startsWith('ws')) {
                 this.config.peers.push(peer)
-                console.log(green('✓') + ' Peer added')
-                addMore = await this.confirm('Add another peer?', false)
+                this.terminal.success('Peer added')
+                addMore = await this.terminal.confirm('Add another peer?', false)
             } else {
                 // If no valid peer entered, stop asking
                 addMore = false
@@ -395,17 +327,17 @@ class AirInstaller {
     }
 
     async setupSecurity() {
-        console.log(blue('\n🔒 Security Configuration'))
+        this.terminal.section('🔒 Security Configuration')
         
         if (this.config.env === 'production') {
             // GoDaddy DDNS
-            const setupGoDaddy = await this.confirm('Set up GoDaddy DDNS (Dynamic DNS)?', false)
+            const setupGoDaddy = await this.terminal.confirm('Set up GoDaddy DDNS (Dynamic DNS)?', false)
             if (setupGoDaddy) {
                 await this.setupGoDaddy()
             }
             
             // SSL
-            const setupSSL = await this.confirm('Install Let\'s Encrypt SSL certificate?', false)
+            const setupSSL = await this.terminal.confirm('Install Let\'s Encrypt SSL certificate?', false)
             if (setupSSL) {
                 await this.setupSSL()
             }
@@ -413,8 +345,8 @@ class AirInstaller {
     }
 
     async setupGoDaddy() {
-        const key = await this.question('GoDaddy API Key:')
-        const secret = await this.question('GoDaddy API Secret:')
+        const key = await this.terminal.question('GoDaddy API Key:')
+        const secret = await this.terminal.password('GoDaddy API Secret:')
         
         if (key && secret) {
             const parts = this.config.domain.split('.')
@@ -422,15 +354,15 @@ class AirInstaller {
             const domain = parts.slice(1).join('.')
             
             this.config.godaddy = { domain, host, key, secret }
-            console.log(green('✓') + ' GoDaddy DDNS configured')
+            this.terminal.success('GoDaddy DDNS configured')
             
             // Setup cron job
             const cronJob = `*/5 * * * * cd ${this.config.root} && /usr/bin/node ddns.js >> /var/log/air-ddns.log 2>&1`
             try {
                 execSync(`(crontab -l 2>/dev/null | grep -v "ddns.js"; echo "${cronJob}") | crontab -`)
-                console.log(green('✓') + ' DDNS cron job created')
+                this.terminal.success('DDNS cron job created')
             } catch (e) {
-                console.log(yellow('⚠') + ' Could not create cron job')
+                this.terminal.warning('Could not create cron job')
             }
         }
     }
@@ -447,11 +379,11 @@ class AirInstaller {
                 if (fs.existsSync('/etc/debian_version')) {
                     execSync('sudo apt-get update && sudo apt-get install -y certbot', { stdio: 'inherit' })
                 } else {
-                    console.log(red('✗') + ' Please install certbot manually')
+                    this.terminal.error('Please install certbot manually')
                     return
                 }
             } catch {
-                console.log(red('✗') + ' Failed to install certbot')
+                this.terminal.error('Failed to install certbot')
                 return
             }
         }
@@ -463,9 +395,9 @@ class AirInstaller {
                 key: `/etc/letsencrypt/live/${this.config.domain}/privkey.pem`,
                 cert: `/etc/letsencrypt/live/${this.config.domain}/cert.pem`
             }
-            console.log(green('✓') + ' SSL certificate installed')
+            this.terminal.success('SSL certificate installed')
         } catch {
-            console.log(red('✗') + ' SSL certificate installation failed')
+            this.terminal.error('SSL certificate installation failed')
         }
     }
 
@@ -501,13 +433,13 @@ class AirInstaller {
         }
         
         fs.writeFileSync(configPath, JSON.stringify(configData, null, 4))
-        console.log(green('✓') + ' Configuration saved to ' + configPath)
+        this.terminal.success('Configuration saved to ' + configPath)
     }
 
     async createService() {
         if (this.config.env !== 'production') return
         
-        const createService = await this.confirm('Create systemd service?', true)
+        const createService = await this.terminal.confirm('Create systemd service?', true)
         if (!createService) return
         
         const serviceName = this.config.name
@@ -533,14 +465,15 @@ WantedBy=multi-user.target
             execSync('sudo systemctl daemon-reload')
             execSync(`sudo systemctl enable ${serviceName}`)
             execSync(`sudo systemctl start ${serviceName}`)
-            console.log(green('✓') + ` Service ${serviceName} created and started`)
+            this.terminal.success(`Service ${serviceName} created and started`)
         } catch (e) {
-            console.log(red('✗') + ' Failed to create service:', e.message)
+            this.terminal.error('Failed to create service: ' + e.message)
         }
     }
 
     async showSummary() {
-        console.log(blue('\n✨ Installation Complete!\n'))
+        this.terminal.header('Installation Complete!')
+        console.log('')
         console.log(cyan('Configuration Summary:'))
         console.log(white(`  Environment: ${this.config.env}`))
         console.log(white(`  Name:        ${this.config.name}`))
