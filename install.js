@@ -337,6 +337,12 @@ class AirInstaller {
             }
             
             // SSL
+            console.log('')
+            console.log(cyan('📌 About SSL Certificates:'))
+            console.log('  • Certbot will temporarily use port 80 for validation')
+            console.log('  • Your app continues to run on port ' + this.config.port)
+            console.log('  • After SSL setup, you can use HTTPS on port ' + this.config.port)
+            
             const setupSSL = await this.terminal.confirm('Install Let\'s Encrypt SSL certificate?', false)
             if (setupSSL) {
                 await this.setupSSL()
@@ -448,13 +454,35 @@ class AirInstaller {
             console.log(green('Using IPv6 for certificate validation'))
         }
         console.log(gray('Note: This requires port 80 to be accessible from internet'))
+        console.log(gray('Your app will continue to run on port ' + this.config.port))
+        
+        // Check if port 80 is in use
+        try {
+            const port80Check = execSync('sudo lsof -i:80', { encoding: 'utf8' })
+            if (port80Check) {
+                this.terminal.warning('Port 80 is in use. Stopping services...')
+                // Try to stop common services
+                try {
+                    execSync('sudo systemctl stop nginx 2>/dev/null', { stdio: 'ignore' })
+                } catch {}
+                try {
+                    execSync('sudo systemctl stop apache2 2>/dev/null', { stdio: 'ignore' })
+                } catch {}
+                try {
+                    execSync(`sudo systemctl stop ${this.config.name} 2>/dev/null`, { stdio: 'ignore' })
+                } catch {}
+            }
+        } catch {
+            // Port 80 is free
+        }
         
         try {
             // If IPv6 is available, bind certbot to IPv6 address
             let certbotCmd = `sudo certbot certonly --standalone --preferred-challenges http -d ${this.config.domain}`
             if (hasIPv6 && ipv6Address) {
                 // Force IPv6 by binding to specific address
-                certbotCmd = `sudo certbot certonly --standalone --preferred-challenges http --http-01-address ::0 -d ${this.config.domain}`
+                certbotCmd = `sudo certbot certonly --standalone --preferred-challenges http --http-01-address :: -d ${this.config.domain}`
+                console.log(gray('Using command: ' + certbotCmd))
             }
             
             execSync(certbotCmd, { stdio: 'inherit' })
