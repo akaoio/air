@@ -12,74 +12,24 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 class AirInstaller {
     constructor() {
-        // Parse CLI arguments first
-        this.parseArgs()
-        
         this.config = {
-            root: this.args.root || process.cwd(),
+            root: process.cwd(),
             bash: __dirname,
-            env: this.args.env || 'development',
-            name: this.args.name || 'air',
-            port: this.args.port || 8765,
-            domain: this.args.domain || 'localhost',
+            env: 'development',
+            name: 'air',
+            port: 8765,
+            domain: 'localhost',
             peers: [],
             sync: null,
             ssl: false,
-            godaddy: this.args.godaddy ? {} : {},
+            godaddy: {},
             network: {}
         }
         this.platform = os.platform()
         this.hostname = os.hostname()
     }
-    
-    parseArgs() {
-        this.args = {
-            nonInteractive: false,
-            checkOnly: false,
-            root: null,
-            name: null,
-            env: null,
-            port: null,
-            domain: null,
-            godaddy: false
-        }
-        
-        const argv = process.argv.slice(2)
-        for (let i = 0; i < argv.length; i++) {
-            const arg = argv[i]
-            
-            if (arg === '--non-interactive') {
-                this.args.nonInteractive = true
-            } else if (arg === '--check-only') {
-                this.args.checkOnly = true
-            } else if (arg === '--root' && argv[i + 1]) {
-                this.args.root = argv[++i]
-            } else if (arg === '--name' && argv[i + 1]) {
-                this.args.name = argv[++i]
-            } else if (arg === '--env' && argv[i + 1]) {
-                this.args.env = argv[++i]
-            } else if (arg === '--port' && argv[i + 1]) {
-                this.args.port = parseInt(argv[++i])
-            } else if (arg === '--domain' && argv[i + 1]) {
-                this.args.domain = argv[++i]
-            } else if (arg === '--godaddy') {
-                this.args.godaddy = true
-            }
-        }
-    }
 
     async run() {
-        // Check-only mode for tests
-        if (this.args.checkOnly) {
-            return this.checkSystemSimple()
-        }
-        
-        // Non-interactive mode for tests
-        if (this.args.nonInteractive) {
-            return this.runNonInteractive()
-        }
-        
-        // Interactive mode (original)
         console.log(chalk.cyan('\n══════════════════════════════════════'))
         console.log(chalk.cyan.bold('     Air GUN Database Installer'))
         console.log(chalk.cyan('══════════════════════════════════════\n'))
@@ -91,116 +41,6 @@ class AirInstaller {
         await this.setupSecurity()
         await this.setupService()
         await this.finish()
-    }
-    
-    checkSystemSimple() {
-        console.log('Checking system requirements...')
-        console.log(`✓ Node.js ${process.version} detected`)
-        try {
-            const npmVersion = execSync('npm --version', { encoding: 'utf8' }).trim()
-            console.log(`✓ npm ${npmVersion} detected`)
-        } catch (e) {
-            console.log('✗ npm not found')
-        }
-        return true
-    }
-    
-    async runNonInteractive() {
-        console.log('Running in non-interactive mode...')
-        
-        // Load existing config if it exists
-        const configPath = path.join(this.config.root, 'air.json')
-        let existingConfig = null
-        
-        try {
-            if (fs.existsSync(configPath)) {
-                existingConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'))
-                console.log('Found existing configuration')
-            }
-        } catch (e) {
-            // Ignore errors
-        }
-        
-        // Merge with existing config
-        if (existingConfig) {
-            // Preserve custom fields
-            Object.keys(existingConfig).forEach(key => {
-                if (!(key in this.config) || typeof existingConfig[key] === 'object') {
-                    if (key === this.config.env || key === 'development' || key === 'production') {
-                        // Merge environment configs
-                        this.config[key] = { ...existingConfig[key] }
-                        if (key === this.config.env) {
-                            // Update with CLI args for current env
-                            if (this.args.port) this.config[key].port = this.args.port
-                            if (this.args.domain) this.config[key].domain = this.args.domain
-                        }
-                    } else if (key !== 'name' && key !== 'env' && key !== 'root') {
-                        this.config[key] = existingConfig[key]
-                    }
-                }
-            })
-            
-            // Preserve custom fields that are not in default config
-            if (existingConfig.customField) {
-                this.config.customField = existingConfig.customField
-            }
-            if (existingConfig[this.config.env]?.customSetting) {
-                if (!this.config[this.config.env]) {
-                    this.config[this.config.env] = {}
-                }
-                this.config[this.config.env].customSetting = existingConfig[this.config.env].customSetting
-            }
-        }
-        
-        // Add IP detection config
-        if (!this.config.ip) {
-            this.config.ip = {
-                timeout: 5000,
-                dnstimeout: 3000,
-                agent: 'Air-GUN-Peer/1.0',
-                dns: [
-                    { hostname: 'myip.opendns.com', resolver: 'resolver1.opendns.com' },
-                    { hostname: 'myip.opendns.com', resolver: 'resolver2.opendns.com' }
-                ],
-                http: [
-                    { url: 'https://checkip.amazonaws.com' },
-                    { url: 'https://api.ipify.org' }
-                ]
-            }
-        }
-        
-        // Ensure environment config exists
-        if (!this.config[this.config.env]) {
-            this.config[this.config.env] = {
-                port: this.config.port,
-                domain: this.config.domain,
-                peers: this.config.peers || []
-            }
-        }
-        
-        // Write config file
-        const configData = {
-            root: this.config.root,
-            bash: this.config.bash,
-            env: this.config.env,
-            name: this.config.name,
-            ip: this.config.ip,
-            ...Object.keys(this.config).reduce((acc, key) => {
-                if (!['root', 'bash', 'env', 'name', 'ip', 'port', 'domain', 'peers', 'ssl', 'godaddy', 'network', 'platform', 'hostname'].includes(key)) {
-                    acc[key] = this.config[key]
-                }
-                return acc
-            }, {}),
-            [this.config.env]: this.config[this.config.env]
-        }
-        
-        fs.writeFileSync(configPath, JSON.stringify(configData, null, 2))
-        console.log(`Configuration saved to ${configPath}`)
-        
-        // Skip service creation in non-interactive mode
-        console.log('Skipping service creation in non-interactive mode')
-        
-        return true
     }
 
     async checkSystem() {

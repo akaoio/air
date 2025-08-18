@@ -129,7 +129,15 @@ class TestContext {
 }
 
 // Assertion helpers
-global.assert = {
+// Simple assert function
+global.assert = function(condition, message) {
+    if (!condition) {
+        throw new Error(message || 'Assertion failed')
+    }
+}
+
+// Extended assert methods
+Object.assign(global.assert, {
     equal(actual, expected, message) {
         if (actual !== expected) {
             throw new Error(message || `Expected ${expected}, got ${actual}`)
@@ -224,7 +232,7 @@ global.assert = {
             throw new Error(message || `Expected type ${expectedType}, got ${actualType}`)
         }
     }
-}
+})
 
 // Test runner
 async function runTests() {
@@ -234,6 +242,8 @@ async function runTests() {
     global.suite = context.suite.bind(context)
     global.test = context.test.bind(context)
     global.skip = context.skip.bind(context)
+    global.setup = () => {} // Default no-op
+    global.teardown = () => {} // Default no-op
 
     console.log(`${colors.blue}═══════════════════════════════════════════════════${colors.reset}`)
     console.log(`${colors.blue}         Air Test Suite${colors.reset}`)
