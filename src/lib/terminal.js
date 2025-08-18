@@ -211,8 +211,10 @@ class Terminal {
      * @returns {Promise<*>} Selected choice
      */
     async interactiveSelect(prompt, choices, defaultChoice = null) {
-        console.log('\n' + bold(prompt))
-        console.log(gray('Use ↑↓ arrows to navigate, Enter to select, ESC to cancel'))
+        if (prompt) {
+            console.log('\n' + bold(prompt))
+        }
+        console.log(gray('↑↓ Navigate  ⏎ Select  ⎋ Back  ^C Exit'))
         
         let selectedIndex = defaultChoice ? choices.indexOf(defaultChoice) : 0
         if (selectedIndex < 0) selectedIndex = 0
@@ -361,13 +363,18 @@ class Terminal {
      * @returns {Promise<*>} Selected item value
      */
     async interactiveMenu(title, items, options = {}) {
-        const { fullscreen = false, loop = true } = options
+        const { fullscreen = false, loop = true, showHelp = true } = options
         
         if (fullscreen) {
             this.clear()
         }
         
         this.header(title)
+        
+        // Show keyboard help if enabled
+        if (showHelp) {
+            console.log(gray('↑↓ Navigate  ⏎ Select  ⎋ Back  ^C Exit'))
+        }
         
         // Filter out sections and build choice array
         const choices = []
@@ -439,7 +446,7 @@ class Terminal {
      */
     async interactiveMultiselect(prompt, choices, preSelected = []) {
         console.log('\n' + bold(prompt))
-        console.log(gray('Use ↑↓ to navigate, Space to toggle, Enter to confirm, ESC to cancel'))
+        console.log(gray('↑↓ Navigate  ␣ Toggle  ⏎ Confirm  ⎋ Cancel  ^A Select All'))
         
         let selectedIndex = 0
         const selected = new Set(preSelected)
