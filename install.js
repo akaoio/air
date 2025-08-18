@@ -476,11 +476,47 @@ class AirInstaller {
             // Port 80 is free
         }
         
+        // First do a dry-run to test
+        console.log(cyan('\n🧪 Testing certificate validation (dry-run)...'))
         try {
-            // If IPv6 is available, bind certbot to IPv6 address
+            let dryRunCmd = `sudo certbot certonly --standalone --preferred-challenges http -d ${this.config.domain} --dry-run`
+            if (hasIPv6 && ipv6Address) {
+                dryRunCmd = `sudo certbot certonly --standalone --preferred-challenges http --http-01-address :: -d ${this.config.domain} --dry-run`
+            }
+            
+            execSync(dryRunCmd, { stdio: 'pipe', encoding: 'utf8' })
+            this.terminal.success('Dry-run successful! Validation will work.')
+        } catch (e) {
+            this.terminal.error('Dry-run failed! Certificate validation will not work.')
+            console.log(yellow('\n⚠ Common reasons:'))
+            console.log('  • Domain not pointing to this server')
+            console.log('  • Port 80 blocked by firewall')
+            console.log('  • Behind CGNAT without working IPv6')
+            
+            const proceed = await this.terminal.confirm('Continue anyway?', false)
+            if (!proceed) {
+                this.terminal.info('Skipping SSL certificate installation')
+                return
+            }
+        }
+        
+        // Rate limit warning
+        console.log(yellow('\n⚠ Let\'s Encrypt Rate Limits:'))
+        console.log('  • 5 failures per account per hostname per hour')
+        console.log('  • 5 duplicate certificates per week')
+        console.log('  • 50 certificates per domain per week')
+        
+        const finalConfirm = await this.terminal.confirm('Proceed with real certificate request?', true)
+        if (!finalConfirm) {
+            this.terminal.info('Skipping SSL certificate installation')
+            return
+        }
+        
+        try {
+            // Real certificate request
+            console.log(cyan('\n🔐 Requesting real certificate...'))
             let certbotCmd = `sudo certbot certonly --standalone --preferred-challenges http -d ${this.config.domain}`
             if (hasIPv6 && ipv6Address) {
-                // Force IPv6 by binding to specific address
                 certbotCmd = `sudo certbot certonly --standalone --preferred-challenges http --http-01-address :: -d ${this.config.domain}`
                 console.log(gray('Using command: ' + certbotCmd))
             }
