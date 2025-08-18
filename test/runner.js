@@ -72,10 +72,6 @@ class TestContext {
             }
 
             try {
-                // Debug: show which test is about to run
-                if (testIndex === 10) {
-                    console.log(`  [DEBUG] About to run test #${testIndex}: ${test.name}`)
-                }
                 const testStart = performance.now()
                 await test.fn()
                 const duration = (performance.now() - testStart).toFixed(2)
