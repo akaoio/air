@@ -98,8 +98,16 @@ class Terminal {
      */
     async keypress() {
         return new Promise((resolve) => {
+            let escapeTimeout = null
+            
             const onData = (key) => {
                 process.stdin.removeListener('data', onData)
+                
+                // Clear any pending escape timeout
+                if (escapeTimeout) {
+                    clearTimeout(escapeTimeout)
+                    escapeTimeout = null
+                }
                 
                 // Parse key
                 const result = {
@@ -110,10 +118,47 @@ class Terminal {
                     shift: false
                 }
                 
-                // ESC sequences
+                // Handle ESC key - it might come alone or as part of a sequence
                 if (key === '\x1b') {
-                    result.name = 'escape'
-                } else if (key === '\x1b[A') {
+                    // ESC pressed alone - wait a bit to see if more follows
+                    escapeTimeout = setTimeout(() => {
+                        result.name = 'escape'
+                        resolve(result)
+                    }, 50) // 50ms timeout for ESC key
+                    
+                    // Listen for more data
+                    process.stdin.once('data', (nextKey) => {
+                        clearTimeout(escapeTimeout)
+                        // Combine with next key
+                        const combined = key + nextKey
+                        
+                        if (combined === '\x1b[A') {
+                            result.name = 'up'
+                        } else if (combined === '\x1b[B') {
+                            result.name = 'down'
+                        } else if (combined === '\x1b[C') {
+                            result.name = 'right'
+                        } else if (combined === '\x1b[D') {
+                            result.name = 'left'
+                        } else if (combined === '\x1b[H') {
+                            result.name = 'home'
+                        } else if (combined === '\x1b[F') {
+                            result.name = 'end'
+                        } else if (combined === '\x1b[5~') {
+                            result.name = 'pageup'
+                        } else if (combined === '\x1b[6~') {
+                            result.name = 'pagedown'
+                        } else {
+                            // Unknown escape sequence, treat as ESC
+                            result.name = 'escape'
+                        }
+                        resolve(result)
+                    })
+                    return // Don't resolve yet, wait for timeout or next key
+                }
+                
+                // Arrow keys and other escape sequences
+                if (key === '\x1b[A') {
                     result.name = 'up'
                 } else if (key === '\x1b[B') {
                     result.name = 'down'
@@ -129,6 +174,9 @@ class Terminal {
                     result.name = 'pageup'
                 } else if (key === '\x1b[6~') {
                     result.name = 'pagedown'
+                } else if (key.startsWith('\x1b')) {
+                    // Any other escape sequence, treat as ESC
+                    result.name = 'escape'
                 } else if (key === '\r' || key === '\n') {
                     result.name = 'enter'
                 } else if (key === ' ') {
@@ -140,6 +188,9 @@ class Terminal {
                     result.ctrl = true
                 } else if (key === '\x04') {
                     result.name = 'ctrl-d'
+                    result.ctrl = true
+                } else if (key === '\x1a') {
+                    result.name = 'ctrl-z'
                     result.ctrl = true
                 } else if (key.length === 1) {
                     result.name = key
@@ -206,9 +257,13 @@ class Terminal {
                 render()
             } else if (key.name === 'enter') {
                 result = choices[selectedIndex]
-            } else if (key.name === 'escape' || key.name === 'ctrl-c') {
-                result = defaultChoice || null
+            } else if (key.name === 'escape') {
+                // ESC means go back/cancel, return null to indicate cancellation
+                result = null
                 break
+            } else if (key.name === 'ctrl-c') {
+                // Ctrl+C exits completely
+                process.exit(0)
             } else if (key.name >= '1' && key.name <= '9') {
                 // Number key shortcut
                 const num = parseInt(key.name) - 1
@@ -337,8 +392,9 @@ class Terminal {
         
         const selected = await this.interactiveSelect('', choices)
         
+        // Return null if ESC was pressed to indicate go back
         if (selected === null) {
-            return 'exit'
+            return null
         }
         
         return mapping[selected]
@@ -436,9 +492,13 @@ class Terminal {
                 render()
             } else if (key.name === 'enter') {
                 done = true
-            } else if (key.name === 'escape' || key.name === 'ctrl-c') {
+            } else if (key.name === 'escape') {
+                // ESC means go back/cancel
                 this.disableRawMode()
-                return preSelected
+                return null
+            } else if (key.name === 'ctrl-c') {
+                // Ctrl+C exits completely
+                process.exit(0)
             } else if (key.name === 'a' && key.ctrl) {
                 // Ctrl+A to select all
                 choices.forEach(c => selected.add(c))

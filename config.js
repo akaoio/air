@@ -79,11 +79,15 @@ class ConfigWizard {
         this.config.name = await this.term.question('Peer name', this.config.name)
         
         // Use interactive select for environment
-        this.config.env = await this.term.interactiveSelect(
+        const selectedEnv = await this.term.interactiveSelect(
             'Select environment',
             ['development', 'production'], 
             this.config.env
         )
+        // If ESC was pressed (null returned), keep current value
+        if (selectedEnv !== null) {
+            this.config.env = selectedEnv
+        }
         
         const envConfig = this.config[this.config.env]
         
@@ -197,6 +201,11 @@ class ConfigWizard {
                 'Back'
             )
             
+            // If ESC was pressed, go back
+            if (action === null || action === 'Back') {
+                break
+            }
+            
             if (action === 'Add peer') {
                 const peer = await this.term.question('Peer URL (wss://example.com/gun)')
                 if (peer && !envConfig.peers.includes(peer)) {
@@ -207,7 +216,7 @@ class ConfigWizard {
             } else if (action === 'Remove peer' && envConfig.peers.length > 0) {
                 const peerChoices = envConfig.peers.map((p, i) => `${i + 1}. ${p}`)
                 const selected = await this.term.interactiveSelect('Select peer to remove', peerChoices)
-                if (selected) {
+                if (selected !== null) {
                     const index = parseInt(selected.split('.')[0]) - 1
                     if (index >= 0 && index < envConfig.peers.length) {
                         const removed = envConfig.peers.splice(index, 1)[0]
@@ -221,8 +230,6 @@ class ConfigWizard {
                     this.modified = true
                     this.term.success('All peers cleared')
                 }
-            } else {
-                break
             }
             
             await this.term.question('Press Enter to continue...')
@@ -282,6 +289,18 @@ class ConfigWizard {
                 { label: 'Save configuration', value: 'save' },
                 { label: 'Exit', value: 'exit' }
             ], { fullscreen: false })
+            
+            // ESC pressed - ask if user wants to exit
+            if (choice === null) {
+                if (this.modified) {
+                    const saveBeforeExit = await this.term.confirm('You have unsaved changes. Save before exit?', true)
+                    if (saveBeforeExit) {
+                        this.save()
+                    }
+                }
+                this.term.close()
+                return
+            }
             
             switch (choice) {
                 case 'basic':
