@@ -96,7 +96,14 @@ class AirInstaller {
             prompt + (defaultValue ? ' (Y/n)' : ' (y/N)'),
             defaultValue ? 'y' : 'n'
         )
-        return answer.toLowerCase() !== (defaultValue ? 'n' : 'y')
+        const normalized = answer.toLowerCase().trim()
+        if (defaultValue) {
+            // Default is yes, so only return false if explicitly 'n' or 'no'
+            return normalized !== 'n' && normalized !== 'no'
+        } else {
+            // Default is no, so only return true if explicitly 'y' or 'yes'
+            return normalized === 'y' || normalized === 'yes'
+        }
     }
     
     closeReadline() {
