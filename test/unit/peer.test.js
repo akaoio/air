@@ -1,4 +1,4 @@
-import { Peer } from '../../Peer.js'
+import { Peer } from '../../src/Peer.js'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'

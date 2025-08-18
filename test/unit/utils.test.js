@@ -1,4 +1,4 @@
-import { merge } from '../../libs/utils.js'
+import { merge } from '../../src/libs/utils.js'
 
 suite('utils tests', () => {
     
