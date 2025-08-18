@@ -385,7 +385,10 @@ network:
       dhcp4: no
       addresses:
         - ${ip}/24
-      gateway4: ${gateway}
+      routes:
+        - to: 0.0.0.0/0
+          via: ${gateway}
+          metric: 100
       nameservers:
         addresses:
           - 8.8.8.8
@@ -393,6 +396,7 @@ network:
 `
             fs.writeFileSync('/tmp/netplan-config.yaml', netplanContent)
             execSync(`sudo cp /tmp/netplan-config.yaml ${netplanConfig}`)
+            execSync(`sudo chmod 600 ${netplanConfig}`)  // Fix permissions
             execSync('sudo netplan apply')
             
             console.log(chalk.green(`✓ Static IP ${ip} configured via netplan`))
