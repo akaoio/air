@@ -10,7 +10,13 @@ const colors = {
     cyan: '\x1b[36m',
     gray: '\x1b[90m',
     white: '\x1b[37m',
-    bold: '\x1b[1m'
+    bold: '\x1b[1m',
+    dim: '\x1b[2m',
+    bgRed: '\x1b[41m',
+    bgGreen: '\x1b[42m',
+    bgYellow: '\x1b[43m',
+    bgBlue: '\x1b[44m',
+    bgCyan: '\x1b[46m'
 }
 
 // Color helper functions
@@ -23,6 +29,7 @@ const cyan = text => color(text, colors.cyan)
 const gray = text => color(text, colors.gray)
 const white = text => color(text, colors.white)
 const bold = text => color(text, colors.bold)
+const dim = text => color(text, colors.dim)
 
 /**
  * Terminal interaction utility class
@@ -31,6 +38,16 @@ const bold = text => color(text, colors.bold)
 class Terminal {
     constructor() {
         this.rl = null
+        this.width = process.stdout.columns || 80
+        this.height = process.stdout.rows || 24
+        
+        // Update dimensions on resize
+        if (process.stdout.isTTY) {
+            process.stdout.on('resize', () => {
+                this.width = process.stdout.columns || 80
+                this.height = process.stdout.rows || 24
+            })
+        }
     }
 
     /**
@@ -53,6 +70,136 @@ class Terminal {
             this.rl.close()
             this.rl = null
         }
+    }
+
+    /**
+     * Enable raw mode for keyboard input
+     */
+    enableRawMode() {
+        if (process.stdin.isTTY) {
+            process.stdin.setRawMode(true)
+            process.stdin.resume()
+            process.stdin.setEncoding('utf8')
+        }
+    }
+
+    /**
+     * Disable raw mode
+     */
+    disableRawMode() {
+        if (process.stdin.isTTY) {
+            process.stdin.setRawMode(false)
+        }
+    }
+
+    /**
+     * Read a single keypress
+     * @returns {Promise<Object>} Key information {name, ctrl, meta, shift}
+     */
+    async keypress() {
+        return new Promise((resolve) => {
+            const onData = (key) => {
+                process.stdin.removeListener('data', onData)
+                
+                // Parse key
+                const result = {
+                    sequence: key,
+                    name: null,
+                    ctrl: false,
+                    meta: false,
+                    shift: false
+                }
+                
+                // ESC sequences
+                if (key === '\x1b') {
+                    result.name = 'escape'
+                } else if (key === '\x1b[A') {
+                    result.name = 'up'
+                } else if (key === '\x1b[B') {
+                    result.name = 'down'
+                } else if (key === '\x1b[C') {
+                    result.name = 'right'
+                } else if (key === '\x1b[D') {
+                    result.name = 'left'
+                } else if (key === '\r' || key === '\n') {
+                    result.name = 'enter'
+                } else if (key === ' ') {
+                    result.name = 'space'
+                } else if (key === '\x7f' || key === '\b') {
+                    result.name = 'backspace'
+                } else if (key === '\x03') {
+                    result.name = 'ctrl-c'
+                    result.ctrl = true
+                } else if (key === '\x04') {
+                    result.name = 'ctrl-d'
+                    result.ctrl = true
+                } else if (key.length === 1) {
+                    result.name = key
+                }
+                
+                resolve(result)
+            }
+            
+            process.stdin.once('data', onData)
+        })
+    }
+
+    /**
+     * Interactive select with arrow key navigation
+     * @param {string} prompt - The question to ask
+     * @param {Array} choices - Array of choices
+     * @param {*} defaultChoice - Default choice
+     * @returns {Promise<*>} Selected choice
+     */
+    async interactiveSelect(prompt, choices, defaultChoice = null) {
+        console.log('\n' + bold(prompt))
+        console.log(gray('Use ↑↓ arrows to navigate, Enter to select, ESC to cancel'))
+        
+        let selectedIndex = defaultChoice ? choices.indexOf(defaultChoice) : 0
+        if (selectedIndex < 0) selectedIndex = 0
+        
+        const render = () => {
+            // Clear previous menu
+            this.moveUp(choices.length)
+            
+            choices.forEach((choice, i) => {
+                this.clearLine()
+                if (i === selectedIndex) {
+                    console.log(green('▶ ') + bold(choice))
+                } else {
+                    console.log('  ' + choice)
+                }
+            })
+        }
+        
+        // Initial render
+        render()
+        
+        // Enable raw mode for arrow key input
+        this.enableRawMode()
+        
+        let result = null
+        while (result === null) {
+            const key = await this.keypress()
+            
+            if (key.name === 'up') {
+                selectedIndex = (selectedIndex - 1 + choices.length) % choices.length
+                render()
+            } else if (key.name === 'down') {
+                selectedIndex = (selectedIndex + 1) % choices.length
+                render()
+            } else if (key.name === 'enter') {
+                result = choices[selectedIndex]
+            } else if (key.name === 'escape' || key.name === 'ctrl-c') {
+                result = defaultChoice || null
+                break
+            }
+        }
+        
+        this.disableRawMode()
+        console.log() // New line after selection
+        
+        return result
     }
 
     /**
@@ -97,7 +244,7 @@ class Terminal {
     }
 
     /**
-     * Ask for a choice from a list
+     * Ask for a choice from a list (simple version without arrow keys)
      * @param {string} prompt - The question to ask
      * @param {Array} choices - Array of choices
      * @param {*} defaultChoice - Default choice
@@ -128,7 +275,53 @@ class Terminal {
     }
 
     /**
-     * Menu selection with sections
+     * Interactive menu with arrow navigation
+     * @param {string} title - Menu title
+     * @param {Array} items - Menu items
+     * @param {Object} options - Options {fullscreen, loop}
+     * @returns {Promise<*>} Selected item value
+     */
+    async interactiveMenu(title, items, options = {}) {
+        const { fullscreen = false, loop = true } = options
+        
+        if (fullscreen) {
+            this.clear()
+        }
+        
+        this.header(title)
+        
+        // Filter out sections and build choice array
+        const choices = []
+        const mapping = {}
+        
+        items.forEach(item => {
+            if (!item.section) {
+                const label = item.label || item
+                choices.push(label)
+                mapping[label] = item.value || item
+            }
+        })
+        
+        // Show sections above menu
+        let hasSection = false
+        items.forEach(item => {
+            if (item.section && !hasSection) {
+                console.log(cyan(`\n${item.section}`))
+                hasSection = true
+            }
+        })
+        
+        const selected = await this.interactiveSelect('', choices)
+        
+        if (selected === null) {
+            return 'exit'
+        }
+        
+        return mapping[selected]
+    }
+
+    /**
+     * Menu selection with sections (non-interactive)
      * @param {string} title - Menu title
      * @param {Array} items - Menu items with optional sections
      * @returns {Promise<*>} Selected item
@@ -158,7 +351,73 @@ class Terminal {
     }
 
     /**
-     * Multi-select from list
+     * Interactive multi-select with arrow keys and space to toggle
+     * @param {string} prompt - The question to ask
+     * @param {Array} choices - Array of choices
+     * @param {Array} preSelected - Pre-selected choices
+     * @returns {Promise<Array>} Selected choices
+     */
+    async interactiveMultiselect(prompt, choices, preSelected = []) {
+        console.log('\n' + bold(prompt))
+        console.log(gray('Use ↑↓ to navigate, Space to toggle, Enter to confirm, ESC to cancel'))
+        
+        let selectedIndex = 0
+        const selected = new Set(preSelected)
+        
+        const render = () => {
+            this.moveUp(choices.length)
+            
+            choices.forEach((choice, i) => {
+                this.clearLine()
+                const marker = selected.has(choice) ? green('[✓]') : '[ ]'
+                if (i === selectedIndex) {
+                    console.log(cyan('▶ ') + marker + ' ' + bold(choice))
+                } else {
+                    console.log('  ' + marker + ' ' + choice)
+                }
+            })
+        }
+        
+        // Initial render
+        render()
+        
+        // Enable raw mode
+        this.enableRawMode()
+        
+        let done = false
+        while (!done) {
+            const key = await this.keypress()
+            
+            if (key.name === 'up') {
+                selectedIndex = (selectedIndex - 1 + choices.length) % choices.length
+                render()
+            } else if (key.name === 'down') {
+                selectedIndex = (selectedIndex + 1) % choices.length
+                render()
+            } else if (key.name === 'space') {
+                const choice = choices[selectedIndex]
+                if (selected.has(choice)) {
+                    selected.delete(choice)
+                } else {
+                    selected.add(choice)
+                }
+                render()
+            } else if (key.name === 'enter') {
+                done = true
+            } else if (key.name === 'escape' || key.name === 'ctrl-c') {
+                this.disableRawMode()
+                return preSelected
+            }
+        }
+        
+        this.disableRawMode()
+        console.log() // New line after selection
+        
+        return Array.from(selected)
+    }
+
+    /**
+     * Multi-select from list (simple version)
      * @param {string} prompt - The question to ask
      * @param {Array} choices - Array of choices
      * @param {Array} selected - Pre-selected choices
@@ -166,10 +425,8 @@ class Terminal {
      */
     async multiselect(prompt, choices, selected = []) {
         console.log('\n' + prompt)
-        console.log(gray('(Space to select, Enter to confirm)'))
+        console.log(gray('(Enter numbers separated by commas)'))
         
-        // For simplicity without additional dependencies, 
-        // we'll use comma-separated input
         const choiceList = choices.map((c, i) => {
             const marker = selected.includes(c) ? green('[✓]') : '[ ]'
             return `  ${marker} ${i + 1}. ${c}`
@@ -248,14 +505,42 @@ class Terminal {
     
     // Formatting methods
     header(text) {
-        const line = '═'.repeat(text.length + 4)
+        const width = Math.min(this.width - 4, text.length + 10)
+        const padding = Math.floor((width - text.length) / 2)
+        const line = '═'.repeat(width)
         console.log(cyan(line))
-        console.log(cyan(bold('  ' + text + '  ')))
+        console.log(cyan(bold(' '.repeat(padding) + text + ' '.repeat(padding))))
         console.log(cyan(line))
     }
     
     section(text) {
         console.log(blue('\n' + text))
+    }
+
+    /**
+     * Display a box with text
+     * @param {string} text - Text to display
+     * @param {Object} options - Options {color, padding}
+     */
+    box(text, options = {}) {
+        const { borderColor = 'cyan', padding = 1 } = options
+        const lines = text.split('\n')
+        const maxLength = Math.max(...lines.map(l => l.length))
+        const width = Math.min(this.width - 4, maxLength + padding * 2 + 2)
+        
+        const colorFn = colors[borderColor] ? (t) => color(t, colors[borderColor]) : cyan
+        
+        // Top border
+        console.log(colorFn('┌' + '─'.repeat(width - 2) + '┐'))
+        
+        // Content with padding
+        lines.forEach(line => {
+            const paddedLine = ' '.repeat(padding) + line + ' '.repeat(width - line.length - padding * 2 - 2)
+            console.log(colorFn('│') + paddedLine + colorFn('│'))
+        })
+        
+        // Bottom border
+        console.log(colorFn('└' + '─'.repeat(width - 2) + '┘'))
     }
     
     // Progress methods
@@ -307,7 +592,7 @@ class Terminal {
     }
 
     /**
-     * Display a table
+     * Display a responsive table
      * @param {Array} data - Array of objects
      * @param {Array} columns - Column definitions [{key, label, width}]
      */
@@ -317,35 +602,48 @@ class Terminal {
             return
         }
         
+        // Calculate responsive widths
+        const availableWidth = this.width - 4
+        let totalWidth = columns.reduce((sum, col) => sum + (col.width || 10), 0)
+        
+        // Adjust if needed
+        if (totalWidth > availableWidth) {
+            const scale = availableWidth / totalWidth
+            columns.forEach(col => {
+                col.width = Math.floor((col.width || 10) * scale)
+            })
+        }
+        
         // Header
         const header = columns.map(col => {
             const label = col.label || col.key
             const width = col.width || label.length + 2
-            return label.padEnd(width)
+            return label.substring(0, width).padEnd(width)
         }).join(' ')
         
         console.log(bold(header))
-        console.log(gray('─'.repeat(header.length)))
+        console.log(gray('─'.repeat(Math.min(header.length, this.width))))
         
         // Rows
         data.forEach(row => {
             const line = columns.map(col => {
                 const value = String(row[col.key] || '')
                 const width = col.width || col.label?.length || col.key.length + 2
-                return value.padEnd(width)
+                return value.substring(0, width).padEnd(width)
             }).join(' ')
             console.log(line)
         })
     }
 
     /**
-     * Display a progress bar
+     * Display a responsive progress bar
      * @param {number} current - Current value
      * @param {number} total - Total value
      * @param {string} label - Optional label
      */
     progressBar(current, total, label = '') {
-        const width = 30
+        const availableWidth = this.width - label.length - 10 // Reserve space for label and percentage
+        const width = Math.min(30, Math.max(10, availableWidth))
         const percent = Math.min(current / total, 1)
         const filled = Math.floor(width * percent)
         const empty = width - filled
@@ -360,8 +658,45 @@ class Terminal {
             console.log() // New line when complete
         }
     }
+
+    /**
+     * Truncate text to fit terminal width
+     * @param {string} text - Text to truncate
+     * @param {number} maxWidth - Maximum width (defaults to terminal width - 4)
+     * @returns {string} Truncated text
+     */
+    truncate(text, maxWidth = null) {
+        const max = maxWidth || this.width - 4
+        if (text.length <= max) return text
+        return text.substring(0, max - 3) + '...'
+    }
+
+    /**
+     * Wrap text to fit terminal width
+     * @param {string} text - Text to wrap
+     * @param {number} maxWidth - Maximum width (defaults to terminal width - 4)
+     * @returns {Array<string>} Array of wrapped lines
+     */
+    wrap(text, maxWidth = null) {
+        const max = maxWidth || this.width - 4
+        const words = text.split(' ')
+        const lines = []
+        let currentLine = ''
+        
+        words.forEach(word => {
+            if (currentLine.length + word.length + 1 <= max) {
+                currentLine += (currentLine ? ' ' : '') + word
+            } else {
+                if (currentLine) lines.push(currentLine)
+                currentLine = word
+            }
+        })
+        
+        if (currentLine) lines.push(currentLine)
+        return lines
+    }
 }
 
 // Export colors and Terminal class
-export { Terminal, colors, red, green, yellow, blue, cyan, gray, white, bold }
+export { Terminal, colors, red, green, yellow, blue, cyan, gray, white, bold, dim }
 export default Terminal

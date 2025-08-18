@@ -12,6 +12,7 @@ class ConfigWizard {
     constructor() {
         this.term = new Terminal()
         this.config = this.load()
+        this.modified = false
     }
 
     load() {
@@ -65,16 +66,21 @@ class ConfigWizard {
         try {
             fs.writeFileSync(configPath, JSON.stringify(this.config, null, 4))
             this.term.success(`Configuration saved to ${configPath}`)
+            this.modified = false
         } catch (error) {
             this.term.error(`Error saving config: ${error.message}`)
         }
     }
 
     async basic() {
-        this.term.section('Basic Configuration')
+        this.term.clear()
+        this.term.header('Basic Configuration')
         
         this.config.name = await this.term.question('Peer name', this.config.name)
-        this.config.env = await this.term.select('Environment', 
+        
+        // Use interactive select for environment
+        this.config.env = await this.term.interactiveSelect(
+            'Select environment',
             ['development', 'production'], 
             this.config.env
         )
@@ -88,12 +94,21 @@ class ConfigWizard {
             envConfig.domain = await this.term.question('Domain (required for SSL)', envConfig.domain)
             envConfig.port = await this.term.number('Port', envConfig.port, 1, 65535)
         }
+        
+        this.modified = true
+        this.term.success('Basic configuration updated')
+        await this.term.question('Press Enter to continue...')
     }
 
     async ssl() {
-        if (this.config.env !== 'production') return
+        if (this.config.env !== 'production') {
+            this.term.warning('SSL configuration is only available in production mode')
+            await this.term.question('Press Enter to continue...')
+            return
+        }
         
-        this.term.section('SSL Configuration')
+        this.term.clear()
+        this.term.header('SSL Configuration')
         const sslConfig = this.config.production.ssl
         
         const useSSL = await this.term.confirm('Enable SSL?', !!sslConfig.key)
@@ -101,16 +116,29 @@ class ConfigWizard {
         if (useSSL) {
             sslConfig.key = await this.term.question('SSL private key path', sslConfig.key)
             sslConfig.cert = await this.term.question('SSL certificate path', sslConfig.cert)
+            this.modified = true
+            this.term.success('SSL configuration updated')
         } else {
             sslConfig.key = ''
             sslConfig.cert = ''
+            if (sslConfig.key || sslConfig.cert) {
+                this.modified = true
+                this.term.info('SSL disabled')
+            }
         }
+        
+        await this.term.question('Press Enter to continue...')
     }
 
     async ddns() {
-        if (this.config.env !== 'production') return
+        if (this.config.env !== 'production') {
+            this.term.warning('DDNS configuration is only available in production mode')
+            await this.term.question('Press Enter to continue...')
+            return
+        }
         
-        this.term.section('Dynamic DNS (GoDaddy)')
+        this.term.clear()
+        this.term.header('Dynamic DNS (GoDaddy)')
         const ddnsConfig = this.config.production.godaddy
         
         const useDDNS = await this.term.confirm('Enable GoDaddy DDNS?', !!ddnsConfig.domain)
@@ -123,64 +151,96 @@ class ConfigWizard {
             if (!ddnsConfig.secret) {
                 ddnsConfig.secret = this.config.production.godaddy.secret || ''
             }
+            this.modified = true
+            this.term.success('DDNS configuration updated')
         } else {
             ddnsConfig.domain = ''
             ddnsConfig.host = ''
             ddnsConfig.key = ''
             ddnsConfig.secret = ''
+            if (ddnsConfig.domain) {
+                this.modified = true
+                this.term.info('DDNS disabled')
+            }
         }
+        
+        await this.term.question('Press Enter to continue...')
     }
 
     async peers() {
-        this.term.section('Peer Connections')
+        this.term.clear()
+        this.term.header('Peer Connections')
         const envConfig = this.config[this.config.env]
         
-        if (envConfig.peers.length === 0) {
-            this.term.info('No peers configured')
-        } else {
-            this.term.table(
-                envConfig.peers.map((peer, i) => ({ 
-                    '#': i + 1, 
-                    url: peer 
-                })),
-                [
-                    { key: '#', label: '#', width: 3 },
-                    { key: 'url', label: 'Peer URL', width: 50 }
-                ]
+        while (true) {
+            this.term.clear()
+            this.term.header('Peer Connections')
+            
+            if (envConfig.peers.length === 0) {
+                this.term.info('No peers configured')
+            } else {
+                this.term.table(
+                    envConfig.peers.map((peer, i) => ({ 
+                        '#': i + 1, 
+                        url: this.term.truncate(peer, 50)
+                    })),
+                    [
+                        { key: '#', label: '#', width: 3 },
+                        { key: 'url', label: 'Peer URL', width: Math.min(50, this.term.width - 10) }
+                    ]
+                )
+            }
+            
+            const action = await this.term.interactiveSelect(
+                'Select action', 
+                ['Add peer', 'Remove peer', 'Clear all', 'Back'], 
+                'Back'
             )
-        }
-        
-        const action = await this.term.select('Peer action', 
-            ['add', 'remove', 'clear', 'skip'], 
-            'skip'
-        )
-        
-        if (action === 'add') {
-            const peer = await this.term.question('Peer URL (wss://example.com/gun)')
-            if (peer && !envConfig.peers.includes(peer)) {
-                envConfig.peers.push(peer)
-                this.term.success('Peer added')
+            
+            if (action === 'Add peer') {
+                const peer = await this.term.question('Peer URL (wss://example.com/gun)')
+                if (peer && !envConfig.peers.includes(peer)) {
+                    envConfig.peers.push(peer)
+                    this.modified = true
+                    this.term.success('Peer added')
+                }
+            } else if (action === 'Remove peer' && envConfig.peers.length > 0) {
+                const peerChoices = envConfig.peers.map((p, i) => `${i + 1}. ${p}`)
+                const selected = await this.term.interactiveSelect('Select peer to remove', peerChoices)
+                if (selected) {
+                    const index = parseInt(selected.split('.')[0]) - 1
+                    if (index >= 0 && index < envConfig.peers.length) {
+                        const removed = envConfig.peers.splice(index, 1)[0]
+                        this.modified = true
+                        this.term.success(`Removed: ${removed}`)
+                    }
+                }
+            } else if (action === 'Clear all') {
+                if (await this.term.confirm('Clear all peers?', false)) {
+                    envConfig.peers = []
+                    this.modified = true
+                    this.term.success('All peers cleared')
+                }
+            } else {
+                break
             }
-        } else if (action === 'remove' && envConfig.peers.length > 0) {
-            const index = await this.term.number('Remove peer number', 1, 1, envConfig.peers.length) - 1
-            if (index >= 0 && index < envConfig.peers.length) {
-                const removed = envConfig.peers.splice(index, 1)[0]
-                this.term.success(`Removed: ${removed}`)
-            }
-        } else if (action === 'clear') {
-            envConfig.peers = []
-            this.term.success('All peers cleared')
+            
+            await this.term.question('Press Enter to continue...')
         }
     }
 
     async advanced() {
-        this.term.section('Advanced Configuration')
+        this.term.clear()
+        this.term.header('Advanced Configuration')
         
         const showAdvanced = await this.term.confirm('Configure advanced options?', false)
         if (!showAdvanced) return
         
         const syncUrl = await this.term.question('Remote config sync URL', this.config.sync || '')
-        this.config.sync = syncUrl || null
+        if (syncUrl !== (this.config.sync || '')) {
+            this.config.sync = syncUrl || null
+            this.modified = true
+        }
         
         if (this.config.env === 'production') {
             this.term.info('SEA cryptographic keys are auto-generated on first run')
@@ -191,7 +251,67 @@ class ConfigWizard {
                 pairConfig.priv = ''
                 pairConfig.epub = ''
                 pairConfig.epriv = ''
+                this.modified = true
                 this.term.warning('Keys will be regenerated on next start')
+            }
+        }
+        
+        await this.term.question('Press Enter to continue...')
+    }
+
+    async interactiveMenu() {
+        while (true) {
+            this.term.clear()
+            
+            // Display status
+            this.term.box(
+                `Environment: ${this.config.env}\n` +
+                `Peer name: ${this.config.name}\n` +
+                `Modified: ${this.modified ? 'Yes (unsaved)' : 'No'}`,
+                { borderColor: this.modified ? 'yellow' : 'cyan' }
+            )
+            
+            const choice = await this.term.interactiveMenu('Air Configuration Wizard', [
+                { section: 'Configuration Options' },
+                { label: 'Basic settings', value: 'basic' },
+                { label: 'SSL configuration', value: 'ssl' },
+                { label: 'Dynamic DNS', value: 'ddns' },
+                { label: 'Peer connections', value: 'peers' },
+                { label: 'Advanced options', value: 'advanced' },
+                { section: 'Actions' },
+                { label: 'Save configuration', value: 'save' },
+                { label: 'Exit', value: 'exit' }
+            ], { fullscreen: false })
+            
+            switch (choice) {
+                case 'basic':
+                    await this.basic()
+                    break
+                case 'ssl':
+                    await this.ssl()
+                    break
+                case 'ddns':
+                    await this.ddns()
+                    break
+                case 'peers':
+                    await this.peers()
+                    break
+                case 'advanced':
+                    await this.advanced()
+                    break
+                case 'save':
+                    this.save()
+                    await this.term.question('Press Enter to continue...')
+                    break
+                case 'exit':
+                    if (this.modified) {
+                        const saveBeforeExit = await this.term.confirm('You have unsaved changes. Save before exit?', true)
+                        if (saveBeforeExit) {
+                            this.save()
+                        }
+                    }
+                    this.term.close()
+                    return
             }
         }
     }
@@ -202,6 +322,9 @@ class ConfigWizard {
             this.term.header('Air Configuration Wizard')
             this.term.info(`Environment: ${this.config.env}`)
             this.term.info(`Peer name: ${this.config.name}`)
+            if (this.modified) {
+                this.term.warning('You have unsaved changes')
+            }
             
             const choice = await this.term.menu('', [
                 { section: 'Configuration Options' },
@@ -236,6 +359,10 @@ class ConfigWizard {
                     this.term.close()
                     return
                 case 'exit':
+                    if (this.modified) {
+                        const confirm = await this.term.confirm('Exit without saving changes?', false)
+                        if (!confirm) continue
+                    }
                     this.term.warning('Exiting without saving changes')
                     this.term.close()
                     return
@@ -250,11 +377,23 @@ class ConfigWizard {
         await new Promise(resolve => setTimeout(resolve, 500))
         this.term.stopSpinner(true, 'Configuration loaded')
         
+        // Show progress
+        let step = 0
+        const totalSteps = this.config.env === 'production' ? 3 : 1
+        
+        this.term.progressBar(step, totalSteps, 'Setup progress')
         await this.basic()
+        step++
+        this.term.progressBar(step, totalSteps, 'Setup progress')
         
         if (this.config.env === 'production') {
             await this.ssl()
+            step++
+            this.term.progressBar(step, totalSteps, 'Setup progress')
+            
             await this.ddns()
+            step++
+            this.term.progressBar(step, totalSteps, 'Setup progress')
         }
         
         this.save()
@@ -265,10 +404,25 @@ class ConfigWizard {
         try {
             const args = process.argv.slice(2)
             
+            // Check if terminal supports interactivity
+            const isInteractive = process.stdin.isTTY && process.stdout.isTTY
+            
             if (args.includes('--quick') || args.includes('-q')) {
                 await this.quick()
+            } else if (args.includes('--interactive') || args.includes('-i')) {
+                if (!isInteractive) {
+                    this.term.error('Interactive mode requires a TTY terminal')
+                    this.term.close()
+                    return
+                }
+                await this.interactiveMenu()
             } else {
-                await this.menu()
+                // Default to interactive if TTY, otherwise simple menu
+                if (isInteractive) {
+                    await this.interactiveMenu()
+                } else {
+                    await this.menu()
+                }
             }
         } catch (error) {
             this.term.error(`Configuration error: ${error.message}`)
