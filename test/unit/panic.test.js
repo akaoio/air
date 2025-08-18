@@ -15,9 +15,8 @@ suite('panic scenario tests', () => {
         
         const peer = new Peer({ ...config, root, skipPidCheck: true })
         
-        if (peer.server) {
-            peer.server.close()
-        }
+        // Cleanup peer instance to prevent restart loops
+        peer.cleanup()
         
         setTimeout(() => {
             if (fs.existsSync(root)) {
@@ -171,9 +170,7 @@ suite('panic scenario tests', () => {
         
         // cleanup
         peers.forEach(peer => {
-            if (peer.server) {
-                peer.server.close()
-            }
+            peer.cleanup()
         })
     })
 

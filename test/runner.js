@@ -266,11 +266,8 @@ async function runTests() {
     // Run all tests
     const success = await context.run()
     
-    // Force cleanup of any remaining resources
-    // Give enough time for all tests to complete then force exit
-    setTimeout(() => {
-        process.exit(success ? 0 : 1)
-    }, 10000)  // 10 seconds should be enough for all tests
+    // Immediate cleanup and exit - tests should manage their own cleanup
+    process.exit(success ? 0 : 1)
 }
 
 // Run tests if this is the main module
