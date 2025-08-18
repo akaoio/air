@@ -39,14 +39,58 @@ Air is a production-ready wrapper for [GUN](https://github.com/amark/gun) that s
 
 ## Installation
 
-### Standalone Super Peer
+### Quick Install (Recommended - NEW)
 
-Clone the repository and run the interactive installer:
+Air now includes an advanced Node.js installer with static IP configuration support:
 
 ```bash
 git clone https://github.com/akaoio/air.git
 cd air
-sudo ./install.sh
+npm install
+npm run install:interactive
+```
+
+**New installer features:**
+- **Static IP Configuration**: Auto-detects and configures static IP (perfect for Orange Pi/Armbian)
+- **Interactive UI**: Colored prompts with validation
+- **Network Detection**: Automatically finds interface, gateway, MAC address
+- **Multiple Config Methods**: Supports nmcli, netplan, and /etc/network/interfaces
+- **Better Error Handling**: Graceful fallbacks and clear error messages
+
+### Alternative Installation Methods
+
+```bash
+# Method 1: Use wrapper script (auto-detects best method)
+./install.sh
+
+# Method 2: Legacy bash installer (if Node.js unavailable)
+./install-legacy.sh
+
+# Method 3: Manual setup
+cp air.json.example air.json
+# Edit air.json with your configuration
+npm start
+```
+
+### Static IP Setup for Orange Pi/Armbian
+
+The new installer automatically configures static IP. If you need manual setup:
+
+```bash
+# Using NetworkManager (recommended)
+sudo nmcli con mod eth0 ipv4.addresses 192.168.1.100/24
+sudo nmcli con mod eth0 ipv4.gateway 192.168.1.1
+sudo nmcli con mod eth0 ipv4.method manual
+sudo nmcli con up eth0
+
+# Or using /etc/network/interfaces
+sudo nano /etc/network/interfaces
+# Add:
+# auto eth0
+# iface eth0 inet static
+#     address 192.168.1.100
+#     netmask 255.255.255.0
+#     gateway 192.168.1.1
 ```
 
 The installer will prompt you for:

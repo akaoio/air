@@ -5,14 +5,21 @@
     "description": "Distributed graph database",
     "main": "index.js",
     "license": "MIT",
+    "bin": {
+        "air-install": "./installer.js"
+    },
     "dependencies": {
         "gun": "github:akaoio/gun",
-        "node-fetch": "^3.0.0"
+        "node-fetch": "^3.0.0",
+        "inquirer": "^9.2.12",
+        "chalk": "^5.3.0"
     },
     "scripts": {
         "start": "node main.js",
         "test": "node test/runner.js",
-        "format": "npx prettier --write ."
+        "format": "npx prettier --write .",
+        "install:interactive": "node installer.js",
+        "install:quick": "node installer.js --quick"
     },
     "devDependencies": {
         "prettier": "^2.4.1"
