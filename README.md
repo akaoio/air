@@ -47,7 +47,7 @@ Air now includes an advanced Node.js installer with static IP configuration supp
 git clone https://github.com/akaoio/air.git
 cd air
 npm install
-npm run install:interactive
+npm run setup
 ```
 
 **New installer features:**

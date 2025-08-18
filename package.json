@@ -18,8 +18,9 @@
         "start": "node main.js",
         "test": "node test/runner.js",
         "format": "npx prettier --write .",
-        "install:interactive": "node installer.js",
-        "install:quick": "node installer.js --quick"
+        "setup": "node installer.js",
+        "setup:quick": "node installer.js --quick",
+        "configure": "node installer.js"
     },
     "devDependencies": {
         "prettier": "^2.4.1"
