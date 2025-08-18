@@ -545,14 +545,22 @@ class AirInstaller {
                 
                 this.terminal.success('Certificate permissions configured')
                 
-                // Install renewal hook to fix permissions after renewal
+                // Create renewal hook inline
                 try {
-                    const hookScript = path.join(this.config.bash, 'script/fix-ssl-permissions.sh')
-                    if (fs.existsSync(hookScript)) {
-                        execSync(`sudo cp ${hookScript} /etc/letsencrypt/renewal-hooks/deploy/air-fix-permissions.sh`, { stdio: 'ignore' })
-                        execSync('sudo chmod +x /etc/letsencrypt/renewal-hooks/deploy/air-fix-permissions.sh', { stdio: 'ignore' })
-                        console.log(gray('Installed certificate renewal hook'))
-                    }
+                    const hookContent = `#!/bin/bash
+# Auto-fix permissions after certificate renewal
+chgrp -R letsencrypt /etc/letsencrypt/live/${this.config.domain}
+chgrp -R letsencrypt /etc/letsencrypt/archive/${this.config.domain}
+chmod 750 /etc/letsencrypt/live/${this.config.domain}
+chmod 750 /etc/letsencrypt/archive/${this.config.domain}
+chmod 640 /etc/letsencrypt/archive/${this.config.domain}/*.pem
+systemctl restart ${this.config.name} 2>/dev/null || true`
+                    
+                    fs.writeFileSync('/tmp/air-ssl-hook.sh', hookContent)
+                    execSync('sudo cp /tmp/air-ssl-hook.sh /etc/letsencrypt/renewal-hooks/deploy/air-fix-permissions.sh', { stdio: 'ignore' })
+                    execSync('sudo chmod +x /etc/letsencrypt/renewal-hooks/deploy/air-fix-permissions.sh', { stdio: 'ignore' })
+                    fs.unlinkSync('/tmp/air-ssl-hook.sh')
+                    console.log(gray('Installed certificate renewal hook'))
                 } catch {}
                 
                 console.log(yellow('Note: You may need to logout and login for group changes to take effect'))
