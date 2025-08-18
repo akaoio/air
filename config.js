@@ -3,7 +3,7 @@
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { Terminal } from './src/lib/terminal.js'
+import { Terminal } from '@akaoio/tui'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const configPath = path.join(__dirname, 'air.json')
