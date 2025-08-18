@@ -125,10 +125,10 @@ class AirInstaller {
         return true
     }
     
-    checkAndInform() {
+    async checkAndInform() {
         // Skip if CI environment
         if (process.env.CI || process.env.CONTINUOUS_INTEGRATION) {
-            console.log(chalk.gray('CI environment detected, skipping auto setup'))
+            console.log(chalk.gray('CI environment detected, skipping setup'))
             return
         }
         
@@ -148,13 +148,36 @@ class AirInstaller {
             return
         }
         
-        // Show setup instructions for new installation
+        // First time install - ask if they want to configure now
         console.log('\n' + chalk.cyan('══════════════════════════════════════'))
         console.log(chalk.cyan.bold('     🚀 Air Installation Complete!'))
         console.log(chalk.cyan('══════════════════════════════════════\n'))
         
         console.log(chalk.yellow('⚠') + ' No configuration found.\n')
-        console.log('To set up Air, run:')
+        
+        // Check if TTY (interactive terminal)
+        if (process.stdout.isTTY && process.stdin.isTTY) {
+            const readline = await import('readline')
+            const rl = readline.createInterface({
+                input: process.stdin,
+                output: process.stdout
+            })
+            
+            const answer = await new Promise(resolve => {
+                rl.question(chalk.cyan('Would you like to configure Air now? (Y/n) '), resolve)
+            })
+            rl.close()
+            
+            if (answer.toLowerCase() !== 'n') {
+                // Run interactive setup
+                console.log('')
+                const installer = new AirInstaller()
+                await installer.runInteractive()
+                return
+            }
+        }
+        
+        console.log('To set up Air later, run:')
         console.log('  ' + chalk.cyan('npm run setup') + '\n')
         
         // Check for CGNAT
@@ -172,6 +195,18 @@ class AirInstaller {
         }
         
         console.log(chalk.gray('Documentation: https://github.com/akaoio/air'))
+    }
+    
+    async runInteractive() {
+        // Run the full interactive setup
+        await this.checkSystem()
+        await this.detectNetwork()
+        await this.configureNetwork()
+        await this.configureBasic()
+        await this.setupSecurity()
+        await this.saveConfig()
+        await this.createService()
+        await this.showSummary()
     }
     
     async runNonInteractive() {
