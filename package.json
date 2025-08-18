@@ -11,6 +11,7 @@
     },
     "scripts": {
         "start": "node main.js",
+        "test": "node test/runner.js",
         "format": "npx prettier --write ."
     },
     "devDependencies": {

@@ -111,3 +111,10 @@ dist
 
 # TernJS port file
 .tern-port
+
+# Temporary files and development artifacts
+tmp/
+*.tmp
+*.temp
+test-output*
+full-test*

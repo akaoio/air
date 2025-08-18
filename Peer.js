@@ -5,10 +5,13 @@ import fs from "fs"
 import { fileURLToPath } from "url"
 import path from "path"
 import fetch from "node-fetch"
+import { exec } from "child_process"
+import { promisify } from "util"
 import GUN from "gun"
 import "gun/sea.js"
 import "gun/nts.js"
 const sea = GUN.SEA
+const execAsync = promisify(exec)
 
 export class Peer {
     constructor(config = {}) {
@@ -24,9 +27,15 @@ export class Peer {
         // argv[11] -> priv
 
         this.config = config || {}
-        this.maxRestarts = 5
-        this.restarts = 0
-        this.delay = 5000 // 5 seconds
+        this.restarts = {
+            max: 5, // Maximum restart attempts
+            count: 0 // Current restart count
+        }
+        this.delay = {
+            base: 5000, // 5 seconds base delay
+            max: 60000 // 60 seconds max delay
+        }
+        this.pidFile = null // Will be set after config initialization
 
         const cwd = fileURLToPath(path.dirname(import.meta.url))
 
@@ -37,7 +46,7 @@ export class Peer {
         // Path of the config file
         this.config.path = path.join(this.config.root, "air.json")
 
-        this.readConfig()
+        this.read()
 
         this.env = this.config.env = this.config.env || process.env.ENV || process.argv[4] || "development"
 
@@ -78,12 +87,92 @@ export class Peer {
             this.options.cert = fs.existsSync(cert) ? fs.readFileSync(cert) : null
         }
 
+        // Set PID file path
+        this.pidFile = path.join(this.config.root, `.air-${this.config.name || 'default'}.pid`)
+
+        // Check for existing instance
+        this.checkpid()
+
         this.init()
 
         this.GUN = GUN
         this.sea = sea
         this.gun = {}
         this.user = {}
+        
+        // Group IP-related methods
+        this.ip = {
+            get: this.getip.bind(this),
+            validate: this.validateip.bind(this),
+            dns: this.dnsip.bind(this),
+            http: this.httpip.bind(this),
+            config: this.configip.bind(this)
+        }
+        
+        // Group status-related methods
+        this.status = {
+            ddns: this.ddns.bind(this),
+            ip: this.updateip.bind(this),
+            alive: this.alive.bind(this)
+        }
+    }
+
+    checkpid() {
+        try {
+            // Check if PID file exists
+            if (fs.existsSync(this.pidFile)) {
+                const oldPid = parseInt(fs.readFileSync(this.pidFile, 'utf8').trim())
+                
+                // Check if process is still running
+                try {
+                    process.kill(oldPid, 0) // Signal 0 just checks if process exists
+                    console.log(`Air instance already running with PID ${oldPid}`)
+                    console.log(`Reusing existing instance on port ${this.config[this.env].port}`)
+                    console.log(`If you need to restart, kill process ${oldPid} first`)
+                    // Only exit if not in test environment
+                    if (process.env.NODE_ENV !== 'test') {
+                        process.exit(0) // Exit cleanly as instance is already running
+                    }
+                    return // Just return for tests
+                } catch (e) {
+                    // Process not running, clean up stale PID file
+                    console.log(`Removing stale PID file for non-existent process ${oldPid}`)
+                    fs.unlinkSync(this.pidFile)
+                }
+            }
+            
+            // Write current PID to file
+            fs.writeFileSync(this.pidFile, process.pid.toString())
+            console.log(`Created PID file: ${this.pidFile} with PID ${process.pid}`)
+            
+            // Clean up PID file on exit
+            process.on('exit', () => this.cleanpid())
+            process.on('SIGINT', () => {
+                this.cleanpid()
+                process.exit(0)
+            })
+            process.on('SIGTERM', () => {
+                this.cleanpid()
+                process.exit(0)
+            })
+            
+        } catch (error) {
+            console.error('Error checking for existing instance:', error)
+        }
+    }
+
+    cleanpid() {
+        try {
+            if (fs.existsSync(this.pidFile)) {
+                const currentPid = parseInt(fs.readFileSync(this.pidFile, 'utf8').trim())
+                if (currentPid === process.pid) {
+                    fs.unlinkSync(this.pidFile)
+                    console.log(`Cleaned up PID file: ${this.pidFile}`)
+                }
+            }
+        } catch (error) {
+            console.error('Error cleaning up PID file:', error)
+        }
     }
 
     init() {
@@ -99,8 +188,36 @@ export class Peer {
 
         // Add error handling
         this.server.on("error", error => {
-            console.error("Server error:", error)
-            this.restart()
+            // Check if error is port already in use
+            if (error.code === 'EADDRINUSE') {
+                const port = this.config?.[this.env]?.port || 'unknown'
+                console.error(`Port ${port} is already in use`)
+                console.log('Checking for existing Air instance...')
+                
+                // Try to find process using the port
+                const portToCheck = this.config?.[this.env]?.port
+                if (portToCheck) {
+                    this.findport(portToCheck).then(pid => {
+                        if (pid) {
+                            console.log(`Port is being used by process ${pid}`)
+                            console.log('Air instance is already running. Exiting...')
+                            // Only exit if not in test environment
+                            if (process.env.NODE_ENV !== 'test') {
+                                process.exit(0)
+                            }
+                        } else {
+                            console.error('Port is in use but cannot identify process')
+                            this.restart()
+                        }
+                    })
+                } else {
+                    // No port configured, restart anyway
+                    this.restart()
+                }
+            } else {
+                console.error("Server error:", error)
+                this.restart()
+            }
         })
 
         // Add close handling
@@ -111,7 +228,7 @@ export class Peer {
 
         try {
             this.server.listen(this.config[this.env].port)
-            this.restarts = 0 // Reset counter on successful start
+            this.restarts.count = 0 // Reset counter on successful start
             console.log(`Server started successfully on port ${this.config[this.env].port}`)
         } catch (error) {
             console.error("Failed to start server:", error)
@@ -119,10 +236,43 @@ export class Peer {
         }
     }
 
+    async findport(port) {
+        try {
+            // Try lsof first (macOS/Linux)
+            const { stdout } = await execAsync(`lsof -ti:${port}`)
+            const pid = stdout.trim()
+            if (pid) return parseInt(pid)
+        } catch (e) {
+            // lsof failed, try netstat
+            try {
+                const { stdout } = await execAsync(`netstat -tlnp 2>/dev/null | grep :${port}`)
+                const match = stdout.match(/(\d+)\/node/)
+                if (match) return parseInt(match[1])
+            } catch (e2) {
+                // netstat failed, try ss
+                try {
+                    const { stdout } = await execAsync(`ss -tlnp | grep :${port}`)
+                    const match = stdout.match(/pid=(\d+)/)
+                    if (match) return parseInt(match[1])
+                } catch (e3) {
+                    // All methods failed
+                }
+            }
+        }
+        return null
+    }
+
     restart() {
-        if (this.restarts < this.maxRestarts) {
-            this.restarts++
-            console.log(`Attempting restart ${this.restarts}/${this.maxRestarts} in ${this.delay / 1000} seconds...`)
+        if (this.restarts.count < this.restarts.max) {
+            this.restarts.count++
+            // Progressive delay: exponential backoff with jitter
+            // Delay doubles each attempt: 5s, 10s, 20s, 40s, 60s (capped)
+            const exponential = Math.min(this.delay.base * Math.pow(2, this.restarts.count - 1), this.delay.max)
+            // Add jitter (±20%) to prevent thundering herd
+            const jitter = exponential * (0.8 + Math.random() * 0.4)
+            const delay = Math.round(jitter)
+
+            console.log(`Attempting restart ${this.restarts.count}/${this.restarts.max} in ${(delay / 1000).toFixed(1)} seconds...`)
 
             setTimeout(() => {
                 try {
@@ -131,22 +281,22 @@ export class Peer {
                     console.error("Failed to restart server:", error)
                     this.restart()
                 }
-            }, this.delay)
+            }, delay)
         } else {
-            console.error(`Maximum restart attempts (${this.maxRestarts}) reached. Server will not restart automatically.`)
+            console.error(`Maximum restart attempts (${this.restarts.max}) reached. Server will not restart automatically.`)
             process.exit(1)
         }
     }
 
     async start(callback = () => {}) {
-        await this.syncConfig()
+        await this.sync()
         await this.run()
         await this.online()
         // await this.activate()
         if (callback) await callback(this)
     }
 
-    readConfig() {
+    read() {
         if (fs.existsSync(this.config.path)) {
             let config = fs.readFileSync(this.config.path, "utf8")
             config = JSON.parse(config)
@@ -155,13 +305,13 @@ export class Peer {
         return this.config
     }
 
-    writeConfig() {
+    write() {
         const content = JSON.stringify(this.config, null, 4)
         if (JSON.parse(content)) fs.writeFileSync(this.config.path, content)
         return this.config
     }
 
-    syncConfig(callback = () => {}) {
+    sync(callback = () => {}) {
         if (!this.config?.sync) return
         return new Promise((resolve, reject) => {
             fetch(this.config.sync)
@@ -173,17 +323,17 @@ export class Peer {
                     this.config[this.env].system = data.system.pub && data.system.epub && data.system.cert ? data.system : {}
 
                     // read config file content to this.config
-                    this.readConfig()
+                    this.read()
 
                     // write config file content from this.config
-                    this.writeConfig()
+                    this.write()
                     resolve()
                 })
                 .catch(e => reject(e))
         }).then(
             response => {
                 if (callback) callback(response)
-                setTimeout(() => this.syncConfig(), 60 * 60 * 1000)
+                setTimeout(() => this.sync(), 60 * 60 * 1000)
                 return this
             },
             e => console.error(e)
@@ -211,7 +361,7 @@ export class Peer {
             console.log(`Environment: ${this.env}\nHTTPS: ${this.https ? true : false}\nHTTP: ${this.http ? true : false}\nPort: ${this.config[this.env].port}`)
         }).then(
             response => {
-                this.writeConfig()
+                this.write()
                 if (callback) callback(response)
                 return this
             },
@@ -254,13 +404,13 @@ export class Peer {
                     if (callback) callback(response)
 
                     // update Godaddy DNS
-                    await this.updateDDNS()
+                    await this.status.ddns()
 
                     // update IP
-                    await this.updateIP()
+                    await this.status.ip()
 
                     // update last online timestamp
-                    await this.alive()
+                    await this.status.alive()
                     return this
                 },
                 e => console.error(e)
@@ -308,7 +458,7 @@ export class Peer {
         )
     }
 
-    getIPDetectionConfig() {
+    configip() {
         // Default configuration (fallback)
         const defaults = {
             timeout: 5000,
@@ -325,7 +475,7 @@ export class Peer {
         }
 
         // Read current config (which includes ip if present)
-        this.readConfig()
+        this.read()
 
         // Check if ip config exists in air.json
         if (this.config.ip) {
@@ -355,7 +505,7 @@ export class Peer {
             }
 
             // Save the default config to air.json for next time
-            this.writeConfig()
+            this.write()
 
             // Return default config with environment overrides
             return {
@@ -368,7 +518,7 @@ export class Peer {
         }
     }
 
-    validateIP(ip) {
+    validateip(ip) {
         const ipRegex = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/
         if (!ipRegex.test(ip)) return false
 
@@ -385,7 +535,7 @@ export class Peer {
         return true
     }
 
-    async tryDNSMethod(service, config) {
+    async dnsip(service, config) {
         try {
             const { exec } = await import("child_process")
             const { promisify } = await import("util")
@@ -396,7 +546,7 @@ export class Peer {
                 const digCommand = `dig +short ${service.hostname} @${service.resolver}`
                 const { stdout } = await execAsync(digCommand, { timeout: config.dnsTimeout })
                 const ip = stdout.trim()
-                if (this.validateIP(ip)) {
+                if (this.validateip(ip)) {
                     console.log(`IP detected via DNS (dig): ${service.hostname}@${service.resolver} = ${ip}`)
                     return ip
                 }
@@ -414,7 +564,7 @@ export class Peer {
                     if (match) {
                         const ip = match[1]
                         // Skip resolver IP addresses
-                        if (this.validateIP(ip) && !ip.startsWith("208.67.222.") && !ip.startsWith("208.67.220.") && !ip.startsWith("8.8.8.") && !ip.startsWith("8.8.4.")) {
+                        if (this.validateip(ip) && !ip.startsWith("208.67.222.") && !ip.startsWith("208.67.220.") && !ip.startsWith("8.8.8.") && !ip.startsWith("8.8.4.")) {
                             console.log(`IP detected via DNS (nslookup): ${service.hostname}@${service.resolver} = ${ip}`)
                             return ip
                         }
@@ -430,7 +580,7 @@ export class Peer {
         return null
     }
 
-    async tryHTTPMethod(service, config) {
+    async httpip(service, config) {
         try {
             const controller = new AbortController()
             const timeoutId = setTimeout(() => controller.abort(), config.timeout)
@@ -457,7 +607,7 @@ export class Peer {
 
                 ip = ip?.toString().trim().replace(/\r?\n/g, "") || ""
 
-                if (this.validateIP(ip)) {
+                if (this.validateip(ip)) {
                     console.log(`IP detected via HTTP: ${service.url} = ${ip}`)
                     return ip
                 }
@@ -469,14 +619,14 @@ export class Peer {
         return null
     }
 
-    async getPublicIP() {
-        const config = this.getIPDetectionConfig()
+    async getip() {
+        const config = this.configip()
         console.log("Attempting to detect public IP address...")
 
         // Method 1: Try DNS-based detection (fastest and most reliable)
         for (const service of config.dnsServices) {
             console.log(`Trying DNS method: ${service.hostname}@${service.resolver}`)
-            const ip = await this.tryDNSMethod(service, config)
+            const ip = await this.dnsip(service, config)
             if (ip) {
                 return ip
             }
@@ -485,7 +635,7 @@ export class Peer {
         // Method 2: Try HTTP-based detection
         for (const service of config.httpServices) {
             console.log(`Trying HTTP method: ${service.url}`)
-            const ip = await this.tryHTTPMethod(service, config)
+            const ip = await this.httpip(service, config)
             if (ip) {
                 return ip
             }
@@ -495,7 +645,7 @@ export class Peer {
         return null
     }
 
-    updateDDNS(callback = () => {}) {
+    ddns(callback = () => {}) {
         return new Promise((resolve, reject) => {
             if (!this.user.is) return reject()
             const config = path.join(this.config.root, "ddns.json")
@@ -512,17 +662,17 @@ export class Peer {
         }).then(
             response => {
                 if (callback) callback(response)
-                setTimeout(() => this.updateDDNS(), 5 * 60 * 1000)
+                setTimeout(() => this.status.ddns(), 5 * 60 * 1000)
                 return this
             },
             e => console.error(e)
         )
     }
 
-    updateIP(callback = () => {}) {
+    updateip(callback = () => {}) {
         return new Promise((resolve, reject) => {
             if (!this.user.is) return reject()
-            this.getPublicIP()
+            this.getip()
                 .then(ip => {
                     if (ip) {
                         this.user.put(
@@ -543,7 +693,7 @@ export class Peer {
         }).then(
             response => {
                 if (callback) callback(response)
-                setTimeout(() => this.updateIP(), 5 * 60 * 1000)
+                setTimeout(() => this.status.ip(), 5 * 60 * 1000)
                 return this
             },
             e => console.error(e)
@@ -565,7 +715,7 @@ export class Peer {
         }).then(
             response => {
                 if (callback) callback(response)
-                setTimeout(() => this.alive(), 60 * 1000)
+                setTimeout(() => this.status.alive(), 60 * 1000)
                 return this
             },
             e => console.error(e)
