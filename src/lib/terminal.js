@@ -608,13 +608,14 @@ class Terminal {
     
     // Formatting methods
     header(text) {
-        const width = Math.min(this.width - 4, Math.max(text.length + 10, 40))
-        const padding = Math.max(0, Math.floor((width - text.length) / 2))
+        const width = Math.min(this.width - 4, Math.max(text.length + 10, 50))
+        const padding = Math.max(0, Math.floor((width - text.length - 2) / 2))
         const line = '═'.repeat(Math.max(1, width))
         const leftPad = ' '.repeat(padding)
-        const rightPad = ' '.repeat(Math.max(0, width - text.length - padding))
+        const rightPad = ' '.repeat(Math.max(0, width - text.length - padding - 2))
+        
         console.log(cyan(line))
-        console.log(cyan(bold(leftPad + text + rightPad)))
+        console.log(cyan(' ' + leftPad + bold(text) + rightPad + ' '))
         console.log(cyan(line))
     }
     
@@ -625,30 +626,57 @@ class Terminal {
     /**
      * Display a box with text
      * @param {string} text - Text to display
-     * @param {Object} options - Options {color, padding}
+     * @param {Object} options - Options {borderColor, padding, align}
      */
     box(text, options = {}) {
-        const { borderColor = 'cyan', padding = 1 } = options
+        const { borderColor = 'cyan', padding = 1, align = 'left' } = options
         const lines = text.split('\n')
         const maxLength = Math.max(...lines.map(l => l.length))
-        const width = Math.min(this.width - 4, Math.max(maxLength + padding * 2 + 2, 20))
+        const innerWidth = Math.min(this.width - 6, Math.max(maxLength, 20))
+        const boxWidth = innerWidth + padding * 2
         
         const colorFn = colors[borderColor] ? (t) => color(t, colors[borderColor]) : cyan
         
         // Top border
-        console.log(colorFn('┌' + '─'.repeat(Math.max(1, width - 2)) + '┐'))
+        console.log(colorFn('┌' + '─'.repeat(boxWidth) + '┐'))
         
-        // Content with padding
+        // Empty padding lines at top
+        for (let i = 0; i < padding; i++) {
+            console.log(colorFn('│') + ' '.repeat(boxWidth) + colorFn('│'))
+        }
+        
+        // Content lines
         lines.forEach(line => {
-            const contentWidth = width - padding * 2 - 2
-            const truncatedLine = line.length > contentWidth ? line.substring(0, contentWidth - 3) + '...' : line
-            const remainingSpace = Math.max(0, width - truncatedLine.length - padding * 2 - 2)
-            const paddedLine = ' '.repeat(padding) + truncatedLine + ' '.repeat(remainingSpace)
+            let paddedLine = ''
+            const lineLength = line.length
+            
+            if (lineLength > innerWidth) {
+                // Truncate if too long
+                paddedLine = ' '.repeat(padding) + line.substring(0, innerWidth - 3) + '...' + ' '.repeat(padding)
+            } else {
+                // Apply alignment
+                const remainingSpace = innerWidth - lineLength
+                if (align === 'center') {
+                    const leftSpace = Math.floor(remainingSpace / 2)
+                    const rightSpace = remainingSpace - leftSpace
+                    paddedLine = ' '.repeat(padding) + ' '.repeat(leftSpace) + line + ' '.repeat(rightSpace) + ' '.repeat(padding)
+                } else if (align === 'right') {
+                    paddedLine = ' '.repeat(padding) + ' '.repeat(remainingSpace) + line + ' '.repeat(padding)
+                } else { // left
+                    paddedLine = ' '.repeat(padding) + line + ' '.repeat(remainingSpace) + ' '.repeat(padding)
+                }
+            }
+            
             console.log(colorFn('│') + paddedLine + colorFn('│'))
         })
         
+        // Empty padding lines at bottom
+        for (let i = 0; i < padding; i++) {
+            console.log(colorFn('│') + ' '.repeat(boxWidth) + colorFn('│'))
+        }
+        
         // Bottom border
-        console.log(colorFn('└' + '─'.repeat(Math.max(1, width - 2)) + '┘'))
+        console.log(colorFn('└' + '─'.repeat(boxWidth) + '┘'))
     }
     
     // Progress methods
