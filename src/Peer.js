@@ -4,7 +4,7 @@ import https from "https"
 import fs from "fs"
 import { fileURLToPath } from "url"
 import path from "path"
-import fetch from "node-fetch"
+// Native fetch is available in Node.js 18+
 import { exec } from "child_process"
 import { promisify } from "util"
 import GUN from "gun"

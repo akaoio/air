@@ -1,18 +1,40 @@
 #!/usr/bin/env node
 
-import inquirer from 'inquirer'
-import chalk from 'chalk'
 import { execSync, exec } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
+import readline from 'readline'
 import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
+// Native ANSI color codes
+const colors = {
+    reset: '\x1b[0m',
+    red: '\x1b[31m',
+    green: '\x1b[32m',
+    yellow: '\x1b[33m',
+    blue: '\x1b[34m',
+    cyan: '\x1b[36m',
+    gray: '\x1b[90m',
+    white: '\x1b[37m',
+    bold: '\x1b[1m'
+}
+
+// Simple color helpers
+const color = (text, ...codes) => codes.join('') + text + colors.reset
+const red = text => color(text, colors.red)
+const green = text => color(text, colors.green)
+const yellow = text => color(text, colors.yellow)
+const blue = text => color(text, colors.blue)
+const cyan = text => color(text, colors.cyan)
+const gray = text => color(text, colors.gray)
+const white = text => color(text, colors.white)
+const bold = text => color(text, colors.bold)
+
 class AirInstaller {
     constructor() {
-        // Parse CLI arguments first
         this.parseArgs()
         
         this.config = {
@@ -25,61 +47,62 @@ class AirInstaller {
             peers: [],
             sync: null,
             ssl: false,
-            godaddy: this.args.godaddy ? {} : {},
+            godaddy: {},
             network: {}
         }
         this.platform = os.platform()
         this.hostname = os.hostname()
+        this.rl = null
     }
     
     parseArgs() {
         this.args = {
-            nonInteractive: false,
-            checkOnly: false,
+            check: false,
             quick: false,
-            check: false,  // Check mode for postinstall
-            root: null,
-            name: null,
-            env: null,
-            port: null,
-            domain: null,
-            godaddy: false
+            nonInteractive: false
         }
         
         const argv = process.argv.slice(2)
         for (let i = 0; i < argv.length; i++) {
             const arg = argv[i]
+            if (arg === '--check') this.args.check = true
+            else if (arg === '--quick') this.args.quick = true
+            else if (arg === '--non-interactive') this.args.nonInteractive = true
+        }
+    }
+
+    // Native readline question helper
+    async question(prompt, defaultValue = '') {
+        if (!this.rl) {
+            this.rl = readline.createInterface({
+                input: process.stdin,
+                output: process.stdout
+            })
+        }
+        
+        return new Promise(resolve => {
+            const displayPrompt = defaultValue 
+                ? `${prompt} ${gray(`(${defaultValue})`)} ` 
+                : `${prompt} `
             
-            if (arg === '--non-interactive') {
-                this.args.nonInteractive = true
-            } else if (arg === '--check-only') {
-                this.args.checkOnly = true
-            } else if (arg === '--quick' || arg === '--default') {
-                this.args.quick = true
-                // Quick mode: use all defaults, skip prompts
-            } else if (arg === '--check') {
-                this.args.check = true  // Check mode for postinstall
-            } else if (arg === '--root' && argv[i + 1]) {
-                this.args.root = argv[++i]
-            } else if (arg === '--name' && argv[i + 1]) {
-                this.args.name = argv[++i]
-            } else if (arg === '--env' && argv[i + 1]) {
-                const env = argv[++i]
-                // Validate environment
-                if (env === 'development' || env === 'production') {
-                    this.args.env = env
-                }
-            } else if (arg === '--port' && argv[i + 1]) {
-                const port = parseInt(argv[++i])
-                // Validate port number
-                if (port > 0 && port <= 65535) {
-                    this.args.port = port
-                }
-            } else if (arg === '--domain' && argv[i + 1]) {
-                this.args.domain = argv[++i]
-            } else if (arg === '--godaddy') {
-                this.args.godaddy = true
-            }
+            this.rl.question(displayPrompt, answer => {
+                resolve(answer || defaultValue)
+            })
+        })
+    }
+    
+    async confirm(prompt, defaultValue = true) {
+        const answer = await this.question(
+            prompt + (defaultValue ? ' (Y/n)' : ' (y/N)'),
+            defaultValue ? 'y' : 'n'
+        )
+        return answer.toLowerCase() !== (defaultValue ? 'n' : 'y')
+    }
+    
+    closeReadline() {
+        if (this.rl) {
+            this.rl.close()
+            this.rl = null
         }
     }
 
@@ -89,116 +112,16 @@ class AirInstaller {
             return this.checkAndInform()
         }
         
-        // Check-only mode for tests
-        if (this.args.checkOnly) {
-            return this.checkSystemSimple()
+        // Quick mode
+        if (this.args.quick) {
+            return this.quickSetup()
         }
         
-        // Non-interactive mode for tests
-        if (this.args.nonInteractive) {
-            return this.runNonInteractive()
-        }
-        
-        // Interactive mode (original)
-        console.log(chalk.cyan('\n══════════════════════════════════════'))
-        console.log(chalk.cyan.bold('     Air GUN Database Installer'))
-        console.log(chalk.cyan('══════════════════════════════════════\n'))
+        // Interactive mode
+        console.log(cyan('\n══════════════════════════════════════'))
+        console.log(cyan(bold('     Air GUN Database Installer')))
+        console.log(cyan('══════════════════════════════════════\n'))
 
-        await this.checkSystem()
-        await this.detectNetwork()
-        await this.configureNetwork()
-        await this.setupCore()
-        await this.setupSecurity()
-        await this.setupService()
-        await this.finish()
-    }
-    
-    checkSystemSimple() {
-        console.log('Checking system requirements...')
-        console.log(`✓ Node.js ${process.version} detected`)
-        try {
-            const npmVersion = execSync('npm --version', { encoding: 'utf8' }).trim()
-            console.log(`✓ npm ${npmVersion} detected`)
-        } catch (e) {
-            console.log('✗ npm not found')
-        }
-        return true
-    }
-    
-    async checkAndInform() {
-        // Skip if CI environment
-        if (process.env.CI || process.env.CONTINUOUS_INTEGRATION) {
-            console.log(chalk.gray('CI environment detected, skipping setup'))
-            return
-        }
-        
-        // Skip if global install
-        if (process.env.npm_config_global === 'true') {
-            console.log(chalk.gray('Global install detected, skipping setup'))
-            return
-        }
-        
-        // Check if already configured
-        const configPath = path.join(this.config.root, 'air.json')
-        if (fs.existsSync(configPath)) {
-            console.log('\n' + chalk.green('✓') + ' Air is already configured!')
-            console.log(chalk.gray('  Config: ') + chalk.white('air.json'))
-            console.log(chalk.gray('  To reconfigure: ') + chalk.cyan('npm run setup'))
-            console.log(chalk.gray('  To start: ') + chalk.cyan('npm start'))
-            return
-        }
-        
-        // First time install - ask if they want to configure now
-        console.log('\n' + chalk.cyan('══════════════════════════════════════'))
-        console.log(chalk.cyan.bold('     🚀 Air Installation Complete!'))
-        console.log(chalk.cyan('══════════════════════════════════════\n'))
-        
-        console.log(chalk.yellow('⚠') + ' No configuration found.\n')
-        
-        // Check if TTY (interactive terminal)
-        if (process.stdout.isTTY && process.stdin.isTTY) {
-            const readline = await import('readline')
-            const rl = readline.createInterface({
-                input: process.stdin,
-                output: process.stdout
-            })
-            
-            const answer = await new Promise(resolve => {
-                rl.question(chalk.cyan('Would you like to configure Air now? (Y/n) '), resolve)
-            })
-            rl.close()
-            
-            if (answer.toLowerCase() !== 'n') {
-                // Run interactive setup
-                console.log('')
-                const installer = new AirInstaller()
-                await installer.runInteractive()
-                return
-            }
-        }
-        
-        console.log('To set up Air later, run:')
-        console.log('  ' + chalk.cyan('npm run setup') + '\n')
-        
-        // Check for CGNAT
-        try {
-            const publicIP = execSync('curl -s --max-time 2 https://checkip.amazonaws.com', { encoding: 'utf8' }).trim()
-            if (publicIP) {
-                const parts = publicIP.split('.')
-                if (parts[0] === '100' && parseInt(parts[1]) >= 64 && parseInt(parts[1]) <= 127) {
-                    console.log(chalk.yellow('💡 Tip: ') + 'CGNAT detected! Air supports IPv6 for external access.')
-                    console.log(chalk.gray('   Learn more: ') + chalk.white('cat CGNAT_SETUP.md\n'))
-                }
-            }
-        } catch (e) {
-            // Ignore errors in optional check
-        }
-        
-        console.log(chalk.gray('Documentation: https://github.com/akaoio/air'))
-    }
-    
-    async runInteractive() {
-        // Run the full interactive setup
         await this.checkSystem()
         await this.detectNetwork()
         await this.configureNetwork()
@@ -207,364 +130,244 @@ class AirInstaller {
         await this.saveConfig()
         await this.createService()
         await this.showSummary()
+        
+        this.closeReadline()
     }
-    
-    async runNonInteractive() {
-        console.log('Running in non-interactive mode...')
+
+    async checkAndInform() {
+        // Skip if CI
+        if (process.env.CI || process.env.CONTINUOUS_INTEGRATION) {
+            console.log(gray('CI environment detected, skipping setup'))
+            return
+        }
         
-        // Load existing config if it exists
+        // Check if configured
         const configPath = path.join(this.config.root, 'air.json')
-        let existingConfig = null
-        
-        try {
-            if (fs.existsSync(configPath)) {
-                existingConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'))
-                console.log('Found existing configuration')
-            }
-        } catch (e) {
-            // Ignore errors
+        if (fs.existsSync(configPath)) {
+            console.log('\n' + green('✓') + ' Air is already configured!')
+            console.log(gray('  Config: ') + white('air.json'))
+            console.log(gray('  To reconfigure: ') + cyan('npm run setup'))
+            console.log(gray('  To start: ') + cyan('npm start'))
+            return
         }
         
-        // Merge with existing config
-        if (existingConfig) {
-            // Preserve custom fields
-            Object.keys(existingConfig).forEach(key => {
-                if (!(key in this.config) || typeof existingConfig[key] === 'object') {
-                    if (key === this.config.env || key === 'development' || key === 'production') {
-                        // Merge environment configs
-                        this.config[key] = { ...existingConfig[key] }
-                        if (key === this.config.env) {
-                            // Update with CLI args for current env
-                            if (this.args.port) this.config[key].port = this.args.port
-                            if (this.args.domain) this.config[key].domain = this.args.domain
-                        }
-                    } else if (key !== 'name' && key !== 'env' && key !== 'root') {
-                        this.config[key] = existingConfig[key]
-                    }
-                }
-            })
-            
-            // Preserve custom fields that are not in default config
-            if (existingConfig.customField) {
-                this.config.customField = existingConfig.customField
-            }
-            if (existingConfig[this.config.env]?.customSetting) {
-                if (!this.config[this.config.env]) {
-                    this.config[this.config.env] = {}
-                }
-                this.config[this.config.env].customSetting = existingConfig[this.config.env].customSetting
+        console.log('\n' + cyan('══════════════════════════════════════'))
+        console.log(cyan(bold('     🚀 Air Installation Complete!')))
+        console.log(cyan('══════════════════════════════════════\n'))
+        
+        console.log(yellow('⚠') + ' No configuration found.\n')
+        
+        // Check if TTY
+        if (process.stdout.isTTY && process.stdin.isTTY) {
+            const shouldSetup = await this.confirm('Would you like to configure Air now?')
+            if (shouldSetup) {
+                console.log('')
+                await this.runInteractive()
+                return
             }
         }
         
-        // Add IP detection config
-        if (!this.config.ip) {
-            this.config.ip = {
-                timeout: 5000,
-                dnstimeout: 3000,
-                agent: 'Air-GUN-Peer/1.0',
-                dns: [
-                    { hostname: 'myip.opendns.com', resolver: 'resolver1.opendns.com' },
-                    { hostname: 'myip.opendns.com', resolver: 'resolver2.opendns.com' }
-                ],
-                http: [
-                    { url: 'https://checkip.amazonaws.com' },
-                    { url: 'https://api.ipify.org' }
-                ]
-            }
+        console.log('To set up Air later, run:')
+        console.log('  ' + cyan('npm run setup') + '\n')
+        console.log(gray('Documentation: https://github.com/akaoio/air'))
+        
+        this.closeReadline()
+    }
+
+    quickSetup() {
+        const configPath = path.join(this.config.root, 'air.json')
+        if (fs.existsSync(configPath)) {
+            console.log(yellow('Configuration already exists. Use npm run setup to reconfigure.'))
+            return
         }
         
-        // Ensure environment config exists
-        if (!this.config[this.config.env]) {
-            this.config[this.config.env] = {
-                port: this.config.port,
-                domain: this.config.domain,
-                peers: this.config.peers || []
-            }
-        }
-        
-        // Write config file
-        const configData = {
+        console.log('Creating default configuration...')
+        const defaultConfig = {
             root: this.config.root,
             bash: this.config.bash,
-            env: this.config.env,
-            name: this.config.name,
-            ip: this.config.ip,
-            ...Object.keys(this.config).reduce((acc, key) => {
-                if (!['root', 'bash', 'env', 'name', 'ip', 'port', 'domain', 'peers', 'ssl', 'godaddy', 'network', 'platform', 'hostname'].includes(key)) {
-                    acc[key] = this.config[key]
-                }
-                return acc
-            }, {}),
-            [this.config.env]: this.config[this.config.env]
+            env: 'development',
+            name: 'air',
+            development: {
+                port: 8765,
+                domain: 'localhost',
+                peers: []
+            }
         }
-        
-        fs.writeFileSync(configPath, JSON.stringify(configData, null, 2))
-        console.log(`Configuration saved to ${configPath}`)
-        
-        // Skip service creation in non-interactive mode
-        console.log('Skipping service creation in non-interactive mode')
-        
-        return true
+        fs.writeFileSync(configPath, JSON.stringify(defaultConfig, null, 4))
+        console.log(green('✓') + ' Default configuration created')
+        console.log(gray('  Start with: ') + cyan('npm start'))
+        console.log(gray('  Customize with: ') + cyan('npm run setup'))
+    }
+
+    async runInteractive() {
+        await this.checkSystem()
+        await this.detectNetwork()
+        await this.configureNetwork()
+        await this.configureBasic()
+        await this.setupSecurity()
+        await this.saveConfig()
+        await this.createService()
+        await this.showSummary()
+        this.closeReadline()
     }
 
     async checkSystem() {
-        console.log(chalk.yellow('🔍 Checking system...'))
+        console.log(blue('🔍 Checking system...'))
         
-        // Check OS
-        if (this.platform === 'linux') {
-            try {
-                const release = fs.readFileSync('/etc/os-release', 'utf8')
-                if (release.includes('Armbian')) {
-                    console.log(chalk.green('✓ Armbian detected'))
-                } else if (release.includes('Ubuntu')) {
-                    console.log(chalk.green('✓ Ubuntu detected'))
-                } else if (release.includes('Debian')) {
-                    console.log(chalk.green('✓ Debian detected'))
-                }
-            } catch (e) {
-                console.log(chalk.yellow('⚠ Linux detected (unknown distribution)'))
-            }
-        } else {
-            console.log(chalk.red(`✗ Unsupported OS: ${this.platform}`))
-            process.exit(1)
-        }
-
-        // Check Node.js
         try {
-            const nodeVersion = execSync('node --version').toString().trim()
-            console.log(chalk.green(`✓ Node.js ${nodeVersion}`))
-        } catch (e) {
-            console.log(chalk.red('✗ Node.js not found'))
-            process.exit(1)
-        }
-
-        // Check for required tools
-        const tools = ['jq', 'dig', 'nslookup', 'ip', 'nmcli']
-        for (const tool of tools) {
-            try {
-                execSync(`which ${tool}`, { stdio: 'ignore' })
-                console.log(chalk.green(`✓ ${tool} installed`))
-            } catch (e) {
-                console.log(chalk.yellow(`⚠ ${tool} not found, installing...`))
+            // Check OS
+            const osRelease = fs.existsSync('/etc/os-release') 
+                ? fs.readFileSync('/etc/os-release', 'utf8')
+                : ''
+            
+            if (osRelease.includes('ID=debian') || osRelease.includes('ID=ubuntu')) {
+                console.log(green('✓') + ' Debian/Ubuntu detected')
+            } else if (osRelease.includes('ID=armbian')) {
+                console.log(green('✓') + ' Armbian detected')
+            } else {
+                console.log(yellow('⚠') + ' Unknown OS')
+            }
+            
+            // Check Node.js
+            const nodeVersion = process.version
+            console.log(green('✓') + ' Node.js ' + nodeVersion)
+            
+            // Check tools
+            const tools = ['jq', 'dig', 'nslookup', 'ip', 'nmcli']
+            for (const tool of tools) {
                 try {
-                    if (tool === 'jq') execSync('sudo apt install -y jq', { stdio: 'inherit' })
-                    if (tool === 'dig' || tool === 'nslookup') execSync('sudo apt install -y dnsutils', { stdio: 'inherit' })
-                    if (tool === 'ip') execSync('sudo apt install -y iproute2', { stdio: 'inherit' })
-                    if (tool === 'nmcli') execSync('sudo apt install -y network-manager', { stdio: 'inherit' })
-                } catch (installError) {
-                    console.log(chalk.yellow(`⚠ Could not install ${tool}`))
+                    execSync(`which ${tool}`, { stdio: 'ignore' })
+                    console.log(green('✓') + ` ${tool} installed`)
+                } catch {
+                    console.log(yellow('⚠') + ` ${tool} not found`)
                 }
             }
+        } catch (e) {
+            console.log(red('Error checking system:'), e.message)
         }
     }
 
     async detectNetwork() {
-        console.log(chalk.yellow('\n🌐 Detecting network configuration...'))
+        console.log(blue('\n🌐 Detecting network configuration...'))
         
         try {
             // Get current IP
-            const currentIP = execSync("ip addr show | grep 'inet ' | grep -v '127.0.0.1' | head -1 | awk '{print $2}' | cut -d'/' -f1").toString().trim()
-            console.log(chalk.cyan(`Current IP: ${currentIP}`))
-            this.config.network.currentIP = currentIP
-
-            // Get interface name
-            const iface = execSync("ip route | grep default | awk '{print $5}' | head -1").toString().trim()
-            console.log(chalk.cyan(`Interface: ${iface}`))
-            this.config.network.interface = iface
-
+            const ipOutput = execSync('ip -4 addr show | grep -oP "(?<=inet\\s)\\d+(\\.\\d+){3}" | grep -v "127.0.0.1" | head -1', { encoding: 'utf8' }).trim()
+            if (ipOutput) {
+                this.config.network.currentIP = ipOutput
+                console.log('Current IP: ' + ipOutput)
+            }
+            
+            // Get interface
+            const ifaceOutput = execSync('ip route | grep default | head -1 | grep -oP "(?<=dev\\s)\\S+"', { encoding: 'utf8' }).trim()
+            if (ifaceOutput) {
+                this.config.network.interface = ifaceOutput
+                console.log('Interface: ' + ifaceOutput)
+            }
+            
             // Get gateway
-            const gateway = execSync("ip route | grep default | awk '{print $3}' | head -1").toString().trim()
-            console.log(chalk.cyan(`Gateway: ${gateway}`))
-            this.config.network.gateway = gateway
-
-            // Get MAC address
-            const mac = execSync(`ip link show ${iface} | grep ether | awk '{print $2}'`).toString().trim()
-            console.log(chalk.cyan(`MAC Address: ${mac}`))
-            this.config.network.mac = mac
-
+            const gwOutput = execSync('ip route | grep default | head -1 | grep -oP "(?<=via\\s)\\S+"', { encoding: 'utf8' }).trim()
+            if (gwOutput) {
+                this.config.network.gateway = gwOutput
+                console.log('Gateway: ' + gwOutput)
+            }
+            
+            // Get MAC
+            if (this.config.network.interface) {
+                const macOutput = execSync(`cat /sys/class/net/${this.config.network.interface}/address`, { encoding: 'utf8' }).trim()
+                if (macOutput) {
+                    this.config.network.mac = macOutput
+                    console.log('MAC Address: ' + macOutput)
+                }
+            }
         } catch (e) {
-            console.log(chalk.yellow('⚠ Could not detect network configuration'))
+            console.log(yellow('Could not detect all network settings'))
         }
     }
 
     async configureNetwork() {
-        console.log(chalk.yellow('\n⚙️ Network Configuration'))
+        console.log(blue('\n⚙️ Network Configuration'))
         
-        const { setupStaticIP } = await inquirer.prompt([
-            {
-                type: 'confirm',
-                name: 'setupStaticIP',
-                message: 'Do you want to set up a static IP address?',
-                default: true
-            }
-        ])
-
-        if (setupStaticIP) {
-            const { staticIP, confirmStatic } = await inquirer.prompt([
-                {
-                    type: 'input',
-                    name: 'staticIP',
-                    message: 'Enter desired static IP:',
-                    default: '192.168.1.100',
-                    validate: (input) => {
-                        const ipRegex = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/
-                        return ipRegex.test(input) || 'Please enter a valid IP address'
-                    }
-                },
-                {
-                    type: 'confirm',
-                    name: 'confirmStatic',
-                    message: (answers) => `Configure static IP ${answers.staticIP} on ${this.config.network.interface}?`,
-                    default: true
-                }
-            ])
-
-            if (confirmStatic) {
+        const setupStatic = await this.confirm('Do you want to set up a static IP address?', false)
+        
+        if (setupStatic) {
+            const staticIP = await this.question('Enter desired static IP:', this.config.network.currentIP)
+            
+            if (staticIP && await this.confirm(`Configure static IP ${staticIP} on ${this.config.network.interface}?`)) {
                 await this.setupStaticIP(staticIP)
             }
         }
     }
 
     async setupStaticIP(ip) {
-        console.log(chalk.yellow(`\n📍 Setting up static IP ${ip}...`))
+        console.log(blue(`\n📍 Setting up static IP ${ip}...`))
         
-        const iface = this.config.network.interface
-        const gateway = this.config.network.gateway
-        
-        // Method 1: Using nmcli (NetworkManager)
         try {
-            console.log(chalk.cyan('Trying NetworkManager (nmcli)...'))
-            
-            // Check if connection exists
-            const connections = execSync(`nmcli con show | grep ${iface} || true`).toString()
-            let connectionName = iface
-            
-            if (connections) {
-                connectionName = connections.split(/\s+/)[0]
-                console.log(chalk.cyan(`Found connection: ${connectionName}`))
-            } else {
-                // Create new connection
-                execSync(`sudo nmcli con add con-name ${iface} ifname ${iface} type ethernet`)
+            // Try NetworkManager first
+            console.log('Trying NetworkManager (nmcli)...')
+            try {
+                const connections = execSync('nmcli con show', { encoding: 'utf8' })
+                const connectionName = connections.split('\n')
+                    .find(line => line.includes(this.config.network.interface))
+                    ?.split(/\s+/)[0]
+                
+                if (connectionName) {
+                    console.log(`Found connection: ${connectionName}`)
+                    execSync(`sudo nmcli con mod "${connectionName}" ipv4.addresses ${ip}/24`, { stdio: 'inherit' })
+                    execSync(`sudo nmcli con mod "${connectionName}" ipv4.gateway ${this.config.network.gateway}`, { stdio: 'inherit' })
+                    execSync(`sudo nmcli con mod "${connectionName}" ipv4.dns "8.8.8.8 8.8.4.4"`, { stdio: 'inherit' })
+                    execSync(`sudo nmcli con mod "${connectionName}" ipv4.method manual`, { stdio: 'inherit' })
+                    execSync(`sudo nmcli con up "${connectionName}"`, { stdio: 'inherit' })
+                    console.log(green('✓') + ` Static IP ${ip} configured via NetworkManager`)
+                    this.config.network.staticIP = ip
+                    return
+                }
+            } catch (e) {
+                console.log(yellow('⚠') + ' NetworkManager not available, trying netplan...')
             }
             
-            // Set static IP
-            execSync(`sudo nmcli con mod ${connectionName} ipv4.addresses ${ip}/24`)
-            execSync(`sudo nmcli con mod ${connectionName} ipv4.gateway ${gateway}`)
-            execSync(`sudo nmcli con mod ${connectionName} ipv4.dns "8.8.8.8 8.8.4.4"`)
-            execSync(`sudo nmcli con mod ${connectionName} ipv4.method manual`)
-            
-            // Apply changes
-            execSync(`sudo nmcli con down ${connectionName}`, { stdio: 'ignore' }).catch(() => {})
-            execSync(`sudo nmcli con up ${connectionName}`)
-            
-            console.log(chalk.green(`✓ Static IP ${ip} configured via NetworkManager`))
-            this.config.network.staticIP = ip
-            return
-            
-        } catch (e) {
-            console.log(chalk.yellow('⚠ NetworkManager not available, trying netplan...'))
-        }
-        
-        // Method 2: Using netplan (Ubuntu/Armbian)
-        try {
-            const netplanConfig = `/etc/netplan/01-netcfg.yaml`
-            const netplanContent = `
-network:
+            // Try netplan
+            const netplanFiles = fs.readdirSync('/etc/netplan').filter(f => f.endsWith('.yaml'))
+            if (netplanFiles.length > 0) {
+                const netplanConfig = `/etc/netplan/${netplanFiles[0]}`
+                const netplanContent = `network:
   version: 2
   renderer: networkd
   ethernets:
-    ${iface}:
-      dhcp4: no
+    ${this.config.network.interface}:
       addresses:
         - ${ip}/24
       routes:
-        - to: 0.0.0.0/0
-          via: ${gateway}
-          metric: 100
+        - to: default
+          via: ${this.config.network.gateway}
       nameservers:
         addresses:
           - 8.8.8.8
           - 8.8.4.4
 `
-            fs.writeFileSync('/tmp/netplan-config.yaml', netplanContent)
-            execSync(`sudo cp /tmp/netplan-config.yaml ${netplanConfig}`)
-            execSync(`sudo chmod 600 ${netplanConfig}`)  // Fix permissions
-            // Suppress openvswitch warning - it's harmless if not using OVS
-            execSync('sudo netplan apply 2>&1 | grep -v "Cannot call openvswitch" || true')
-            
-            console.log(chalk.green(`✓ Static IP ${ip} configured via netplan`))
-            this.config.network.staticIP = ip
-            return
-            
+                fs.writeFileSync('/tmp/netplan-config.yaml', netplanContent)
+                execSync(`sudo cp /tmp/netplan-config.yaml ${netplanConfig}`)
+                execSync(`sudo chmod 600 ${netplanConfig}`)
+                execSync('sudo netplan apply 2>&1 | grep -v "Cannot call openvswitch" || true')
+                
+                console.log(green('✓') + ` Static IP ${ip} configured via netplan`)
+                this.config.network.staticIP = ip
+            }
         } catch (e) {
-            console.log(chalk.yellow('⚠ Netplan not available, trying /etc/network/interfaces...'))
-        }
-        
-        // Method 3: Using /etc/network/interfaces (Debian/older systems)
-        try {
-            const interfacesContent = `
-auto ${iface}
-iface ${iface} inet static
-    address ${ip}
-    netmask 255.255.255.0
-    gateway ${gateway}
-    dns-nameservers 8.8.8.8 8.8.4.4
-`
-            fs.appendFileSync('/tmp/interfaces', interfacesContent)
-            execSync('sudo cp /tmp/interfaces /etc/network/interfaces.d/static-ip')
-            execSync('sudo systemctl restart networking')
-            
-            console.log(chalk.green(`✓ Static IP ${ip} configured via /etc/network/interfaces`))
-            this.config.network.staticIP = ip
-            
-        } catch (e) {
-            console.log(chalk.red('✗ Could not configure static IP automatically'))
-            console.log(chalk.yellow('Please configure manually in your network settings'))
+            console.log(red('✗') + ' Failed to configure static IP:', e.message)
         }
     }
 
-    async setupCore() {
-        console.log(chalk.yellow('\n🚀 Core Configuration'))
+    async configureBasic() {
+        console.log(blue('\n📝 Basic Configuration'))
         
-        const answers = await inquirer.prompt([
-            {
-                type: 'list',
-                name: 'env',
-                message: 'Environment:',
-                choices: ['development', 'production'],
-                default: this.config.env
-            },
-            {
-                type: 'input',
-                name: 'name',
-                message: 'Peer name:',
-                default: this.config.name,
-                validate: (input) => input.length > 0 || 'Name is required'
-            },
-            {
-                type: 'number',
-                name: 'port',
-                message: 'Port:',
-                default: this.config.port,
-                validate: (input) => (input > 0 && input < 65536) || 'Invalid port'
-            },
-            {
-                type: 'input',
-                name: 'domain',
-                message: 'Domain:',
-                default: this.config.network.staticIP || this.config.domain
-            },
-            {
-                type: 'confirm',
-                name: 'addPeers',
-                message: 'Add external peers?',
-                default: false
-            }
-        ])
+        this.config.env = await this.question('Environment (development/production):', this.config.env)
+        this.config.name = await this.question('Instance name:', this.config.name)
+        this.config.port = parseInt(await this.question('Port:', String(this.config.port)))
+        this.config.domain = await this.question('Domain:', this.config.network.staticIP || this.config.domain)
         
-        Object.assign(this.config, answers)
-        
-        if (answers.addPeers) {
+        const addPeers = await this.confirm('Add external peers?', false)
+        if (addPeers) {
             await this.addPeers()
         }
     }
@@ -572,154 +375,131 @@ iface ${iface} inet static
     async addPeers() {
         let addMore = true
         while (addMore) {
-            const { peer, more } = await inquirer.prompt([
-                {
-                    type: 'input',
-                    name: 'peer',
-                    message: 'Peer address (e.g., wss://peer.example.com/gun):',
-                    validate: (input) => input.startsWith('ws') || 'Must start with ws:// or wss://'
-                },
-                {
-                    type: 'confirm',
-                    name: 'more',
-                    message: 'Add another peer?',
-                    default: false
-                }
-            ])
-            
-            if (peer && !this.config.peers.includes(peer)) {
+            const peer = await this.question('Peer address (e.g., wss://peer.example.com/gun):')
+            if (peer && peer.startsWith('ws')) {
                 this.config.peers.push(peer)
+                console.log(green('✓') + ' Peer added')
             }
-            addMore = more
+            addMore = await this.confirm('Add another peer?', false)
         }
     }
 
     async setupSecurity() {
-        console.log(chalk.yellow('\n🔒 Security Configuration'))
+        console.log(blue('\n🔒 Security Configuration'))
         
         if (this.config.env === 'production') {
-            // First ask about GoDaddy DDNS (doesn't require external tools)
-            const { godaddy } = await inquirer.prompt([
-                {
-                    type: 'confirm',
-                    name: 'godaddy',
-                    message: 'Set up GoDaddy DDNS (Dynamic DNS)?',
-                    default: false
-                }
-            ])
-            
-            if (godaddy) {
+            // GoDaddy DDNS
+            const setupGoDaddy = await this.confirm('Set up GoDaddy DDNS (Dynamic DNS)?', false)
+            if (setupGoDaddy) {
                 await this.setupGoDaddy()
             }
             
-            // Then ask about SSL (requires certbot)
-            const { ssl } = await inquirer.prompt([
-                {
-                    type: 'confirm',
-                    name: 'ssl',
-                    message: 'Install Let\'s Encrypt SSL certificate?',
-                    default: false
-                }
-            ])
-            
-            if (ssl) {
+            // SSL
+            const setupSSL = await this.confirm('Install Let\'s Encrypt SSL certificate?', false)
+            if (setupSSL) {
                 await this.setupSSL()
             }
         }
     }
 
-    async setupSSL() {
-        console.log(chalk.yellow('\n📋 SSL Certificate Setup'))
+    async setupGoDaddy() {
+        const key = await this.question('GoDaddy API Key:')
+        const secret = await this.question('GoDaddy API Secret:')
         
-        // Check if certbot is installed
+        if (key && secret) {
+            const parts = this.config.domain.split('.')
+            const host = parts[0]
+            const domain = parts.slice(1).join('.')
+            
+            this.config.godaddy = { domain, host, key, secret }
+            console.log(green('✓') + ' GoDaddy DDNS configured')
+            
+            // Setup cron job
+            const cronJob = `*/5 * * * * cd ${this.config.root} && /usr/bin/node ddns.js >> /var/log/air-ddns.log 2>&1`
+            try {
+                execSync(`(crontab -l 2>/dev/null | grep -v "ddns.js"; echo "${cronJob}") | crontab -`)
+                console.log(green('✓') + ' DDNS cron job created')
+            } catch (e) {
+                console.log(yellow('⚠') + ' Could not create cron job')
+            }
+        }
+    }
+
+    async setupSSL() {
+        console.log(yellow('\n📋 SSL Certificate Setup'))
+        
+        // Check certbot
         try {
             execSync('which certbot', { stdio: 'ignore' })
-        } catch (e) {
-            console.log(chalk.yellow('Certbot not found. Installing...'))
+        } catch {
+            console.log(yellow('Certbot not found. Installing...'))
             try {
-                // Try to install certbot
                 if (fs.existsSync('/etc/debian_version')) {
                     execSync('sudo apt-get update && sudo apt-get install -y certbot', { stdio: 'inherit' })
-                } else if (fs.existsSync('/etc/redhat-release')) {
-                    execSync('sudo yum install -y certbot', { stdio: 'inherit' })
                 } else {
-                    console.log(chalk.red('✗ Please install certbot manually:'))
-                    console.log(chalk.white('  Debian/Ubuntu: sudo apt-get install certbot'))
-                    console.log(chalk.white('  CentOS/RHEL: sudo yum install certbot'))
+                    console.log(red('✗') + ' Please install certbot manually')
                     return
                 }
-            } catch (installError) {
-                console.log(chalk.red('✗ Failed to install certbot automatically'))
-                console.log(chalk.yellow('Please install certbot manually and run setup again'))
+            } catch {
+                console.log(red('✗') + ' Failed to install certbot')
                 return
             }
         }
         
-        console.log(chalk.yellow('Installing Let\'s Encrypt SSL certificate...'))
+        console.log(yellow('Installing Let\'s Encrypt SSL certificate...'))
         try {
             execSync(`sudo certbot certonly --standalone --preferred-challenges http -d ${this.config.domain}`, { stdio: 'inherit' })
             this.config.ssl = {
                 key: `/etc/letsencrypt/live/${this.config.domain}/privkey.pem`,
                 cert: `/etc/letsencrypt/live/${this.config.domain}/cert.pem`
             }
-            console.log(chalk.green('✓ SSL certificate installed'))
-        } catch (e) {
-            console.log(chalk.red('✗ SSL certificate installation failed'))
-            console.log(chalk.yellow('Make sure:'))
-            console.log(chalk.white('  1. Domain points to this server'))
-            console.log(chalk.white('  2. Port 80 is open'))
-            console.log(chalk.white('  3. No other service is using port 80'))
+            console.log(green('✓') + ' SSL certificate installed')
+        } catch {
+            console.log(red('✗') + ' SSL certificate installation failed')
         }
     }
 
-    async setupGoDaddy() {
-        const answers = await inquirer.prompt([
-            {
-                type: 'input',
-                name: 'key',
-                message: 'GoDaddy API Key:',
-                validate: (input) => input.length > 0 || 'Key is required'
-            },
-            {
-                type: 'input',
-                name: 'secret',
-                message: 'GoDaddy API Secret:',
-                validate: (input) => input.length > 0 || 'Secret is required'
-            }
-        ])
-        
-        this.config.godaddy = {
-            domain: this.config.domain.split('.').slice(-2).join('.'),
-            host: this.config.domain.split('.')[0] || '@',
-            ...answers
-        }
-    }
-
-    async setupService() {
-        console.log(chalk.yellow('\n⚙️ Service Installation'))
-        
-        // Write air.json config
+    async saveConfig() {
         const configPath = path.join(this.config.root, 'air.json')
+        
+        // Build config object
         const configData = {
             root: this.config.root,
             bash: this.config.bash,
             env: this.config.env,
             name: this.config.name,
-            sync: this.config.sync,
-            [this.config.env]: {
-                domain: this.config.domain,
-                port: this.config.port,
-                peers: this.config.peers,
-                ssl: this.config.ssl || {},
-                godaddy: this.config.godaddy || {},
-                network: this.config.network || {}
-            }
+            sync: this.config.sync
+        }
+        
+        // Add environment config
+        configData[this.config.env] = {
+            domain: this.config.domain,
+            port: this.config.port,
+            peers: this.config.peers
+        }
+        
+        if (this.config.ssl && this.config.ssl.key) {
+            configData[this.config.env].ssl = this.config.ssl
+        }
+        
+        if (this.config.godaddy && this.config.godaddy.key) {
+            configData[this.config.env].godaddy = this.config.godaddy
+        }
+        
+        if (this.config.network.staticIP) {
+            configData[this.config.env].network = this.config.network
         }
         
         fs.writeFileSync(configPath, JSON.stringify(configData, null, 4))
-        console.log(chalk.green(`✓ Configuration saved to ${configPath}`))
+        console.log(green('✓') + ' Configuration saved to ' + configPath)
+    }
+
+    async createService() {
+        if (this.config.env !== 'production') return
         
-        // Create systemd service
+        const createService = await this.confirm('Create systemd service?', true)
+        if (!createService) return
+        
         const serviceName = this.config.name
         const serviceContent = `[Unit]
 Description=Air GUN Database - ${this.config.name}
@@ -729,56 +509,61 @@ After=network.target
 Type=simple
 User=${process.env.USER}
 WorkingDirectory=${this.config.root}
-Environment="NODE_ENV=${this.config.env}"
-ExecStart=/usr/bin/node ${path.join(this.config.root, 'main.js')}
-Restart=always
+ExecStart=/usr/bin/node ${this.config.root}/main.js
+Restart=on-failure
 RestartSec=10
 
 [Install]
 WantedBy=multi-user.target
 `
         
-        fs.writeFileSync(`/tmp/${serviceName}.service`, serviceContent)
-        execSync(`sudo cp /tmp/${serviceName}.service /etc/systemd/system/`)
-        execSync('sudo systemctl daemon-reload')
-        execSync(`sudo systemctl enable ${serviceName}`)
-        execSync(`sudo systemctl start ${serviceName}`)
-        
-        console.log(chalk.green(`✓ Service ${serviceName} installed and started`))
+        try {
+            fs.writeFileSync(`/tmp/${serviceName}.service`, serviceContent)
+            execSync(`sudo mv /tmp/${serviceName}.service /etc/systemd/system/`)
+            execSync('sudo systemctl daemon-reload')
+            execSync(`sudo systemctl enable ${serviceName}`)
+            execSync(`sudo systemctl start ${serviceName}`)
+            console.log(green('✓') + ` Service ${serviceName} created and started`)
+        } catch (e) {
+            console.log(red('✗') + ' Failed to create service:', e.message)
+        }
     }
 
-    async finish() {
-        console.log(chalk.green('\n══════════════════════════════════════'))
-        console.log(chalk.green.bold('     Installation Complete!'))
-        console.log(chalk.green('══════════════════════════════════════'))
-        
-        console.log(chalk.cyan('\nConfiguration Summary:'))
-        console.log(chalk.white(`  Name:       ${this.config.name}`))
-        console.log(chalk.white(`  Environment: ${this.config.env}`))
-        console.log(chalk.white(`  Domain:     ${this.config.domain}`))
-        console.log(chalk.white(`  Port:       ${this.config.port}`))
-        
-        if (this.config.network.staticIP) {
-            console.log(chalk.white(`  Static IP:  ${this.config.network.staticIP}`))
-        }
+    async showSummary() {
+        console.log(blue('\n✨ Installation Complete!\n'))
+        console.log(cyan('Configuration Summary:'))
+        console.log(white(`  Environment: ${this.config.env}`))
+        console.log(white(`  Name:        ${this.config.name}`))
+        console.log(white(`  Port:        ${this.config.port}`))
+        console.log(white(`  Domain:      ${this.config.domain}`))
         
         if (this.config.peers.length > 0) {
-            console.log(chalk.white(`  Peers:      ${this.config.peers.length} configured`))
+            console.log(white(`  Peers:       ${this.config.peers.length} configured`))
         }
         
-        console.log(chalk.cyan('\nUseful commands:'))
-        console.log(chalk.white(`  Status:     sudo systemctl status ${this.config.name}`))
-        console.log(chalk.white(`  Logs:       sudo journalctl -u ${this.config.name} -f`))
-        console.log(chalk.white(`  Restart:    sudo systemctl restart ${this.config.name}`))
-        console.log(chalk.white(`  Stop:       sudo systemctl stop ${this.config.name}`))
+        console.log(cyan('\nUseful commands:'))
+        console.log(white(`  Status:     sudo systemctl status ${this.config.name}`))
+        console.log(white(`  Logs:       sudo journalctl -u ${this.config.name} -f`))
+        console.log(white(`  Restart:    sudo systemctl restart ${this.config.name}`))
+        console.log(white(`  Stop:       sudo systemctl stop ${this.config.name}`))
         
         if (this.config.network.staticIP) {
-            console.log(chalk.yellow(`\n⚠ Note: Static IP ${this.config.network.staticIP} configured.`))
-            console.log(chalk.yellow('  You may need to reconnect using the new IP address.'))
+            console.log(yellow(`\n⚠ Note: Static IP ${this.config.network.staticIP} configured.`))
+            console.log(yellow('  You may need to reconnect using the new IP address.'))
         }
+        
+        console.log(blue('\n🚀 Air is ready to use!'))
+        console.log(gray('Run ') + cyan('npm start') + gray(' to start Air'))
     }
 }
 
-// Run installer
-const installer = new AirInstaller()
-installer.run().catch(console.error)
+// Run if called directly
+if (import.meta.url === `file://${process.argv[1]}`) {
+    const installer = new AirInstaller()
+    installer.run().catch(error => {
+        console.error(red('Installation failed:'), error)
+        process.exit(1)
+    })
+}
+
+export default AirInstaller

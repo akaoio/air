@@ -4,7 +4,7 @@ import fs from 'fs'
 import path from 'path'
 import { exec } from 'child_process'
 import { promisify } from 'util'
-import fetch from 'node-fetch'
+// Native fetch is available in Node.js 18+
 import { fileURLToPath } from 'url'
 
 const execAsync = promisify(exec)
