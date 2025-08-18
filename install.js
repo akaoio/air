@@ -522,6 +522,45 @@ class AirInstaller {
             }
             
             execSync(certbotCmd, { stdio: 'inherit' })
+            
+            // Fix certificate permissions for the service user
+            console.log(gray('Setting up certificate permissions...'))
+            try {
+                // Create a group for certificate access
+                try {
+                    execSync('sudo groupadd -f letsencrypt', { stdio: 'ignore' })
+                } catch {}
+                
+                // Add current user to the group
+                execSync(`sudo usermod -a -G letsencrypt ${process.env.USER}`, { stdio: 'ignore' })
+                
+                // Set proper ownership and permissions
+                execSync(`sudo chgrp -R letsencrypt /etc/letsencrypt/live/${this.config.domain}`, { stdio: 'ignore' })
+                execSync(`sudo chgrp -R letsencrypt /etc/letsencrypt/archive/${this.config.domain}`, { stdio: 'ignore' })
+                
+                // Make certificates readable by group
+                execSync(`sudo chmod 750 /etc/letsencrypt/live/${this.config.domain}`, { stdio: 'ignore' })
+                execSync(`sudo chmod 750 /etc/letsencrypt/archive/${this.config.domain}`, { stdio: 'ignore' })
+                execSync(`sudo chmod 640 /etc/letsencrypt/archive/${this.config.domain}/*.pem`, { stdio: 'ignore' })
+                
+                this.terminal.success('Certificate permissions configured')
+                
+                // Install renewal hook to fix permissions after renewal
+                try {
+                    const hookScript = path.join(this.config.bash, 'script/fix-ssl-permissions.sh')
+                    if (fs.existsSync(hookScript)) {
+                        execSync(`sudo cp ${hookScript} /etc/letsencrypt/renewal-hooks/deploy/air-fix-permissions.sh`, { stdio: 'ignore' })
+                        execSync('sudo chmod +x /etc/letsencrypt/renewal-hooks/deploy/air-fix-permissions.sh', { stdio: 'ignore' })
+                        console.log(gray('Installed certificate renewal hook'))
+                    }
+                } catch {}
+                
+                console.log(yellow('Note: You may need to logout and login for group changes to take effect'))
+            } catch (e) {
+                this.terminal.warning('Could not set certificate permissions automatically')
+                console.log('Manual fix: sudo chmod 644 /etc/letsencrypt/archive/' + this.config.domain + '/*.pem')
+            }
+            
             this.config.ssl = {
                 key: `/etc/letsencrypt/live/${this.config.domain}/privkey.pem`,
                 cert: `/etc/letsencrypt/live/${this.config.domain}/cert.pem`
