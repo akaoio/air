@@ -3,7 +3,7 @@
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { Terminal } from '@akaoio/tui'
+import { Terminal, colors, red, green, yellow, blue, cyan, gray, white, bold, dim } from '@akaoio/tui'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const configPath = path.join(__dirname, 'air.json')
@@ -75,8 +75,20 @@ class ConfigWizard {
     async basic() {
         this.term.clear()
         this.term.header('Basic Configuration')
+        this.term.spacing()
         
-        this.config.name = await this.term.question('Peer name', this.config.name)
+        // Use form for better structured input
+        const formData = await this.term.form('Basic Settings', [
+            { 
+                name: 'name', 
+                type: 'text', 
+                label: 'Peer name', 
+                defaultValue: this.config.name,
+                required: true
+            }
+        ])
+        
+        this.config.name = formData.name
         
         // Use interactive select for environment
         const selectedEnv = await this.term.interactiveSelect(
@@ -106,13 +118,24 @@ class ConfigWizard {
 
     async ssl() {
         if (this.config.env !== 'production') {
-            this.term.warning('SSL configuration is only available in production mode')
+            this.term.clear()
+            this.term.header('SSL Configuration')
+            this.term.spacing()
+            
+            this.term.box(
+                'SSL configuration is only available in production mode.\n' +
+                'Switch to production environment to enable SSL.',
+                { borderColor: 'yellow', padding: 1, align: 'center' }
+            )
+            
+            this.term.spacing()
             await this.term.question('Press Enter to continue...')
             return
         }
         
         this.term.clear()
         this.term.header('SSL Configuration')
+        this.term.spacing()
         const sslConfig = this.config.production.ssl
         
         const useSSL = await this.term.confirm('Enable SSL?', !!sslConfig.key)
@@ -136,13 +159,24 @@ class ConfigWizard {
 
     async ddns() {
         if (this.config.env !== 'production') {
-            this.term.warning('DDNS configuration is only available in production mode')
+            this.term.clear()
+            this.term.header('Dynamic DNS (GoDaddy)')
+            this.term.spacing()
+            
+            this.term.box(
+                'DDNS configuration is only available in production mode.\n' +
+                'Switch to production environment to enable DDNS.',
+                { borderColor: 'yellow', padding: 1, align: 'center' }
+            )
+            
+            this.term.spacing()
             await this.term.question('Press Enter to continue...')
             return
         }
         
         this.term.clear()
         this.term.header('Dynamic DNS (GoDaddy)')
+        this.term.spacing()
         const ddnsConfig = this.config.production.godaddy
         
         const useDDNS = await this.term.confirm('Enable GoDaddy DDNS?', !!ddnsConfig.domain)
@@ -172,28 +206,30 @@ class ConfigWizard {
     }
 
     async peers() {
-        this.term.clear()
-        this.term.header('Peer Connections')
         const envConfig = this.config[this.config.env]
         
         while (true) {
             this.term.clear()
             this.term.header('Peer Connections')
+            this.term.spacing()
             
             if (envConfig.peers.length === 0) {
-                this.term.info('No peers configured')
+                this.term.box('No peers configured', {
+                    borderColor: 'gray',
+                    padding: 1,
+                    align: 'center'
+                })
             } else {
-                this.term.table(
-                    envConfig.peers.map((peer, i) => ({ 
-                        '#': i + 1, 
-                        url: this.term.truncate(peer, 50)
-                    })),
-                    [
-                        { key: '#', label: '#', width: 3 },
-                        { key: 'url', label: 'Peer URL', width: Math.min(50, this.term.width - 10) }
-                    ]
+                // Modern grid display for peers
+                this.term.section('Current Peers:')
+                this.term.grid(
+                    envConfig.peers.map((peer, i) => 
+                        `${green((i + 1) + '.')} ${this.term.truncate(peer, 45)}`
+                    ),
+                    { columns: 1, gap: 1 }
                 )
             }
+            this.term.spacing()
             
             const action = await this.term.interactiveSelect(
                 'Select action', 
@@ -239,9 +275,21 @@ class ConfigWizard {
     async advanced() {
         this.term.clear()
         this.term.header('Advanced Configuration')
+        this.term.spacing()
+        
+        // Show what advanced options are available
+        this.term.box(
+            'Advanced options include:\n' +
+            '• Remote configuration sync\n' +
+            '• SEA cryptographic key management\n' +
+            '• Custom network settings',
+            { borderColor: 'blue', padding: 1 }
+        )
+        this.term.spacing()
         
         const showAdvanced = await this.term.confirm('Configure advanced options?', false)
         if (!showAdvanced) return
+        this.term.spacing()
         
         const syncUrl = await this.term.question('Remote config sync URL', this.config.sync || '')
         if (syncUrl !== (this.config.sync || '')) {
@@ -270,13 +318,28 @@ class ConfigWizard {
         while (true) {
             this.term.clear()
             
-            // Display status
-            this.term.box(
-                `Environment: ${this.config.env}\n` +
-                `Peer name: ${this.config.name}\n` +
-                `Modified: ${this.modified ? 'Yes (unsaved)' : 'No'}`,
-                { borderColor: this.modified ? 'yellow' : 'cyan' }
-            )
+            // Modern status display with flex layout
+            this.term.button('Air Configuration', {
+                borderColor: 'cyan',
+                align: 'center',
+                padding: { top: 0, bottom: 0, left: 2, right: 2 },
+                margin: { bottom: 1 }
+            })
+            
+            // Status display using modern flex
+            this.term.flex([
+                bold('Environment:'),
+                this.config.env === 'production' ? red('Production') : green('Development')
+            ], { gap: 2 })
+            this.term.flex([
+                bold('Peer name:'),
+                cyan(this.config.name)
+            ], { gap: 2 })
+            this.term.flex([
+                bold('Status:'),
+                this.modified ? yellow('Modified (unsaved)') : green('Saved')
+            ], { gap: 2 })
+            this.term.spacing()
             
             const choice = await this.term.interactiveMenu('Air Configuration Wizard', [
                 { section: 'Configuration Options' },
@@ -391,10 +454,16 @@ class ConfigWizard {
 
     async quick() {
         this.term.header('Quick Setup')
+        this.term.spacing()
         
-        this.term.startSpinner('Loading configuration...')
+        // Use modern loader
+        const loader = this.term.loader('Loading configuration...', {
+            type: 'dots',
+            color: 'cyan'
+        })
         await new Promise(resolve => setTimeout(resolve, 500))
-        this.term.stopSpinner(true, 'Configuration loaded')
+        loader.stop(true, 'Configuration loaded')
+        this.term.spacing()
         
         // Show progress
         let step = 0

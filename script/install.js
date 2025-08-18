@@ -5,7 +5,7 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import { fileURLToPath } from 'url'
-import { Terminal, red, green, yellow, blue, cyan, gray, white, bold } from '@akaoio/tui'
+import { Terminal, colors, red, green, yellow, blue, cyan, gray, white, bold, dim } from '@akaoio/tui'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -69,9 +69,19 @@ class AirInstaller {
         // Clear screen for fresh start
         this.terminal.clear()
         
-        // Welcome screen with animation
+        // Welcome screen with modern loader animation
+        const welcomeLoader = this.terminal.loader('Initializing Air Installation Wizard...', { 
+            type: 'dots', 
+            color: 'cyan' 
+        })
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        welcomeLoader.stop(true, 'Installation wizard ready!')
+        
+        this.terminal.spacing()
         this.terminal.header('🚀 Air GUN Database Installer')
-        console.log('')
+        this.terminal.spacing()
+        
+        // Modern box with padding and centering
         this.terminal.box(
             `Welcome to Air Installation Wizard!\n\n` +
             `This wizard will help you:\n` +
@@ -79,9 +89,9 @@ class AirInstaller {
             `• Set up SSL certificates (production)\n` +
             `• Configure peer connections\n` +
             `• Create system services`,
-            { borderColor: 'cyan' }
+            { borderColor: 'cyan', padding: 2, align: 'center' }
         )
-        console.log('')
+        this.terminal.spacing(2)
         
         // Check if already configured
         const configPath = path.join(this.config.root, 'air.json')
@@ -184,35 +194,47 @@ class AirInstaller {
     }
 
     showStatus() {
-        const items = []
+        // Use modern grid layout for status display
+        const statusItems = []
         
-        // Environment
-        items.push(`Environment: ${this.config.env === 'production' ? red('Production') : green('Development')}`)
-        items.push(`Node Name: ${this.config.name}`)
-        items.push(`Port: ${this.config.port}`)
+        statusItems.push([
+            bold('Environment:'),
+            this.config.env === 'production' ? red('Production') : green('Development')
+        ])
+        statusItems.push([bold('Node Name:'), cyan(this.config.name)])
+        statusItems.push([bold('Port:'), yellow(String(this.config.port))])
         
-        // Domain & SSL
         if (this.config.domain && this.config.domain !== 'localhost') {
-            items.push(`Domain: ${green(this.config.domain)}`)
+            statusItems.push([bold('Domain:'), green(this.config.domain)])
         }
         if (this.config.ssl) {
-            items.push(`SSL: ${green('Enabled')}`)
+            statusItems.push([bold('SSL:'), green('✓ Enabled')])
         }
-        
-        // Peers
         if (this.config.peers && this.config.peers.length > 0) {
-            items.push(`Peers: ${this.config.peers.length} configured`)
+            statusItems.push([bold('Peers:'), blue(`${this.config.peers.length} configured`)])
         }
         
-        this.terminal.box(items.join('\n'), { borderColor: 'blue' })
-        console.log('')
+        // Use table for better alignment
+        this.terminal.table(
+            statusItems.map(([label, value]) => ({ label, value })),
+            [
+                { key: 'label', label: '', width: 15 },
+                { key: 'value', label: '', width: 30 }
+            ]
+        )
+        this.terminal.spacing()
     }
 
     async checkSystemInteractive() {
         this.terminal.clear()
         this.terminal.header('🔍 System Requirements Check')
+        this.terminal.spacing()
         
-        this.terminal.startSpinner('Checking system requirements...')
+        // Use modern loader instead of startSpinner
+        const checkLoader = this.terminal.loader('Checking system requirements...', {
+            type: 'dots',
+            color: 'cyan'
+        })
         
         const checks = []
         
@@ -278,8 +300,8 @@ class AirInstaller {
             checks.push({ name: 'User Permissions', status: 'pass', value: 'Regular user' })
         }
         
-        this.terminal.stopSpinner(true, 'System check complete')
-        console.log('')
+        checkLoader.stop(true, 'System check complete')
+        this.terminal.spacing()
         
         // Display results as table
         this.terminal.table(
@@ -309,6 +331,7 @@ class AirInstaller {
     async configureEnvironment() {
         this.terminal.clear()
         this.terminal.header('⚙️ Environment Configuration')
+        this.terminal.spacing()
         
         // Select environment with visual indicators
         const env = await this.terminal.interactiveSelect(
@@ -350,20 +373,23 @@ class AirInstaller {
             this.config.port = await this.terminal.number('Development port:', this.config.port, 1, 65535)
         }
         
-        // Check port availability
-        this.terminal.startSpinner(`Checking port ${this.config.port}...`)
+        // Check port availability with modern loader
+        const portLoader = this.terminal.loader(`Checking port ${this.config.port}...`, {
+            type: 'dots',
+            color: 'yellow'
+        })
         await new Promise(resolve => setTimeout(resolve, 500))
         
         try {
             execSync(`lsof -i:${this.config.port}`, { stdio: 'ignore' })
-            this.terminal.stopSpinner(false, `Port ${this.config.port} is already in use`)
+            portLoader.stop(false, `Port ${this.config.port} is already in use`)
             
             const useAnyway = await this.terminal.confirm('Use this port anyway?', false)
             if (!useAnyway) {
                 this.config.port = await this.terminal.number('Enter different port:', 8765, 1, 65535)
             }
         } catch {
-            this.terminal.stopSpinner(true, `Port ${this.config.port} is available`)
+            portLoader.stop(true, `Port ${this.config.port} is available`)
         }
         
         this.terminal.success('\nEnvironment configured successfully')
@@ -373,11 +399,15 @@ class AirInstaller {
     async configureNetworkInteractive() {
         this.terminal.clear()
         this.terminal.header('🌐 Network & Domain Configuration')
+        this.terminal.spacing()
         
-        // Detect current network
-        this.terminal.startSpinner('Detecting network configuration...')
+        // Detect current network with modern loader
+        const networkLoader = this.terminal.loader('Detecting network configuration...', {
+            type: 'circle',
+            color: 'blue'
+        })
         await this.detectNetwork()
-        this.terminal.stopSpinner(true, 'Network detected')
+        networkLoader.stop(true, 'Network detected')
         
         console.log('')
         this.terminal.box(
@@ -394,20 +424,23 @@ class AirInstaller {
             this.terminal.warning('Production requires a valid domain for SSL')
             this.config.domain = await this.terminal.question('Domain name:', this.config.domain)
             
-            // Verify DNS
+            // Verify DNS with modern loader
             if (this.config.domain && this.config.domain !== 'localhost') {
-                this.terminal.startSpinner(`Verifying DNS for ${this.config.domain}...`)
+                const dnsLoader = this.terminal.loader(`Verifying DNS for ${this.config.domain}...`, {
+                    type: 'arrow',
+                    color: 'cyan'
+                })
                 try {
                     const dnsResult = execSync(`dig +short A ${this.config.domain}`, { encoding: 'utf8' })
                     if (dnsResult.trim()) {
-                        this.terminal.stopSpinner(true, `DNS resolves to ${dnsResult.trim()}`)
+                        dnsLoader.stop(true, `DNS resolves to ${dnsResult.trim()}`)
                     } else {
-                        this.terminal.stopSpinner(false, 'DNS does not resolve')
+                        dnsLoader.stop(false, 'DNS does not resolve')
                         const continueAnyway = await this.terminal.confirm('Continue anyway?', false)
                         if (!continueAnyway) return
                     }
                 } catch {
-                    this.terminal.stopSpinner(false, 'Could not verify DNS')
+                    dnsLoader.stop(false, 'Could not verify DNS')
                 }
             }
         } else {
@@ -428,13 +461,22 @@ class AirInstaller {
         if (this.config.env !== 'production') {
             this.terminal.clear()
             this.terminal.header('🔐 Security Configuration')
-            this.terminal.info('SSL is only available in production mode')
-            await this.terminal.question('\nPress Enter to continue...')
+            this.terminal.spacing()
+            
+            this.terminal.box(
+                'SSL is only available in production mode.\n' +
+                'Switch to production environment to enable SSL.',
+                { borderColor: 'yellow', padding: 1, align: 'center' }
+            )
+            
+            this.terminal.spacing()
+            await this.terminal.question('Press Enter to continue...')
             return
         }
         
         this.terminal.clear()
         this.terminal.header('🔐 Security & SSL Configuration')
+        this.terminal.spacing()
         
         const sslChoice = await this.terminal.interactiveSelect(
             'SSL Certificate Setup:',
@@ -491,22 +533,24 @@ class AirInstaller {
         while (true) {
             this.terminal.clear()
             this.terminal.header('👥 Peer Connections')
+            this.terminal.spacing()
             
             if (!this.config.peers) this.config.peers = []
             
             if (this.config.peers.length === 0) {
-                this.terminal.info('No peers configured')
+                this.terminal.box('No peers configured', {
+                    borderColor: 'gray',
+                    padding: 1,
+                    align: 'center'
+                })
             } else {
-                console.log('')
-                this.terminal.table(
-                    this.config.peers.map((peer, i) => ({ 
-                        num: i + 1, 
-                        url: this.terminal.truncate(peer, 50)
-                    })),
-                    [
-                        { key: 'num', label: '#', width: 3 },
-                        { key: 'url', label: 'Peer URL', width: 50 }
-                    ]
+                // Display peers in a modern grid layout
+                this.terminal.section('Current Peers:')
+                this.terminal.grid(
+                    this.config.peers.map((peer, i) => 
+                        `${green((i + 1) + '.')} ${this.terminal.truncate(peer, 45)}`
+                    ),
+                    { columns: 1, gap: 1 }
                 )
             }
             
@@ -553,13 +597,24 @@ class AirInstaller {
 
     async configureServiceInteractive() {
         if (this.platform !== 'linux') {
-            this.terminal.warning('System service is only available on Linux')
+            this.terminal.clear()
+            this.terminal.header('🚀 System Service Configuration')
+            this.terminal.spacing()
+            
+            this.terminal.box(
+                'System service is only available on Linux.\n' +
+                `Current platform: ${this.platform}`,
+                { borderColor: 'yellow', padding: 1, align: 'center' }
+            )
+            
+            this.terminal.spacing()
             await this.terminal.question('Press Enter to continue...')
             return
         }
         
         this.terminal.clear()
         this.terminal.header('🚀 System Service Configuration')
+        this.terminal.spacing()
         
         const createService = await this.terminal.confirm('Create systemd service?', true)
         if (!createService) return
@@ -608,6 +663,7 @@ class AirInstaller {
     async performInstallation() {
         this.terminal.clear()
         this.terminal.header('💾 Installing Air')
+        this.terminal.spacing()
         
         const steps = [
             { name: 'Save configuration', fn: () => this.saveConfig() },
@@ -617,34 +673,58 @@ class AirInstaller {
             { name: 'Configure cron jobs', fn: () => this.setupCron() }
         ]
         
+        // Show installation plan
+        this.terminal.box(
+            'Installation Steps:\n\n' +
+            steps.map((s, i) => `${i + 1}. ${s.name}`).join('\n'),
+            { borderColor: 'blue', padding: 1 }
+        )
+        this.terminal.spacing(2)
+        
         let completed = 0
         for (const step of steps) {
-            this.terminal.progressBar(completed, steps.length, 'Installation progress')
-            console.log(`\n${step.name}...`)
+            // Use modern loader for each step
+            const stepLoader = this.terminal.loader(`${step.name}...`, {
+                type: 'box',
+                color: 'cyan'
+            })
             
             try {
                 await step.fn()
-                this.terminal.success(`✓ ${step.name}`)
+                stepLoader.stop(true, `${step.name} completed`)
             } catch (e) {
-                this.terminal.warning(`⚠ ${step.name}: ${e.message}`)
+                stepLoader.stop(false, `${step.name} failed: ${e.message}`)
             }
             
             completed++
+            this.terminal.progressBar(completed, steps.length, 'Overall Progress')
+            this.terminal.spacing()
         }
         
-        this.terminal.progressBar(completed, steps.length, 'Installation progress')
+        this.terminal.spacing()
         
-        console.log('')
-        this.terminal.box(
-            `✨ Installation Complete!\n\n` +
-            `Start Air:\n` +
-            `  ${cyan('npm start')}\n\n` +
-            `Manage configuration:\n` +
-            `  ${cyan('npm run config')}\n\n` +
-            `View logs:\n` +
-            `  ${cyan(`journalctl -u air-${this.config.name} -f`)}`,
-            { borderColor: 'green' }
-        )
+        // Modern completion message with button-like display
+        this.terminal.button('✨ Installation Complete!', {
+            borderColor: 'green',
+            align: 'center',
+            padding: 1,
+            margin: { top: 1, bottom: 1 }
+        })
+        
+        // Display next steps in a modern flex layout
+        this.terminal.section('Next Steps:')
+        this.terminal.flex([
+            bold('Start Air:'),
+            cyan('npm start')
+        ], { gap: 2 })
+        this.terminal.flex([
+            bold('Configure:'),
+            cyan('npm run config')
+        ], { gap: 2 })
+        this.terminal.flex([
+            bold('View logs:'),
+            cyan(`journalctl -u air-${this.config.name} -f`)
+        ], { gap: 2 })
         
         await this.terminal.question('\nPress Enter to exit...')
     }
@@ -779,17 +859,31 @@ class AirInstaller {
         // Check if configured
         const configPath = path.join(this.config.root, 'air.json')
         if (fs.existsSync(configPath)) {
-            console.log('\n' + green('✓') + ' Air is already configured!')
-            console.log(gray('  Config: ') + white('air.json'))
-            console.log(gray('  To reconfigure: ') + cyan('npm run setup'))
-            console.log(gray('  To start: ') + cyan('npm start'))
+            this.terminal.spacing()
+            this.terminal.success('Air is already configured!')
+            this.terminal.spacing()
+            
+            // Use modern flex layout for info display
+            this.terminal.flex([
+                dim('Config:'),
+                white('air.json')
+            ], { gap: 2 })
+            this.terminal.flex([
+                dim('To reconfigure:'),
+                cyan('npm run setup')
+            ], { gap: 2 })
+            this.terminal.flex([
+                dim('To start:'),
+                cyan('npm start')
+            ], { gap: 2 })
             return
         }
         
         this.terminal.header('🚀 Air Installation Complete!')
-        console.log('')
+        this.terminal.spacing()
         
-        this.terminal.warning('No configuration found.\n')
+        this.terminal.warning('No configuration found.')
+        this.terminal.spacing()
         
         // Check if TTY
         if (process.stdout.isTTY && process.stdin.isTTY) {

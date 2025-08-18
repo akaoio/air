@@ -9,7 +9,7 @@
         "air-install": "./script/install.js"
     },
     "dependencies": {
-        "@akaoio/tui": "^1.0.0",
+        "@akaoio/tui": "^2.0.6",
         "gun": "github:akaoio/gun"
     },
     "scripts": {
