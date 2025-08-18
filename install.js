@@ -370,6 +370,33 @@ class AirInstaller {
     async setupSSL() {
         console.log(yellow('\n📋 SSL Certificate Setup'))
         
+        // Check for CGNAT
+        try {
+            const publicIP = execSync('curl -s --max-time 2 https://checkip.amazonaws.com', { encoding: 'utf8' }).trim()
+            if (publicIP) {
+                const parts = publicIP.split('.')
+                if (parts[0] === '100' && parseInt(parts[1]) >= 64 && parseInt(parts[1]) <= 127) {
+                    this.terminal.warning('CGNAT detected! You are behind carrier NAT.')
+                    console.log(yellow('Port 80/443 cannot be reached from outside.'))
+                    console.log(yellow('SSL with Let\'s Encrypt will likely fail.'))
+                    console.log('')
+                    console.log('Alternatives:')
+                    console.log('  1. Use Cloudflare Tunnel (recommended)')
+                    console.log('  2. Use self-signed certificate for local testing')
+                    console.log('  3. Contact ISP for public IP')
+                    console.log('')
+                    
+                    const proceed = await this.terminal.confirm('Try Let\'s Encrypt anyway?', false)
+                    if (!proceed) {
+                        this.terminal.info('Skipping SSL setup')
+                        return
+                    }
+                }
+            }
+        } catch (e) {
+            // Continue with SSL setup
+        }
+        
         // Check certbot
         try {
             execSync('which certbot', { stdio: 'ignore' })
@@ -389,6 +416,7 @@ class AirInstaller {
         }
         
         console.log(yellow('Installing Let\'s Encrypt SSL certificate...'))
+        console.log(gray('Note: This requires port 80 to be accessible from internet'))
         try {
             execSync(`sudo certbot certonly --standalone --preferred-challenges http -d ${this.config.domain}`, { stdio: 'inherit' })
             this.config.ssl = {
@@ -398,6 +426,12 @@ class AirInstaller {
             this.terminal.success('SSL certificate installed')
         } catch {
             this.terminal.error('SSL certificate installation failed')
+            console.log('')
+            console.log('Common issues:')
+            console.log('  • Port 80 blocked by firewall/router')
+            console.log('  • Behind CGNAT (carrier NAT)')
+            console.log('  • Domain not pointing to this server')
+            console.log('  • Another service using port 80')
         }
     }
 
