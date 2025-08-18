@@ -76,6 +76,7 @@ export class Peer {
         // argv[11] -> priv
 
         this.config = config || {}
+        this.configLastModified = null // Track config file modification time for lazy loading
         this.restarts = {
             max: defaults.restart.max,
             count: 0
@@ -434,20 +435,28 @@ export class Peer {
         await this.sync()
         await this.run()
         await this.online()
-        // await this.activate()
         if (callback) await callback(this)
     }
 
     read() {
         if (fs.existsSync(this.config.path)) {
             try {
-                let config = fs.readFileSync(this.config.path, "utf8")
-                // validate JSON before parsing
-                if (!config.trim()) {
-                    throw new Error('Config file is empty')
+                // Check file modification time for lazy reloading
+                const stat = fs.statSync(this.config.path)
+                const modifiedTime = stat.mtime.getTime()
+                
+                // If this is first read or file has been modified, reload it
+                if (!this.configLastModified || modifiedTime > this.configLastModified) {
+                    let config = fs.readFileSync(this.config.path, "utf8")
+                    // validate JSON before parsing
+                    if (!config.trim()) {
+                        throw new Error('Config file is empty')
+                    }
+                    config = JSON.parse(config)
+                    this.config = merge(this.config, config)
+                    this.configLastModified = modifiedTime
+                    console.log('Configuration reloaded from air.json')
                 }
-                config = JSON.parse(config)
-                this.config = merge(this.config, config)
             } catch (error) {
                 console.error(`Failed to read config file ${this.config.path}:`, error.message)
                 throw new Error(`Invalid config file: ${error.message}`)
@@ -516,7 +525,12 @@ export class Peer {
 
     write() {
         const content = JSON.stringify(this.config, null, 4)
-        if (JSON.parse(content)) fs.writeFileSync(this.config.path, content)
+        if (JSON.parse(content)) {
+            fs.writeFileSync(this.config.path, content)
+            // Update modification tracking after write
+            const stat = fs.statSync(this.config.path)
+            this.configLastModified = stat.mtime.getTime()
+        }
         return this.config
     }
 
@@ -531,10 +545,10 @@ export class Peer {
 
                     this.config[this.env].system = data.system.pub && data.system.epub && data.system.cert ? data.system : {}
 
-                    // read config file content to this.config
+                    // lazy reload config file content to this.config
                     this.read()
 
-                    // write config file content from this.config
+                    // write updated config file content from this.config
                     this.write()
                     resolve()
                 })
@@ -674,7 +688,7 @@ export class Peer {
 
     configip() {
         // Default configuration (fallback)
-        const defaults = {
+        const fallback = {
             timeout: 5000,
             dnstimeout: 3000,
             agent: "Air-GUN-Peer/1.0",
@@ -688,7 +702,7 @@ export class Peer {
             ]
         }
 
-        // Read current config (which includes ip if present)
+        // Lazy reload config to get latest values
         this.read()
 
         // Check if ip config exists in air.json
@@ -751,10 +765,6 @@ export class Peer {
 
     async dnsip(service, config) {
         try {
-            const { exec } = await import("child_process")
-            const { promisify } = await import("util")
-            const execAsync = promisify(exec)
-
             // Try dig first
             try {
                 const digCommand = `dig +short ${service.hostname} @${service.resolver}`

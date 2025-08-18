@@ -101,21 +101,89 @@ class Terminal {
      * @param {string} prompt - The question to ask
      * @param {Array} choices - Array of choices
      * @param {*} defaultChoice - Default choice
+     * @param {boolean} showMarker - Show arrow marker for current selection
      * @returns {Promise<*>} Selected choice
      */
-    async select(prompt, choices, defaultChoice = null) {
-        const choiceList = choices.map((c, i) => `  ${i + 1}. ${c}`).join('\n')
-        console.log(prompt)
+    async select(prompt, choices, defaultChoice = null, showMarker = true) {
+        console.log('\n' + prompt)
+        
+        const choiceList = choices.map((c, i) => {
+            const num = `${i + 1}.`
+            if (showMarker && c === defaultChoice) {
+                return ` ${green('▶')} ${num} ${c}`
+            }
+            return `   ${num} ${c}`
+        }).join('\n')
+        
         console.log(choiceList)
         
         const defaultIndex = defaultChoice ? choices.indexOf(defaultChoice) + 1 : 1
-        const answer = await this.question('Select option:', String(defaultIndex))
+        const answer = await this.question('Choose option', String(defaultIndex))
         
         const index = parseInt(answer) - 1
         if (index >= 0 && index < choices.length) {
             return choices[index]
         }
         return defaultChoice || choices[0]
+    }
+
+    /**
+     * Menu selection with sections
+     * @param {string} title - Menu title
+     * @param {Array} items - Menu items with optional sections
+     * @returns {Promise<*>} Selected item
+     */
+    async menu(title, items) {
+        this.header(title)
+        
+        const choices = []
+        const mapping = {}
+        let index = 1
+        
+        for (const item of items) {
+            if (item.section) {
+                console.log(cyan(`\n${item.section}`))
+            } else {
+                choices.push(`${index}. ${item.label || item}`)
+                mapping[index] = item.value || item
+                index++
+            }
+        }
+        
+        console.log(choices.join('\n'))
+        const answer = await this.question('Select', '1')
+        
+        const selected = parseInt(answer)
+        return mapping[selected] || mapping[1]
+    }
+
+    /**
+     * Multi-select from list
+     * @param {string} prompt - The question to ask
+     * @param {Array} choices - Array of choices
+     * @param {Array} selected - Pre-selected choices
+     * @returns {Promise<Array>} Selected choices
+     */
+    async multiselect(prompt, choices, selected = []) {
+        console.log('\n' + prompt)
+        console.log(gray('(Space to select, Enter to confirm)'))
+        
+        // For simplicity without additional dependencies, 
+        // we'll use comma-separated input
+        const choiceList = choices.map((c, i) => {
+            const marker = selected.includes(c) ? green('[✓]') : '[ ]'
+            return `  ${marker} ${i + 1}. ${c}`
+        }).join('\n')
+        
+        console.log(choiceList)
+        
+        const answer = await this.question('Select numbers (comma-separated)', '')
+        if (!answer) return selected
+        
+        const indices = answer.split(',').map(s => parseInt(s.trim()) - 1)
+        return indices
+            .filter(i => i >= 0 && i < choices.length)
+            .map(i => choices[i])
     }
 
     /**
@@ -213,6 +281,83 @@ class Terminal {
                     this.error(message)
                 }
             }
+        }
+    }
+
+    /**
+     * Clear screen
+     */
+    clear() {
+        process.stdout.write('\x1b[2J\x1b[0f')
+    }
+
+    /**
+     * Move cursor up n lines
+     * @param {number} lines - Number of lines to move up
+     */
+    moveUp(lines = 1) {
+        process.stdout.write(`\x1b[${lines}A`)
+    }
+
+    /**
+     * Clear current line
+     */
+    clearLine() {
+        process.stdout.write('\x1b[2K\r')
+    }
+
+    /**
+     * Display a table
+     * @param {Array} data - Array of objects
+     * @param {Array} columns - Column definitions [{key, label, width}]
+     */
+    table(data, columns) {
+        if (!data || data.length === 0) {
+            console.log(gray('No data'))
+            return
+        }
+        
+        // Header
+        const header = columns.map(col => {
+            const label = col.label || col.key
+            const width = col.width || label.length + 2
+            return label.padEnd(width)
+        }).join(' ')
+        
+        console.log(bold(header))
+        console.log(gray('─'.repeat(header.length)))
+        
+        // Rows
+        data.forEach(row => {
+            const line = columns.map(col => {
+                const value = String(row[col.key] || '')
+                const width = col.width || col.label?.length || col.key.length + 2
+                return value.padEnd(width)
+            }).join(' ')
+            console.log(line)
+        })
+    }
+
+    /**
+     * Display a progress bar
+     * @param {number} current - Current value
+     * @param {number} total - Total value
+     * @param {string} label - Optional label
+     */
+    progressBar(current, total, label = '') {
+        const width = 30
+        const percent = Math.min(current / total, 1)
+        const filled = Math.floor(width * percent)
+        const empty = width - filled
+        
+        const bar = green('█'.repeat(filled)) + gray('░'.repeat(empty))
+        const percentage = Math.floor(percent * 100)
+        
+        this.clearLine()
+        process.stdout.write(`${label} ${bar} ${percentage}%`)
+        
+        if (current >= total) {
+            console.log() // New line when complete
         }
     }
 }

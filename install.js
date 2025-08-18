@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { execSync, exec } from 'child_process'
+import { execSync } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
@@ -141,6 +141,7 @@ class AirInstaller {
     async runInteractive() {
         await this.checkSystem()
         await this.detectNetwork()
+        await this.preflightChecks()
         await this.configureNetwork()
         await this.configureBasic()
         await this.setupSecurity()
@@ -148,6 +149,42 @@ class AirInstaller {
         await this.createService()
         await this.showSummary()
         this.terminal.close()
+    }
+    
+    async preflightChecks() {
+        if (this.config.env !== 'production') return
+        
+        this.terminal.section('🔍 Production pre-flight checks...')
+        
+        // DNS verification for production domain
+        if (this.config.domain && this.config.domain !== 'localhost') {
+            try {
+                const dnsResult = execSync(`dig +short A ${this.config.domain}`, { encoding: 'utf8' })
+                if (dnsResult.trim()) {
+                    this.terminal.success(`DNS resolves: ${this.config.domain} -> ${dnsResult.trim()}`)
+                } else {
+                    this.terminal.warning(`DNS does not resolve for ${this.config.domain}`)
+                    const continueAnyway = await this.terminal.confirm('Continue anyway? (SSL may fail)', false)
+                    if (!continueAnyway) process.exit(1)
+                }
+            } catch {
+                this.terminal.warning('Could not verify DNS resolution')
+            }
+        }
+        
+        // Port availability check
+        const port = this.config.port || 443
+        try {
+            execSync(`lsof -i:${port}`, { stdio: 'ignore' })
+            this.terminal.warning(`Port ${port} is already in use`)
+            const portInfo = execSync(`lsof -i:${port}`, { encoding: 'utf8' })
+            console.log(gray('Current usage:'))
+            console.log(gray(portInfo))
+        } catch {
+            this.terminal.success(`Port ${port} is available`)
+        }
+        
+        console.log('')
     }
 
     async checkSystem() {
@@ -180,6 +217,20 @@ class AirInstaller {
                 } catch {
                     this.terminal.warning(`${tool} not found`)
                 }
+            }
+            
+            // Check permissions and security
+            if (process.getuid && process.getuid() === 0) {
+                this.terminal.warning('Running as root - this is not recommended')
+                console.log(gray('Consider running as a regular user for better security'))
+            }
+            
+            // Test internet connectivity
+            try {
+                execSync('ping -c 1 8.8.8.8', { stdio: 'ignore', timeout: 5000 })
+                this.terminal.success('Internet connectivity verified')
+            } catch {
+                this.terminal.warning('No internet connectivity detected')
             }
         } catch (e) {
             this.terminal.error('Error checking system: ' + e.message)
@@ -461,21 +512,36 @@ class AirInstaller {
         console.log(gray('Note: This requires port 80 to be accessible from internet'))
         console.log(gray('Your app will continue to run on port ' + this.config.port))
         
-        // Check if port 80 is in use
+        // Check if port 80 is in use and handle gracefully
+        let port80Services = []
         try {
             const port80Check = execSync('sudo lsof -i:80', { encoding: 'utf8' })
             if (port80Check) {
-                this.terminal.warning('Port 80 is in use. Stopping services...')
-                // Try to stop common services
-                try {
-                    execSync('sudo systemctl stop nginx 2>/dev/null', { stdio: 'ignore' })
-                } catch {}
-                try {
-                    execSync('sudo systemctl stop apache2 2>/dev/null', { stdio: 'ignore' })
-                } catch {}
-                try {
-                    execSync(`sudo systemctl stop ${this.config.name} 2>/dev/null`, { stdio: 'ignore' })
-                } catch {}
+                // Parse which services are using port 80
+                const lines = port80Check.split('\n').slice(1)
+                lines.forEach(line => {
+                    const parts = line.split(/\s+/)
+                    if (parts[0] && parts[1]) {
+                        port80Services.push({ name: parts[0], pid: parts[1] })
+                    }
+                })
+                
+                this.terminal.warning(`Port 80 is in use by: ${port80Services.map(s => s.name).join(', ')}`)
+                const stopServices = await this.terminal.confirm('Temporarily stop these services for SSL setup?', true)
+                
+                if (stopServices) {
+                    // Try to stop common services gracefully
+                    const servicesToStop = ['nginx', 'apache2', 'httpd']
+                    for (const service of servicesToStop) {
+                        try {
+                            execSync(`sudo systemctl stop ${service}`, { stdio: 'ignore' })
+                            console.log(gray(`Stopped ${service}`))
+                        } catch {}
+                    }
+                } else {
+                    console.log(yellow('Consider using DNS challenge instead: --ssl-method dns'))
+                    return
+                }
             }
         } catch {
             // Port 80 is free
@@ -528,78 +594,80 @@ class AirInstaller {
             
             execSync(certbotCmd, { stdio: 'inherit' })
             
-            // Copy certificates to app directory for proper access
-            console.log(gray('Setting up certificate access...'))
-            try {
-                const sslDir = path.join(this.config.root, 'ssl')
-                
-                // Create SSL directory
-                if (!fs.existsSync(sslDir)) {
-                    fs.mkdirSync(sslDir, { mode: 0o700 })
+            // Restart stopped services
+            if (port80Services.length > 0) {
+                console.log(gray('Restarting stopped services...'))
+                const servicesToRestart = ['nginx', 'apache2', 'httpd']
+                for (const service of servicesToRestart) {
+                    try {
+                        execSync(`sudo systemctl start ${service}`, { stdio: 'ignore' })
+                        console.log(gray(`Restarted ${service}`))
+                    } catch {}
                 }
+            }
+            
+            // Setup secure certificate access via systemd
+            console.log(gray('Setting up secure certificate access...'))
+            try {
+                // Create ssl-cert group if it doesn't exist
+                try {
+                    execSync('sudo groupadd -f ssl-cert', { stdio: 'ignore' })
+                } catch {}
                 
-                // Copy certificates to app directory
-                const certSource = `/etc/letsencrypt/live/${this.config.domain}/cert.pem`
-                const keySource = `/etc/letsencrypt/live/${this.config.domain}/privkey.pem`
-                const fullchainSource = `/etc/letsencrypt/live/${this.config.domain}/fullchain.pem`
+                // Add current user to ssl-cert group
+                execSync(`sudo usermod -a -G ssl-cert ${process.env.USER}`, { stdio: 'ignore' })
                 
-                const certDest = path.join(sslDir, 'cert.pem')
-                const keyDest = path.join(sslDir, 'privkey.pem')
-                const fullchainDest = path.join(sslDir, 'fullchain.pem')
+                // Set proper group ownership on Let's Encrypt certificates
+                execSync(`sudo chgrp -R ssl-cert /etc/letsencrypt/live/${this.config.domain}`, { stdio: 'ignore' })
+                execSync(`sudo chgrp -R ssl-cert /etc/letsencrypt/archive/${this.config.domain}`, { stdio: 'ignore' })
                 
-                execSync(`sudo cp ${certSource} ${certDest}`, { stdio: 'ignore' })
-                execSync(`sudo cp ${keySource} ${keyDest}`, { stdio: 'ignore' })
-                execSync(`sudo cp ${fullchainSource} ${fullchainDest}`, { stdio: 'ignore' })
+                // Make certificates readable by ssl-cert group
+                execSync(`sudo chmod 750 /etc/letsencrypt/live/${this.config.domain}`, { stdio: 'ignore' })
+                execSync(`sudo chmod 750 /etc/letsencrypt/archive/${this.config.domain}`, { stdio: 'ignore' })
+                execSync(`sudo chmod 640 /etc/letsencrypt/archive/${this.config.domain}/*.pem`, { stdio: 'ignore' })
                 
-                // Set proper ownership (current user owns the copies)
-                execSync(`sudo chown ${process.env.USER}:${process.env.USER} ${sslDir}/*.pem`, { stdio: 'ignore' })
-                execSync(`chmod 600 ${keyDest}`, { stdio: 'ignore' })
-                execSync(`chmod 644 ${certDest} ${fullchainDest}`, { stdio: 'ignore' })
+                this.terminal.success('Secure certificate access configured')
+                console.log(yellow('Note: You may need to logout and login for group changes to take effect'))
                 
-                this.terminal.success('Certificates copied to application directory')
-                
-                // Create renewal hook to copy certificates after renewal
+                // Create renewal hook to fix permissions after renewal
                 const hookContent = `#!/bin/bash
-# Copy renewed certificates to Air directory
+# Fix Let's Encrypt certificate permissions for Air
 DOMAIN="${this.config.domain}"
-APP_ROOT="${this.config.root}"
-SSL_DIR="$APP_ROOT/ssl"
-USER="${process.env.USER}"
 
-# Copy certificates
-cp /etc/letsencrypt/live/$DOMAIN/cert.pem $SSL_DIR/cert.pem
-cp /etc/letsencrypt/live/$DOMAIN/privkey.pem $SSL_DIR/privkey.pem
-cp /etc/letsencrypt/live/$DOMAIN/fullchain.pem $SSL_DIR/fullchain.pem
+# Set proper group ownership
+chgrp -R ssl-cert /etc/letsencrypt/live/$DOMAIN
+chgrp -R ssl-cert /etc/letsencrypt/archive/$DOMAIN
 
-# Fix ownership
-chown $USER:$USER $SSL_DIR/*.pem
-chmod 600 $SSL_DIR/privkey.pem
-chmod 644 $SSL_DIR/cert.pem $SSL_DIR/fullchain.pem
+# Fix permissions
+chmod 750 /etc/letsencrypt/live/$DOMAIN
+chmod 750 /etc/letsencrypt/archive/$DOMAIN
+chmod 640 /etc/letsencrypt/archive/$DOMAIN/*.pem
 
 # Restart service
 systemctl restart ${this.config.name} 2>/dev/null || true
 
-echo "Certificates copied and service restarted for $DOMAIN"`
+echo "Certificate permissions fixed and service restarted for $DOMAIN"`
                 
                 fs.writeFileSync('/tmp/air-ssl-hook.sh', hookContent)
-                execSync('sudo cp /tmp/air-ssl-hook.sh /etc/letsencrypt/renewal-hooks/deploy/air-copy-certs.sh', { stdio: 'ignore' })
-                execSync('sudo chmod +x /etc/letsencrypt/renewal-hooks/deploy/air-copy-certs.sh', { stdio: 'ignore' })
+                execSync('sudo cp /tmp/air-ssl-hook.sh /etc/letsencrypt/renewal-hooks/deploy/air-fix-perms.sh', { stdio: 'ignore' })
+                execSync('sudo chmod +x /etc/letsencrypt/renewal-hooks/deploy/air-fix-perms.sh', { stdio: 'ignore' })
                 fs.unlinkSync('/tmp/air-ssl-hook.sh')
                 console.log(gray('Installed certificate renewal hook'))
                 
-                // Use local certificates
-                this.config.ssl = {
-                    key: keyDest,
-                    cert: certDest
-                }
-                
-                this.terminal.success('SSL certificates configured successfully!')
-            } catch (e) {
-                this.terminal.error('Failed to copy certificates: ' + e.message)
-                // Fallback to original paths
+                // Use direct Let's Encrypt paths (secure with proper permissions)
                 this.config.ssl = {
                     key: `/etc/letsencrypt/live/${this.config.domain}/privkey.pem`,
-                    cert: `/etc/letsencrypt/live/${this.config.domain}/cert.pem`
+                    cert: `/etc/letsencrypt/live/${this.config.domain}/fullchain.pem`
+                }
+                
+                this.terminal.success('SSL certificates configured securely!')
+            } catch (e) {
+                this.terminal.error('Failed to configure secure certificate access: ' + e.message)
+                console.log(yellow('Manual fix: Add user to ssl-cert group and fix permissions'))
+                // Use original paths anyway
+                this.config.ssl = {
+                    key: `/etc/letsencrypt/live/${this.config.domain}/privkey.pem`,
+                    cert: `/etc/letsencrypt/live/${this.config.domain}/fullchain.pem`
                 }
             }
         } catch {
@@ -663,6 +731,12 @@ echo "Certificates copied and service restarted for $DOMAIN"`
         const createService = await this.terminal.confirm('Create systemd service?', true)
         if (!createService) return
         
+        // Create logs directory first
+        const logsDir = path.join(this.config.root, 'logs')
+        if (!fs.existsSync(logsDir)) {
+            fs.mkdirSync(logsDir, { recursive: true })
+        }
+        
         const serviceName = this.config.name
         const serviceContent = `[Unit]
 Description=Air GUN Database - ${this.config.name}
@@ -671,10 +745,28 @@ After=network.target
 [Service]
 Type=simple
 User=${process.env.USER}
+# Add user to ssl-cert group for certificate access
+SupplementaryGroups=ssl-cert
 WorkingDirectory=${this.config.root}
 ExecStart=/usr/bin/node ${this.config.root}/main.js
-Restart=on-failure
+Restart=always
 RestartSec=10
+
+# Security hardening
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=${this.config.root}
+ReadOnlyPaths=/etc/letsencrypt
+
+# Resource limits
+MemoryLimit=1G
+CPUQuota=200%
+
+# Logging
+StandardOutput=append:${this.config.root}/logs/output.log
+StandardError=append:${this.config.root}/logs/error.log
 
 [Install]
 WantedBy=multi-user.target

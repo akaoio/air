@@ -48,6 +48,7 @@ git clone https://github.com/akaoio/air.git
 cd air
 npm install
 npm run setup
+npm run config  # Optional: Interactive configuration wizard
 ```
 
 **New installer features:**
@@ -294,7 +295,43 @@ npm test
 
 # Format code
 npm run format
+
+# Configure Air interactively
+npm run config
 ```
+
+### Configuration Wizard
+
+Air includes a user-friendly configuration wizard accessible via `npm run config`:
+
+**Features:**
+- **Interactive Menu**: Navigate through configuration sections easily
+- **Current Value Display**: Shows existing settings with option to keep or change
+- **Environment-Aware**: Separate configuration for development/production
+- **Quick Setup Mode**: Run with `--quick` flag for streamlined setup
+- **Validation**: Built-in validation for domains, ports, and API credentials
+
+**Usage:**
+```bash
+npm run config           # Full interactive menu
+npm run config --quick   # Quick setup mode
+```
+
+**Configuration Sections:**
+- Basic settings (name, environment, domain, port)
+- SSL configuration (certificate paths)
+- Dynamic DNS (GoDaddy API settings)  
+- Peer connections (add/remove peer URLs)
+- Advanced options (remote sync, SEA key reset)
+
+### Hot Configuration Reloading
+
+Air supports seamless configuration updates without restart:
+
+- **Lazy Loading**: Configuration reloaded automatically when `air.json` changes
+- **Real-time Updates**: Changes take effect on next method call
+- **Modification Tracking**: Only reloads when file modification time changes
+- **No Downtime**: Server continues running while config updates
 
 ## License
 

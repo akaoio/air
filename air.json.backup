@@ -1,0 +1,38 @@
+{
+    "root": "/home/x/Projects/ventureone/projects/air",
+    "bash": "/home/x/Projects/ventureone/projects/air",
+    "path": "/home/x/Projects/ventureone/projects/air/air.json",
+    "env": "production",
+    "name": "air",
+    "sync": null,
+    "production": {
+        "domain": "air.akao.io",
+        "port": 8765,
+        "peers": [],
+        "ssl": {
+            "key": "ssl/privkey.pem",
+            "cert": "ssl/fullchain.pem"
+        },
+        "godaddy": {
+            "domain": "akao.io",
+            "host": "air",
+            "key": "3AmP8qxSrV_BQvFh2zzgykeVXTuEga27V",
+            "secret": "2kkQvSL43mxLVBi1qybPsB"
+        },
+        "network": {
+            "currentIP": "192.168.1.100",
+            "interface": "enP3p49s0",
+            "gateway": "192.168.1.1",
+            "mac": "c0:74:2b:fb:05:fb",
+            "staticIP": "192.168.1.100"
+        },
+        "www": "/home/x/Projects/ventureone/projects/air/www",
+        "system": {},
+        "pair": {
+            "pub": "ZY1rjaZgNTVpV4TSWpAhnPdc-wBCN7YiREb7xH-N1WY.GbNAs5ar_dw2xQ2WnUmQB2MnHbZjqciCFrzp5a_DBQI",
+            "priv": "3SMALEvuFUZPgX7oRSzT24dpfMm_wAwzZDjDMwIMMms",
+            "epub": "LlhvHMfFf6G9Ji6x5hlyCu66ZqvIMVlWII8lcjolBUM.ZXkPqZhZNbBxlYbWf76mfNeNjGtkEWEzHHEUxDSfGTQ",
+            "epriv": "tC47DBIFNGQYX3qWD5K076pcuaEn7MAr1Ey_KddH6Cg"
+        }
+    }
+}
