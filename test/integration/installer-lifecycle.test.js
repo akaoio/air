@@ -9,10 +9,10 @@ const __dirname = path.dirname(__filename)
 suite('installer lifecycle integration tests', () => {
     const fixturesDir = path.join(__dirname, '../fixtures')
     const scripts = {
-        install: path.join(process.cwd(), 'install.js'),
+        install: path.join(process.cwd(), 'script/install.js'),
         uninstall: path.join(process.cwd(), 'script/uninstall.js'),
         update: path.join(process.cwd(), 'script/update.js'),
-        ddns: path.join(process.cwd(), 'ddns.js')
+        ddns: path.join(process.cwd(), 'script/ddns.js')
     }
     
     // Helper to create unique test directory for each test

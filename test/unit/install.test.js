@@ -7,7 +7,7 @@ import { execSync } from 'child_process'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
-const installScript = path.join(__dirname, '..', '..', 'install.js')
+const installScript = path.join(__dirname, '..', '..', 'script', 'install.js')
 
 suite('install tests', () => {
     let testIndex = 0

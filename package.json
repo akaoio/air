@@ -6,7 +6,7 @@
     "main": "index.js",
     "license": "MIT",
     "bin": {
-        "air-install": "./install.js"
+        "air-install": "./script/install.js"
     },
     "dependencies": {
         "@akaoio/tui": "^1.0.0",
@@ -16,9 +16,10 @@
         "start": "node main.js",
         "test": "node test/runner.js",
         "format": "npx prettier --write .",
-        "setup": "node install.js",
-        "config": "node config.js",
-        "postinstall": "node install.js --check"
+        "setup": "node script/install.js",
+        "config": "node script/config.js",
+        "ddns": "node script/ddns.js",
+        "postinstall": "node script/install.js --check"
     },
     "devDependencies": {
         "prettier": "^2.4.1"
