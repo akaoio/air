@@ -1,4 +1,4 @@
-import { merge } from "./libs/utils.js"
+import { merge } from "./lib/utils.js"
 import http from "http"
 import https from "https"
 import fs from "fs"

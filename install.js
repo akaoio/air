@@ -5,7 +5,7 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import { fileURLToPath } from 'url'
-import { Terminal, red, green, yellow, blue, cyan, gray, white, bold } from './src/libs/terminal.js'
+import { Terminal, red, green, yellow, blue, cyan, gray, white, bold } from './src/lib/terminal.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
