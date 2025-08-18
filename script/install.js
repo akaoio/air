@@ -100,12 +100,14 @@ class AirInstaller {
             
             if (action === null || action === 'Exit') {
                 console.log('\nInstallation cancelled.')
-                return
+                this.terminal.close()
+                process.exit(0)
             }
             
             if (action === 'View current configuration') {
                 await this.viewConfig()
-                return
+                this.terminal.close()
+                process.exit(0)
             }
             
             if (action === 'Update existing configuration') {
@@ -138,7 +140,10 @@ class AirInstaller {
             // Handle ESC or null (go back)
             if (choice === null) {
                 const confirmExit = await this.terminal.confirm('Exit installer?', false)
-                if (confirmExit) break
+                if (confirmExit) {
+                    this.terminal.close()
+                    process.exit(0)
+                }
                 continue
             }
             
@@ -169,7 +174,10 @@ class AirInstaller {
                     break
                 case 'exit':
                     const confirmExit = await this.terminal.confirm('Exit without installing?', false)
-                    if (confirmExit) return
+                    if (confirmExit) {
+                        this.terminal.close()
+                        process.exit(0)
+                    }
                     break
             }
         }
