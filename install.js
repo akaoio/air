@@ -370,31 +370,59 @@ class AirInstaller {
     async setupSSL() {
         console.log(yellow('\n📋 SSL Certificate Setup'))
         
-        // Check for CGNAT
+        let hasIPv6 = false
+        let ipv6Address = null
+        
+        // Check for IPv6
         try {
-            const publicIP = execSync('curl -s --max-time 2 https://checkip.amazonaws.com', { encoding: 'utf8' }).trim()
-            if (publicIP) {
-                const parts = publicIP.split('.')
-                if (parts[0] === '100' && parseInt(parts[1]) >= 64 && parseInt(parts[1]) <= 127) {
-                    this.terminal.warning('CGNAT detected! You are behind carrier NAT.')
-                    console.log(yellow('Port 80/443 cannot be reached from outside.'))
-                    console.log(yellow('SSL with Let\'s Encrypt will likely fail.'))
-                    console.log('')
-                    console.log('Alternatives:')
-                    console.log('  1. Use Cloudflare Tunnel (recommended)')
-                    console.log('  2. Use self-signed certificate for local testing')
-                    console.log('  3. Contact ISP for public IP')
-                    console.log('')
-                    
-                    const proceed = await this.terminal.confirm('Try Let\'s Encrypt anyway?', false)
-                    if (!proceed) {
-                        this.terminal.info('Skipping SSL setup')
-                        return
-                    }
+            ipv6Address = execSync('ip -6 addr show scope global | grep -oP "(?<=inet6\\s)[0-9a-f:]+" | head -1', { encoding: 'utf8' }).trim()
+            if (ipv6Address && !ipv6Address.startsWith('fe80:')) {
+                hasIPv6 = true
+                this.terminal.success(`IPv6 detected: ${ipv6Address}`)
+                
+                // Check if domain has AAAA record
+                const aaaa = execSync(`dig AAAA ${this.config.domain} +short`, { encoding: 'utf8' }).trim()
+                if (aaaa) {
+                    this.terminal.success(`Domain has IPv6 record: ${aaaa}`)
+                    console.log(green('✓ Can use IPv6 for Let\'s Encrypt!'))
+                } else {
+                    this.terminal.warning('Domain has no AAAA record. Update DNS to use IPv6.')
                 }
             }
         } catch (e) {
-            // Continue with SSL setup
+            // No IPv6
+        }
+        
+        // Check for CGNAT on IPv4
+        if (!hasIPv6) {
+            try {
+                const publicIP = execSync('curl -s --max-time 2 https://checkip.amazonaws.com', { encoding: 'utf8' }).trim()
+                if (publicIP) {
+                    const parts = publicIP.split('.')
+                    if (parts[0] === '100' && parseInt(parts[1]) >= 64 && parseInt(parts[1]) <= 127) {
+                        this.terminal.warning('CGNAT detected! You are behind carrier NAT.')
+                        console.log(yellow('Port 80/443 cannot be reached via IPv4.'))
+                        
+                        if (!hasIPv6) {
+                            console.log(yellow('No IPv6 available. SSL with Let\'s Encrypt will likely fail.'))
+                            console.log('')
+                            console.log('Alternatives:')
+                            console.log('  1. Use Cloudflare Tunnel (recommended)')
+                            console.log('  2. Use self-signed certificate for local testing')
+                            console.log('  3. Contact ISP for public IP')
+                            console.log('')
+                            
+                            const proceed = await this.terminal.confirm('Try Let\'s Encrypt anyway?', false)
+                            if (!proceed) {
+                                this.terminal.info('Skipping SSL setup')
+                                return
+                            }
+                        }
+                    }
+                }
+            } catch (e) {
+                // Continue with SSL setup
+            }
         }
         
         // Check certbot
@@ -416,22 +444,42 @@ class AirInstaller {
         }
         
         console.log(yellow('Installing Let\'s Encrypt SSL certificate...'))
+        if (hasIPv6) {
+            console.log(green('Using IPv6 for certificate validation'))
+        }
         console.log(gray('Note: This requires port 80 to be accessible from internet'))
+        
         try {
-            execSync(`sudo certbot certonly --standalone --preferred-challenges http -d ${this.config.domain}`, { stdio: 'inherit' })
+            // If IPv6 is available, bind certbot to IPv6 address
+            let certbotCmd = `sudo certbot certonly --standalone --preferred-challenges http -d ${this.config.domain}`
+            if (hasIPv6 && ipv6Address) {
+                // Force IPv6 by binding to specific address
+                certbotCmd = `sudo certbot certonly --standalone --preferred-challenges http --http-01-address ::0 -d ${this.config.domain}`
+            }
+            
+            execSync(certbotCmd, { stdio: 'inherit' })
             this.config.ssl = {
                 key: `/etc/letsencrypt/live/${this.config.domain}/privkey.pem`,
                 cert: `/etc/letsencrypt/live/${this.config.domain}/cert.pem`
             }
-            this.terminal.success('SSL certificate installed')
+            this.terminal.success('SSL certificate installed successfully!')
         } catch {
             this.terminal.error('SSL certificate installation failed')
             console.log('')
             console.log('Common issues:')
             console.log('  • Port 80 blocked by firewall/router')
-            console.log('  • Behind CGNAT (carrier NAT)')
+            if (!hasIPv6) {
+                console.log('  • Behind CGNAT without IPv6')
+            }
             console.log('  • Domain not pointing to this server')
             console.log('  • Another service using port 80')
+            console.log('')
+            if (hasIPv6) {
+                console.log('IPv6 tips:')
+                console.log('  • Ensure AAAA record points to: ' + ipv6Address)
+                console.log('  • Check IPv6 firewall: sudo ip6tables -L')
+                console.log('  • Test IPv6: curl -6 ' + this.config.domain)
+            }
         }
     }
 
