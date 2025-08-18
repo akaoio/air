@@ -57,9 +57,17 @@ class AirInstaller {
             } else if (arg === '--name' && argv[i + 1]) {
                 this.args.name = argv[++i]
             } else if (arg === '--env' && argv[i + 1]) {
-                this.args.env = argv[++i]
+                const env = argv[++i]
+                // Validate environment
+                if (env === 'development' || env === 'production') {
+                    this.args.env = env
+                }
             } else if (arg === '--port' && argv[i + 1]) {
-                this.args.port = parseInt(argv[++i])
+                const port = parseInt(argv[++i])
+                // Validate port number
+                if (port > 0 && port <= 65535) {
+                    this.args.port = port
+                }
             } else if (arg === '--domain' && argv[i + 1]) {
                 this.args.domain = argv[++i]
             } else if (arg === '--godaddy') {
