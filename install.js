@@ -506,17 +506,26 @@ iface ${iface} inet static
         console.log(chalk.yellow('\n🔒 Security Configuration'))
         
         if (this.config.env === 'production') {
-            const { ssl, godaddy } = await inquirer.prompt([
+            // First ask about GoDaddy DDNS (doesn't require external tools)
+            const { godaddy } = await inquirer.prompt([
+                {
+                    type: 'confirm',
+                    name: 'godaddy',
+                    message: 'Set up GoDaddy DDNS (Dynamic DNS)?',
+                    default: false
+                }
+            ])
+            
+            if (godaddy) {
+                await this.setupGoDaddy()
+            }
+            
+            // Then ask about SSL (requires certbot)
+            const { ssl } = await inquirer.prompt([
                 {
                     type: 'confirm',
                     name: 'ssl',
                     message: 'Install Let\'s Encrypt SSL certificate?',
-                    default: false
-                },
-                {
-                    type: 'confirm',
-                    name: 'godaddy',
-                    message: 'Set up GoDaddy DDNS?',
                     default: false
                 }
             ])
@@ -524,15 +533,37 @@ iface ${iface} inet static
             if (ssl) {
                 await this.setupSSL()
             }
-            
-            if (godaddy) {
-                await this.setupGoDaddy()
-            }
         }
     }
 
     async setupSSL() {
-        console.log(chalk.yellow('Installing Let\'s Encrypt SSL...'))
+        console.log(chalk.yellow('\n📋 SSL Certificate Setup'))
+        
+        // Check if certbot is installed
+        try {
+            execSync('which certbot', { stdio: 'ignore' })
+        } catch (e) {
+            console.log(chalk.yellow('Certbot not found. Installing...'))
+            try {
+                // Try to install certbot
+                if (fs.existsSync('/etc/debian_version')) {
+                    execSync('sudo apt-get update && sudo apt-get install -y certbot', { stdio: 'inherit' })
+                } else if (fs.existsSync('/etc/redhat-release')) {
+                    execSync('sudo yum install -y certbot', { stdio: 'inherit' })
+                } else {
+                    console.log(chalk.red('✗ Please install certbot manually:'))
+                    console.log(chalk.white('  Debian/Ubuntu: sudo apt-get install certbot'))
+                    console.log(chalk.white('  CentOS/RHEL: sudo yum install certbot'))
+                    return
+                }
+            } catch (installError) {
+                console.log(chalk.red('✗ Failed to install certbot automatically'))
+                console.log(chalk.yellow('Please install certbot manually and run setup again'))
+                return
+            }
+        }
+        
+        console.log(chalk.yellow('Installing Let\'s Encrypt SSL certificate...'))
         try {
             execSync(`sudo certbot certonly --standalone --preferred-challenges http -d ${this.config.domain}`, { stdio: 'inherit' })
             this.config.ssl = {
@@ -541,7 +572,11 @@ iface ${iface} inet static
             }
             console.log(chalk.green('✓ SSL certificate installed'))
         } catch (e) {
-            console.log(chalk.red('✗ SSL installation failed'))
+            console.log(chalk.red('✗ SSL certificate installation failed'))
+            console.log(chalk.yellow('Make sure:'))
+            console.log(chalk.white('  1. Domain points to this server'))
+            console.log(chalk.white('  2. Port 80 is open'))
+            console.log(chalk.white('  3. No other service is using port 80'))
         }
     }
 
