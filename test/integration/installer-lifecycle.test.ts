@@ -324,12 +324,11 @@ suite('installer lifecycle integration tests', () => {
             }).toString()
         } catch (e) {
             ddnsOutput = e.stdout?.toString() || ''
+        } finally {
+            cleanupTestDir(testDir)
         }
         
         assert(ddnsOutput.includes(config.env), 
             'DDNS should read environment from config')
-        } finally {
-            cleanupTestDir(testDir)
-        }
     })
 })
