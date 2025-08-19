@@ -1,14 +1,16 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
+// fallback: #!/usr/bin/env tsx
 
 import { execSync } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import { fileURLToPath } from 'url'
-import { getPaths } from '../src/paths.js'
-import syspaths from '../src/syspaths.js'
-import permissions from '../src/permissions.js'
+import { getPaths } from '../src/paths'
+import syspaths from '../src/syspaths'
+import permissions from '../src/permissions'
 import readline from 'readline'
+import type { AirConfig } from '../src/types'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -32,8 +34,40 @@ const colors = {
     bgCyan: '\x1b[46m'
 }
 
+interface InstallerArgs {
+    check?: boolean
+    quick?: boolean
+    nonInteractive?: boolean
+    root?: string
+    bash?: string
+    env?: string
+    name?: string
+    port?: number
+    domain?: string
+    sync?: string
+    ssl?: boolean
+    godaddy?: {
+        domain: string
+        host: string
+        key: string
+        secret: string
+    }
+}
+
+interface SystemInfo {
+    hasSystemd?: boolean
+}
+
 class AirInstaller {
+    private config: any
+    private args: InstallerArgs
+    private platform: NodeJS.Platform
+    private hostname: string
+    private systemInfo: SystemInfo
+    private rl: readline.Interface
+    
     constructor() {
+        this.args = {}
         this.parseArgs()
         
         // Use smart path detection
@@ -61,7 +95,7 @@ class AirInstaller {
         })
     }
     
-    parseArgs() {
+    parseArgs(): void {
         this.args = {
             check: false,
             quick: false,
@@ -107,23 +141,23 @@ class AirInstaller {
     }
     
     // Colored output methods
-    success(message) {
+    success(message: string): void {
         console.log(colors.green + colors.bright + '✓ ' + colors.reset + colors.green + message + colors.reset)
     }
     
-    error(message) {
+    error(message: string): void {
         console.log(colors.red + colors.bright + '✗ ' + colors.reset + colors.red + message + colors.reset)
     }
     
-    warning(message) {
+    warning(message: string): void {
         console.log(colors.yellow + colors.bright + '⚠ ' + colors.reset + colors.yellow + message + colors.reset)
     }
     
-    info(message) {
+    info(message: string): void {
         console.log(colors.cyan + 'ℹ ' + message + colors.reset)
     }
     
-    header(title) {
+    header(title: string): void {
         const width = 60
         const padding = Math.floor((width - title.length - 2) / 2)
         const line = '═'.repeat(width)
@@ -135,14 +169,14 @@ class AirInstaller {
         console.log('')
     }
     
-    section(title) {
+    section(title: string): void {
         console.log('')
         console.log(colors.magenta + colors.bright + '▶ ' + title + colors.reset)
         console.log(colors.magenta + '  ' + '─'.repeat(title.length + 2) + colors.reset)
         console.log('')
     }
     
-    async prompt(question, defaultValue = '') {
+    async prompt(question: string, defaultValue = ''): Promise<string> {
         return new Promise((resolve) => {
             const q = defaultValue ? `${question} (${colors.dim}${defaultValue}${colors.reset}): ` : `${question}: `
             this.rl.question(q, (answer) => {
@@ -151,7 +185,7 @@ class AirInstaller {
         })
     }
     
-    async confirm(question, defaultYes = true) {
+    async confirm(question: string, defaultYes = true): Promise<boolean> {
         const defaultText = defaultYes ? 'Y/n' : 'y/N'
         const answer = await this.prompt(`${question} (${colors.bright}${defaultText}${colors.reset})`)
         const normalized = answer.toLowerCase().trim()
@@ -163,7 +197,7 @@ class AirInstaller {
         return normalized === 'y' || normalized === 'yes'
     }
     
-    async checkSystem() {
+    async checkSystem(): Promise<boolean> {
         this.section('System Check')
         
         // Check Node.js version
@@ -234,7 +268,7 @@ class AirInstaller {
         return true
     }
     
-    async configureBasic() {
+    async configureBasic(): Promise<void> {
         this.section('Basic Configuration')
         
         if (!this.args.nonInteractive) {
@@ -284,7 +318,7 @@ class AirInstaller {
         delete this.config.network
     }
     
-    async configurePeers() {
+    async configurePeers(): Promise<void> {
         this.section('Peer Configuration')
         
         if (this.args.nonInteractive) {
@@ -313,7 +347,7 @@ class AirInstaller {
         }
     }
     
-    async configureGodaddy() {
+    async configureGodaddy(): Promise<void> {
         this.section('GoDaddy DDNS Configuration')
         
         if (this.args.nonInteractive) {
@@ -339,7 +373,7 @@ class AirInstaller {
         this.success('GoDaddy DDNS configured')
     }
     
-    async setupSSL() {
+    async setupSSL(): Promise<void> {
         if (!this.config[this.config.env].ssl) return
         
         this.section('SSL Certificate Setup')
@@ -405,7 +439,7 @@ class AirInstaller {
         }
     }
     
-    async setupSystemd() {
+    async setupSystemd(): Promise<void> {
         if (!this.systemInfo.hasSystemd) return
         if (this.config.env !== 'production') return
         
@@ -464,7 +498,7 @@ WantedBy=multi-user.target`
         }
     }
     
-    async saveConfiguration() {
+    async saveConfiguration(): Promise<void> {
         this.section('Saving Configuration')
         
         const configPath = path.join(this.config.root, 'air.json')
@@ -478,7 +512,7 @@ WantedBy=multi-user.target`
         }
     }
     
-    showSummary() {
+    showSummary(): void {
         console.log('')
         console.log(colors.green + colors.bright + '╔════════════════════════════════════════════════════════════╗' + colors.reset)
         console.log(colors.green + colors.bright + '║' + colors.reset + '           🎉 ' + colors.green + colors.bright + 'Air Installation Complete!' + colors.reset + ' 🎉              ' + colors.green + colors.bright + '║' + colors.reset)
@@ -499,7 +533,7 @@ WantedBy=multi-user.target`
         console.log('')
     }
     
-    async run() {
+    async run(): Promise<void> {
         if (this.args.check) {
             this.header('Air Installer - System Check')
             await this.checkSystem()

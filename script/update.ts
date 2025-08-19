@@ -1,15 +1,30 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
+// fallback: #!/usr/bin/env tsx
 
 import fs from 'fs'
 import path from 'path'
 import { execSync } from 'child_process'
 import { fileURLToPath } from 'url'
-import { getPaths } from '../src/paths.js'
+import { getPaths } from '../src/paths'
+import type { AirConfig } from '../src/types'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
+interface UpdaterConfig {
+    root: string
+    name: string
+    domain?: string
+    ssl?: {
+        key: string
+        cert: string
+    }
+}
+
 class Updater {
+    private config: UpdaterConfig
+    private configFile: string
+    
     constructor() {
         // Use smart path detection
         const paths = getPaths()
@@ -22,7 +37,7 @@ class Updater {
         this.loadconfig()
     }
 
-    loadconfig() {
+    loadconfig(): void {
         const configPath = path.join(this.config.root, this.configFile)
         if (fs.existsSync(configPath)) {
             try {
@@ -45,7 +60,7 @@ class Updater {
         }
     }
 
-    async run() {
+    async run(): Promise<void> {
         console.log(`
 ==========================================
     Air Update Script
@@ -104,7 +119,7 @@ class Updater {
         }
     }
 
-    gitpull() {
+    gitpull(): void {
         console.log('Updating from git repository...')
         
         try {
@@ -125,7 +140,7 @@ class Updater {
         }
     }
 
-    npmupdate() {
+    npmupdate(): void {
         console.log('Updating npm packages...')
         
         try {
@@ -146,7 +161,7 @@ class Updater {
         }
     }
 
-    renewssl() {
+    renewssl(): void {
         console.log(`Checking SSL certificate for ${this.config.domain}...`)
         
         try {
@@ -176,7 +191,7 @@ class Updater {
         }
     }
 
-    async restartservice() {
+    async restartservice(): Promise<void> {
         const serviceName = this.config.name
         console.log(`Restarting service: ${serviceName}...`)
         

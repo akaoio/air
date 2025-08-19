@@ -1,12 +1,14 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
+// fallback: #!/usr/bin/env tsx
 
 import fs from 'fs'
 import path from 'path'
 import { execSync } from 'child_process'
 import { fileURLToPath } from 'url'
-import { getPaths } from '../src/paths.js'
-import syspaths from '../src/syspaths.js'
+import { getPaths } from '../src/paths'
+import syspaths from '../src/syspaths'
 import readline from 'readline'
+import type { AirConfig } from '../src/types'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)

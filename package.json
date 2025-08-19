@@ -31,13 +31,13 @@
         "test:all": "bun test",
         "typecheck": "tsc --noEmit",
         "format": "bunx prettier --write . || npx prettier --write .",
-        "setup": "node script/install.js",
-        "config": "node script/config.js",
-        "ddns": "node script/ddns.js",
-        "status": "node script/status.js",
-        "logs": "node script/logs.js",
-        "update": "node script/update.js",
-        "uninstall": "node script/uninstall.js"
+        "setup": "bun script/install.ts || tsx script/install.ts",
+        "config": "bun script/config.ts || tsx script/config.ts",
+        "ddns": "bun script/ddns.ts || tsx script/ddns.ts",
+        "status": "bun script/status.ts || tsx script/status.ts",
+        "logs": "bun script/logs.ts || tsx script/logs.ts",
+        "update": "bun script/update.ts || tsx script/update.ts",
+        "uninstall": "bun script/uninstall.ts || tsx script/uninstall.ts"
     },
     "devDependencies": {
         "@types/bun": "^1.2.20",

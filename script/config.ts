@@ -1,10 +1,12 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
+// fallback: #!/usr/bin/env tsx
 
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { getPaths } from '../src/paths.js'
+import { getPaths } from '../src/paths'
 import readline from 'readline'
+import type { AirConfig } from '../src/types'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const paths = getPaths()

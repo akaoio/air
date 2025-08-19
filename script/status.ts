@@ -1,10 +1,12 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
+// fallback: #!/usr/bin/env tsx
 
 import fs from 'fs'
 import path from 'path'
 import { execSync } from 'child_process'
 import { fileURLToPath } from 'url'
-import { getPaths } from '../src/paths.js'
+import { getPaths } from '../src/paths'
+import type { AirConfig } from '../src/types'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const paths = getPaths()
@@ -21,7 +23,12 @@ const colors = {
     magenta: '\x1b[35m'
 }
 
-function checkService() {
+interface ServiceStatus {
+    status: string
+    message: string
+}
+
+function checkService(): ServiceStatus {
     try {
         // Check if air.json exists
         const configPath = paths.config

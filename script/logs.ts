@@ -1,10 +1,12 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
+// fallback: #!/usr/bin/env tsx
 
 import fs from 'fs'
 import path from 'path'
 import { spawn } from 'child_process'
 import { fileURLToPath } from 'url'
-import { getPaths } from '../src/paths.js'
+import { getPaths } from '../src/paths'
+import type { AirConfig } from '../src/types'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const paths = getPaths()
@@ -37,7 +39,7 @@ const lines = (() => {
     return 50
 })()
 
-function showHelp() {
+function showHelp(): void {
     console.log(`
 ${colors.cyan}${colors.bright}Air Logs Viewer${colors.reset}
 

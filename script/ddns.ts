@@ -1,4 +1,5 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
+// fallback: #!/usr/bin/env tsx
 
 import fs from 'fs'
 import path from 'path'
@@ -6,7 +7,8 @@ import { exec } from 'child_process'
 import { promisify } from 'util'
 // Native fetch is available in Node.js 18+
 import { fileURLToPath } from 'url'
-import { getPaths } from '../src/paths.js'
+import { getPaths } from '../src/paths'
+import type { AirConfig } from '../src/types'
 
 const execAsync = promisify(exec)
 const __filename = fileURLToPath(import.meta.url)
