@@ -122,3 +122,12 @@ full-test*
 
 # SSL certificates
 ssl/
+
+# Air lifecycle and state files
+.air-state.json
+.air-backups/
+.update-log.json
+.air-*.pid
+.air-feedback.json
+.air-analytics.json
+air-feedback-export-*.json
