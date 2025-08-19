@@ -1,5 +1,7 @@
 import { merge } from "./lib/utils.js"
 import { getPaths } from "./paths.js"
+import permissions from "./permissions.js"
+import network from "./network.js"
 import http from "http"
 import https from "https"
 import fs from "fs"
@@ -753,20 +755,8 @@ export class Peer {
     }
 
     validateip(ip) {
-        const ipRegex = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/
-        if (!ipRegex.test(ip)) return false
-
-        // Additional validation for valid IP ranges
-        const parts = ip.split(".").map(Number)
-        if (parts.some(part => part > 255)) return false
-
-        // Exclude private/reserved ranges
-        const [first, second] = parts
-        if (first === 10 || (first === 172 && second >= 16 && second <= 31) || (first === 192 && second === 168) || first === 127 || first === 0 || first >= 224) {
-            return false
-        }
-
-        return true
+        // Use network module's validate method for both IPv4 and IPv6
+        return network.validate(ip)
     }
 
     async dnsip(service, config) {
@@ -850,29 +840,23 @@ export class Peer {
     }
 
     async getip() {
-        const config = this.configip()
         console.log("Attempting to detect public IP address...")
-
-        // Method 1: Try DNS-based detection (fastest and most reliable)
-        for (const service of config.dnsServices) {
-            console.log(`Trying DNS method: ${service.hostname}@${service.resolver}`)
-            const ip = await this.dnsip(service, config)
-            if (ip) {
-                return ip
-            }
+        
+        // Use new network module for dual-stack support
+        const ips = await network.getips()
+        
+        if (ips.ipv4) {
+            console.log(`IPv4 detected: ${ips.ipv4}`)
         }
-
-        // Method 2: Try HTTP-based detection
-        for (const service of config.httpServices) {
-            console.log(`Trying HTTP method: ${service.url}`)
-            const ip = await this.httpip(service, config)
-            if (ip) {
-                return ip
-            }
+        if (ips.ipv6) {
+            console.log(`IPv6 detected: ${ips.ipv6}`)
         }
-
-        console.error("All IP detection methods failed")
-        return null
+        
+        // Store both IPs for later use
+        this.publicIPs = ips
+        
+        // Return primary IP (prefers IPv4 for compatibility)
+        return ips.primary
     }
 
     ddns(callback = () => {}) {
@@ -905,16 +889,30 @@ export class Peer {
             this.getip()
                 .then(ip => {
                     if (ip) {
-                        this.user.put(
-                            {
-                                newIP: ip,
-                                timestamp: GUN.state()
-                            },
-                            (response = {}) => {
-                                if (response.err) reject(response.err)
-                                else resolve(response)
-                            }
-                        )
+                        // Store both IPv4 and IPv6 if available
+                        const ipData = {
+                            ip: ip, // Primary IP for backward compatibility
+                            ipv4: this.publicIPs?.ipv4 || null,
+                            ipv6: this.publicIPs?.ipv6 || null,
+                            hasIPv6: this.publicIPs?.hasIPv6 || false,
+                            timestamp: GUN.state()
+                        }
+                        
+                        this.user.put(ipData, (response = {}) => {
+                            if (response.err) reject(response.err)
+                            else resolve(response)
+                        })
+                        
+                        // Update DDNS with both IPs if configured
+                        if (this.config[this.env]?.godaddy && this.publicIPs) {
+                            network.updateddns(this.config[this.env], this.publicIPs)
+                                .then(results => {
+                                    console.log("DDNS update results:", results)
+                                })
+                                .catch(err => {
+                                    console.error("DDNS update failed:", err)
+                                })
+                        }
                     } else {
                         reject(new Error("Unable to detect public IP"))
                     }

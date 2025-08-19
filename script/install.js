@@ -813,7 +813,49 @@ class AirInstaller {
 
     async createService() {
         if (!this.config.service || !this.config.service.enabled) return
-        // Implementation for creating systemd service
+        
+        try {
+            const serviceName = `air-${this.config.name}`
+            const servicePath = `/etc/systemd/system/${serviceName}.service`
+            const nodeExecutable = process.execPath
+            const projectRoot = this.config.root
+            const mainScript = path.join(projectRoot, 'main.js')
+            
+            // Create systemd service file content
+            const serviceContent = `[Unit]
+Description=Air GUN Database - ${this.config.name}
+After=network.target
+
+[Service]
+Type=simple
+User=${process.env.USER || 'root'}
+WorkingDirectory=${projectRoot}
+ExecStart=${nodeExecutable} ${mainScript}
+Restart=on-failure
+RestartSec=10
+StandardOutput=append:${path.join(projectRoot, 'logs', 'air.log')}
+StandardError=append:${path.join(projectRoot, 'logs', 'air-error.log')}
+Environment="NODE_ENV=${this.config.env}"
+Environment="AIR_ROOT=${projectRoot}"
+
+[Install]
+WantedBy=multi-user.target
+`
+            
+            // Write service file (requires sudo)
+            fs.writeFileSync(`/tmp/${serviceName}.service`, serviceContent)
+            execSync(`sudo cp /tmp/${serviceName}.service ${servicePath}`)
+            fs.unlinkSync(`/tmp/${serviceName}.service`)
+            
+            // Reload systemd and enable service
+            execSync('sudo systemctl daemon-reload')
+            execSync(`sudo systemctl enable ${serviceName}`)
+            
+            console.log(`✓ Service ${serviceName} created and enabled`)
+        } catch (error) {
+            console.error('Failed to create systemd service:', error.message)
+            console.log('You may need to run this installer with sudo')
+        }
     }
 
     async setupLetsEncrypt() {
@@ -836,7 +878,9 @@ class AirInstaller {
             // Setup DDNS cron job (runs every 5 minutes)
             // Use bash path for script location
             const ddnsScript = path.join(this.config.bash, 'ddns.js')
-            const ddnsCommand = `cd ${projectRoot} && /usr/bin/node ${ddnsScript} >> ${logDir}/ddns.log 2>&1`
+            // Use current node executable instead of hardcoded path
+            const nodeExecutable = process.execPath
+            const ddnsCommand = `${nodeExecutable} ${ddnsScript} --root ${projectRoot} >> ${logDir}/ddns.log 2>&1`
             const cronEntry = `*/5 * * * * ${ddnsCommand}`
             
             // Get current crontab

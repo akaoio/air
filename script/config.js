@@ -4,9 +4,11 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { Terminal, colors, red, green, yellow, blue, cyan, gray, white, bold, dim } from '@akaoio/tui'
+import { getPaths } from '../src/paths.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const configPath = path.join(__dirname, 'air.json')
+const paths = getPaths()
+const configPath = paths.config
 
 class ConfigWizard {
     constructor() {
@@ -27,9 +29,10 @@ class ConfigWizard {
     }
 
     defaults() {
+        const paths = getPaths()
         return {
-            root: __dirname,
-            bash: __dirname,
+            root: paths.root,
+            bash: paths.bash,
             env: 'development',
             name: 'air',
             sync: null,
