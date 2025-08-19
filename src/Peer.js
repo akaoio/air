@@ -1,1065 +1,457 @@
-import { merge } from "./lib/utils.js"
-import { getPaths } from "./paths.js"
-import permissions from "./permissions.js"
+#!/usr/bin/env node
+
+import { ConfigManager } from "./config.js"
+import { ProcessManager } from "./process.js"
+import { StatusReporter } from "./status.js"
 import network from "./network.js"
+import permissions from "./permissions.js"
 import syspaths from "./syspaths.js"
+
 import http from "http"
 import https from "https"
 import fs from "fs"
-import { fileURLToPath } from "url"
 import path from "path"
-// Native fetch is available in Node.js 18+
-import { exec } from "child_process"
-import { promisify } from "util"
 import GUN from "@akaoio/gun"
 import "@akaoio/gun/sea.js"
 import "@akaoio/gun/nts.js"
+
 const sea = GUN.SEA
-const execAsync = promisify(exec)
 
-const defaults = {
-    port: {
-        development: 8765,
-        production: 443
-    },
-    domain: {
-        development: 'localhost',
-        production: null
-    },
-    environment: 'development',
-    restart: {
-        max: 5,
-        delay: 5000,
-        limit: 60000,
-        jitter: 0.2
-    },
-    timeout: {
-        ip: 5000,
-        dns: 3000,
-        beat: 60000,
-        update: 300000,
-        ddns: 300000,
-        sync: 3600000
-    },
-    ip: {
-        agent: 'air-gun-peer/1.0',
-        dns: [
-            { hostname: 'myip.opendns.com', resolver: 'resolver1.opendns.com' },
-            { hostname: 'myip.opendns.com', resolver: 'resolver2.opendns.com' }
-        ],
-        http: [
-            { url: 'https://checkip.amazonaws.com', format: 'text' },
-            { url: 'https://api.ipify.org?format=json', format: 'json', field: 'ip' },
-            { url: 'https://ipinfo.io/ip', format: 'text' },
-            { url: 'https://ifconfig.me/ip', format: 'text' }
-        ]
-    },
-    system: {
-        min: 1,
-        max: 65535
-    },
-    path: {
-        config: 'air.json',
-        prefix: '.',
-        suffix: '.pid',
-        data: 'radata'
-    }
-}
-
-export class Peer {
-    constructor(config = {}) {
-        // argv[2] -> root
-        // argv[3] -> bash
-        // argv[4] -> env
-        // argv[5] -> name
-        // argv[6] -> domain
-        // argv[7] -> port
-        // argv[8] -> key
-        // argv[9] -> cert
-        // argv[10] -> pub
-        // argv[11] -> priv
-
-        this.config = config || {}
-        this.configLastModified = null // Track config file modification time for lazy loading
-        this.restarts = {
-            max: defaults.restart.max,
-            count: 0
-        }
-        this.delay = {
-            base: defaults.restart.delay,
-            max: defaults.restart.limit
-        }
-        this.pidFile = null // Will be set after config initialization
-
-        // Validate root path to prevent path traversal BEFORE processing
-        const rootInput = this.config.root || process.env.ROOT || process.argv[2] || ''
-        const rootStr = String(rootInput)
-        if (rootStr.includes('..') || 
-            rootStr.includes('~') || 
-            rootStr.includes('%2e') || 
-            rootStr.includes('%2E') ||
-            rootStr.includes('\\')) {
-            throw new Error('Invalid root path: potential path traversal detected')
-        }
-
-        // Use smart path detection after validation
-        const paths = getPaths(
-            rootInput,
-            this.config.bash || process.env.BASH || process.argv[3]
-        )
-        
-        this.config.root = paths.root
-        this.config.bash = paths.bash
-
-        // Path of the config file
-        this.config.path = path.join(this.config.root, defaults.path.config)
-
-        this.read()
-
-        this.env = this.config.env = this.config.env || process.env.ENV || process.argv[4] || "development"
-
-        this.config.name = process.env.NAME || process.argv[5] || this.config.name || (this.env === "development" ? "localhost" : null)
-
-        this.config.sync = this.config.sync || null
-
-        this.config[this.env] = this.config[this.env] || {}
-
-        this.config[this.env].www = this.config[this.env]?.www || path.join(this.config.bash, "www")
-
-        this.config[this.env].domain = process.env.DOMAIN || process.argv[6] || this.config[this.env]?.domain || (this.env === "development" ? "localhost" : null)
-
-        // Port validation with fallback to default
-        const rawPort = process.env.PORT || process.argv[7] || this.config[this.env]?.port
-        let port = rawPort === null || rawPort === undefined ? 8765 : rawPort
-        
-        // Validate port number
-        const portNum = Number(port)
-        if (isNaN(portNum) || portNum < 1 || portNum > 65535 || !Number.isInteger(portNum)) {
-            port = 8765 // Use default port for invalid values
-        } else {
-            port = portNum
+/**
+ * Peer class - orchestrates all managers
+ * Refactored from 24 methods to 12 core methods
+ */
+class Peer {
+    constructor(options = {}) {
+        // Process command line arguments
+        const cliArgs = {
+            rootArg: process.argv[2],
+            bashArg: process.argv[3],
+            env: process.argv[4],
+            name: process.argv[5],
+            domain: process.argv[6],
+            port: process.argv[7],
+            sslKey: process.argv[8],
+            sslCert: process.argv[9],
+            pub: process.argv[10],
+            priv: process.argv[11],
+            epub: process.argv[12],
+            epriv: process.argv[13]
         }
         
-        this.config[this.env].port = port
-
-        this.config[this.env].peers = this.config[this.env]?.peers || this.config.peers || []
-
-        this.config[this.env].system = this.config[this.env]?.system || {}
-
-        // Get SSL paths intelligently
-        const domain = this.config[this.env]?.domain
-        const sslPaths = domain && this.env === "production" ? syspaths.ssl(domain) : null
+        // Merge options with CLI args
+        const merged = { ...options, ...cliArgs }
         
-        const key = process.env.SSL_KEY || process.argv[8] || this.config[this.env]?.ssl?.key || sslPaths?.key || null
-
-        const cert = process.env.SSL_CERT || process.argv[9] || this.config[this.env]?.ssl?.cert || sslPaths?.cert || null
-
-        this.config[this.env].pair = this.config[this.env]?.pair || {}
-
-        this.config[this.env].pair.pub = process.env.PUB || process.argv[10] || this.config[this.env]?.pair?.pub || null
-
-        this.config[this.env].pair.priv = process.env.PRIV || process.argv[11] || this.config[this.env]?.pair?.priv || null
-
-        this.config[this.env].pair.epub = process.env.EPUB || process.argv[12] || this.config[this.env]?.pair?.epub || null
-
-        this.config[this.env].pair.epriv = process.env.EPRIV || process.argv[13] || this.config[this.env]?.pair?.epriv || null
-
-        this.options = {}
-
-        const rootPath = path.resolve(this.config.root)
-
-        if (key && cert) {
-            this.options.key = fs.existsSync(key) ? fs.readFileSync(key) : null
-            this.options.cert = fs.existsSync(cert) ? fs.readFileSync(cert) : null
-        }
-
-        // Set PID file path
-        this.pidFile = path.join(this.config.root, `${defaults.path.prefix}${this.config.name || 'default'}${defaults.path.suffix}`)
-
-        // Always validate config, even in test mode
-        this.validate()
+        // Initialize managers
+        this.configManager = new ConfigManager(merged)
+        this.processManager = new ProcessManager({
+            name: merged.name || process.env.NAME || 'air',
+            root: merged.rootArg || process.env.ROOT || process.cwd()
+        })
+        this.statusReporter = new StatusReporter()
         
-        // Check for existing instance (skip if in test mode with skipPidCheck)
-        if (!config?.skipPidCheck) {
-            this.check()
-            this.init()
-        }
-
+        // Core state
+        this.server = null
+        this.gun = null
+        this.user = null
         this.GUN = GUN
         this.sea = sea
-        this.gun = {}
-        this.user = {}
         
-        // Group IP-related methods
+        // Restart handling
+        this.restarts = {
+            max: merged.maxRestarts || 5,
+            count: 0,
+            baseDelay: merged.restartDelay || 5000,
+            maxDelay: merged.maxRestartDelay || 60000
+        }
+        
+        // Load configuration
+        this.config = this.read()
+        
+        // Apply CLI overrides to config
+        if (cliArgs.env) this.config.env = cliArgs.env
+        if (cliArgs.name) this.config.name = cliArgs.name
+        
+        const env = this.config[this.config.env] || {}
+        if (cliArgs.domain) env.domain = cliArgs.domain
+        if (cliArgs.port) env.port = parseInt(cliArgs.port)
+        if (cliArgs.sslKey && cliArgs.sslCert) {
+            env.ssl = { key: cliArgs.sslKey, cert: cliArgs.sslCert }
+        }
+        if (cliArgs.pub && cliArgs.priv) {
+            env.pair = {
+                pub: cliArgs.pub,
+                priv: cliArgs.priv,
+                epub: cliArgs.epub,
+                epriv: cliArgs.epriv
+            }
+        }
+        
+        // Merge environment config back
+        this.config = { ...this.config, ...env }
+        
+        // Update status reporter config
+        this.statusReporter.updateConfig(this.config)
+        
+        // For backward compatibility - expose some methods through grouped interfaces
         this.ip = {
-            get: this.ipget.bind(this),
-            validate: this.ipvalidate.bind(this),
-            dns: this.ipdns.bind(this),
-            http: this.iphttp.bind(this),
-            config: this.ipconfig.bind(this)
+            get: () => network.get(),
+            validate: (ip) => network.validate(ip)
         }
         
-        // Group status-related methods
         this.status = {
-            ddns: this.ddns.bind(this),
-            ip: this.ipupdate.bind(this),
-            alive: this.alive.bind(this)
+            ddns: () => this.statusReporter.ddns(),
+            ip: () => this.statusReporter.ip(),
+            alive: () => this.statusReporter.alive()
         }
     }
 
-    check() {
-        try {
-            // Check if PID file exists
-            if (fs.existsSync(this.pidFile)) {
-                const oldPid = parseInt(fs.readFileSync(this.pidFile, 'utf8').trim())
-                
-                // Check if process is still running
-                try {
-                    process.kill(oldPid, 0) // Signal 0 just checks if process exists
-                    console.log(`Air instance already running with PID ${oldPid}`)
-                    console.log(`Reusing existing instance on port ${this.config[this.env].port}`)
-                    console.log(`Connecting to existing GUN network...`)
-                    
-                    // Instead of exiting, connect to existing instance as peer
-                    this.reuse = true
-                    return // Continue with connection to existing instance
-                } catch (e) {
-                    // Process not running, clean up stale PID file
-                    console.log(`Removing stale PID file for non-existent process ${oldPid}`)
-                    fs.unlinkSync(this.pidFile)
-                }
-            }
-            
-            // Write current PID to file
-            fs.writeFileSync(this.pidFile, process.pid.toString())
-            console.log(`Created PID file: ${this.pidFile} with PID ${process.pid}`)
-            
-            // Clean up PID file on exit (only register once per process)
-            if (!process._airPidHandlersRegistered) {
-                process._airPidHandlersRegistered = true
-                
-                const cleanup = () => {
-                    // Clean up all Air PID files for this process
-                    try {
-                        const files = fs.readdirSync(this.config.root || '.')
-                        files.forEach(file => {
-                            if (file.startsWith('.') && file.endsWith('.pid') && !file.startsWith('.git')) {
-                                const pidFile = path.join(this.config.root || '.', file)
-                                try {
-                                    const pid = parseInt(fs.readFileSync(pidFile, 'utf8').trim())
-                                    if (pid === process.pid) {
-                                        fs.unlinkSync(pidFile)
-                                        console.log(`Cleaned up PID file: ${pidFile}`)
-                                    }
-                                } catch (e) {
-                                    // Ignore errors
-                                }
-                            }
-                        })
-                    } catch (e) {
-                        // Ignore errors
-                    }
-                }
-                
-                process.on('exit', cleanup)
-                process.on('SIGINT', () => {
-                    cleanup()
-                    process.exit(0)
-                })
-                process.on('SIGTERM', () => {
-                    cleanup()
-                    process.exit(0)
-                })
-            }
-            
-        } catch (error) {
-            console.error('Error checking for existing instance:', error)
-        }
-    }
-
-    clean() {
-        try {
-            if (fs.existsSync(this.pidFile)) {
-                const currentPid = parseInt(fs.readFileSync(this.pidFile, 'utf8').trim())
-                if (currentPid === process.pid) {
-                    fs.unlinkSync(this.pidFile)
-                    console.log(`Cleaned up PID file: ${this.pidFile}`)
-                }
-            }
-        } catch (error) {
-            console.error('Error cleaning up PID file:', error)
-        }
-    }
-
-    // Validate configuration (separate from init for testing)
-    validate() {
-        // This is now handled in constructor - port validation is already done
-        // Additional validations can be added here if needed
+    /**
+     * Main startup sequence
+     */
+    async start() {
+        console.log('Starting Air peer...')
         
-        // Reset restart count to initial state (for proper test expectations)
-        this.restarts.count = 0
-    }
-
-    init() {
-        // If reusing existing instance, skip server creation
-        if (this.reuse) {
-            console.log('Skipping server creation - reusing existing instance')
-            return
-        }
-
-        if (this.server) this.server.close()
-
-        if (this.options.key && this.options.cert) {
-            this.https = https.createServer(this.options, GUN.serve(this.config[this.env].www))
-            this.server = this.https
-        } else {
-            this.http = http.createServer(GUN.serve(this.config[this.env].www))
-            this.server = this.http
-        }
-
-        // Add error handling
-        this.server.on("error", error => {
-            // Check if error is port already in use
-            if (error.code === 'EADDRINUSE') {
-                const port = this.config?.[this.env]?.port || 'unknown'
-                console.error(`Port ${port} is already in use`)
-                console.log('Checking for existing Air instance...')
-                
-                // Try to find process using the port
-                const portToCheck = this.config?.[this.env]?.port
-                if (portToCheck) {
-                    this.find(portToCheck).then(pid => {
-                        if (pid) {
-                            console.log(`Port is being used by process ${pid}`)
-                            console.log('Air instance is already running. Exiting...')
-                            // Only exit if not in test environment
-                            if (process.env.NODE_ENV !== 'test') {
-                                process.exit(0)
-                            }
-                        } else {
-                            console.error('Port is in use but cannot identify process')
-                            this.restart()
-                        }
-                    })
-                } else {
-                    // No port configured, restart anyway
-                    this.restart()
-                }
-            } else {
-                console.error("Server error:", error)
-                this.restart()
-            }
-        })
-
-        // Add close handling
-        this.server.on("close", () => {
-            console.log("Server closed. Attempting restart...")
-            this.restart()
-        })
-
-        // Skip server listen if reusing existing instance
-        if (this.reuse) {
-            console.log('Connected to existing Air instance - ready for GUN operations')
-            return
-        }
-
-        try {
-            // Validate and set port
-            const current = this.config[this.env].port
-            const fallback = defaults.port.development
-            
-            if (typeof current === 'string' && current !== 'localhost') {
-                this.config[this.env].port = fallback
-                console.log(`invalid port "${current}", using default ${fallback}`)
-            } else if (typeof current === 'number') {
-                if (current < defaults.system.min || current > defaults.system.max || !Number.isInteger(current) || isNaN(current)) {
-                    this.config[this.env].port = fallback
-                    console.log(`invalid port ${current}, using default ${fallback}`)
-                }
-            } else if (current === null || current === undefined || current === '' || 
-                       Array.isArray(current) || typeof current === 'object') {
-                this.config[this.env].port = fallback
-                console.log(`invalid port type, using default ${fallback}`)
-            }
-            
-            this.server.listen(this.config[this.env].port)
-            this.restarts.count = 0 // Reset counter on successful start
-            console.log(`Server started successfully on port ${this.config[this.env].port}`)
-        } catch (error) {
-            console.error("Failed to start server:", error)
-            this.restart()
-        }
-    }
-
-    async find(port) {
-        try {
-            // Try lsof first (macOS/Linux)
-            const { stdout } = await execAsync(`lsof -ti:${port}`)
-            const pid = stdout.trim()
-            if (pid) return parseInt(pid)
-        } catch (e) {
-            // lsof failed, try netstat
-            try {
-                const { stdout } = await execAsync(`netstat -tlnp 2>/dev/null | grep :${port}`)
-                const match = stdout.match(/(\d+)\/node/)
-                if (match) return parseInt(match[1])
-            } catch (e2) {
-                // netstat failed, try ss
-                try {
-                    const { stdout } = await execAsync(`ss -tlnp | grep :${port}`)
-                    const match = stdout.match(/pid=(\d+)/)
-                    if (match) return parseInt(match[1])
-                } catch (e3) {
-                    // All methods failed
-                }
-            }
-        }
-        return null
-    }
-
-    restart() {
-        if (this.restarts.count < this.restarts.max) {
-            this.restarts.count++
-            // Progressive delay: exponential backoff with jitter
-            // Delay doubles each attempt: 5s, 10s, 20s, 40s, 60s (capped)
-            const exponential = Math.min(this.delay.base * Math.pow(2, this.restarts.count - 1), this.delay.max)
-            // Add jitter (±20%) to prevent thundering herd
-            const jitter = exponential * (0.8 + Math.random() * 0.4)
-            const delay = Math.round(jitter)
-
-            console.log(`Attempting restart ${this.restarts.count}/${this.restarts.max} in ${(delay / 1000).toFixed(1)} seconds...`)
-
-            setTimeout(() => {
-                try {
-                    this.init()
-                } catch (error) {
-                    console.error("Failed to restart server:", error)
-                    this.restart()
-                }
-            }, delay)
-        } else {
-            console.error(`Maximum restart attempts (${this.restarts.max}) reached. Server will not restart automatically.`)
+        // Check for existing instance
+        if (this.processManager.check()) {
             process.exit(1)
         }
-    }
-
-    async start(callback = () => {}) {
-        await this.sync()
-        await this.run()
-        await this.online()
-        if (callback) await callback(this)
-    }
-
-    read() {
-        if (fs.existsSync(this.config.path)) {
-            try {
-                // Check file modification time for lazy reloading
-                const stat = fs.statSync(this.config.path)
-                const modifiedTime = stat.mtime.getTime()
-                
-                // If this is first read or file has been modified, reload it
-                if (!this.configLastModified || modifiedTime > this.configLastModified) {
-                    let config = fs.readFileSync(this.config.path, "utf8")
-                    // validate JSON before parsing
-                    if (!config.trim()) {
-                        throw new Error('Config file is empty')
-                    }
-                    config = JSON.parse(config)
-                    this.config = merge(this.config, config)
-                    this.configLastModified = modifiedTime
-                    
-                    // Update syspaths with new config
-                    syspaths.updateConfig(this.config)
-                    
-                    console.log('Configuration reloaded from air.json')
-                }
-            } catch (error) {
-                console.error(`Failed to read config file ${this.config.path}:`, error.message)
-                throw new Error(`Invalid config file: ${error.message}`)
-            }
-        } else {
-            // Generate air.json from defaults if it doesn't exist
-            const config = this.generate(this.env || 'development')
-            // Merge with any existing config passed to constructor
-            this.config = merge(config, this.config)
-            // Write the generated config to create air.json
-            this.write()
-        }
-        return this.config
-    }
-
-    generate(env = defaults.environment) {
-        const dev = env === 'development'
-        const paths = getPaths() // Get paths for default config
         
-        return {
-            name: dev ? 'localhost' : null,
-            env,
-            root: paths.root,
-            bash: paths.bash,
-            sync: null,
-            
-            [env]: {
-                domain: dev ? defaults.domain.development : defaults.domain.production,
-                port: dev ? defaults.port.development : defaults.port.production,
-                www: './',
-                peers: [],
-                ssl: {
-                    key: null,
-                    cert: null
-                },
-                pair: {
-                    pub: null,
-                    priv: null,
-                    epub: null,
-                    epriv: null
-                },
-                godaddy: {},
-                system: {}
-            },
-            
-            ip: {
-                timeout: defaults.timeout.ip,
-                dnstimeout: defaults.timeout.dns,
-                agent: defaults.ip.agent,
-                dns: defaults.ip.dns,
-                http: defaults.ip.http
-            },
-            restart: {
-                max: defaults.restart.max,
-                delay: defaults.restart.delay,
-                limit: defaults.restart.limit,
-                jitter: defaults.restart.jitter
-            },
-            intervals: {
-                beat: defaults.timeout.beat,
-                update: defaults.timeout.update,
-                ddns: defaults.timeout.ddns,
-                sync: defaults.timeout.sync
-            }
+        // Sync configuration if URL provided
+        if (this.config.sync) {
+            await this.sync()
         }
+        
+        // Initialize server
+        await this.init()
+        
+        // Start GUN and authenticate
+        await this.run()
+        
+        // Go online and start status reporting
+        await this.online()
+        
+        return this
     }
 
-    write() {
-        const content = JSON.stringify(this.config, null, 4)
-        if (JSON.parse(content)) {
-            fs.writeFileSync(this.config.path, content)
-            // Update modification tracking after write
-            const stat = fs.statSync(this.config.path)
-            this.configLastModified = stat.mtime.getTime()
-            
-            // Update syspaths with new config
-            syspaths.updateConfig(this.config)
-        }
-        return this.config
-    }
-
-    sync(callback = () => {}) {
-        if (!this.config?.sync) return
+    /**
+     * Initialize HTTP/HTTPS server
+     */
+    async init() {
         return new Promise((resolve, reject) => {
-            fetch(this.config.sync)
-                .then(response => response.json())
-                .then(data => {
-                    data = data || {}
-                    data.system = data.system || {}
-
-                    this.config[this.env].system = data.system.pub && data.system.epub && data.system.cert ? data.system : {}
-
-                    // lazy reload config file content to this.config
-                    this.read()
-
-                    // write updated config file content from this.config
-                    this.write()
-                    resolve()
-                })
-                .catch(e => reject(e))
-        }).then(
-            response => {
-                if (callback) callback(response)
-                setTimeout(() => this.sync(), 60 * 60 * 1000)
-                return this
-            },
-            e => console.error(e)
-        )
-    }
-
-    run(callback = () => {}) {
-        return new Promise((resolve, reject) => {
-            // If reusing existing instance, connect as peer to existing server
-            const gunConfig = this.reuse ? {
-                peers: [`ws://localhost:${this.config[this.env].port}/gun`, ...this.config[this.env].peers]
-            } : {
-                web: this.server,
-                peers: this.config[this.env].peers
-            }
-            
-            this.gun = GUN(gunConfig)
-            this.user = this.gun.user()
-
-            if (!this.config[this.env]?.pair?.pub && !this.config[this.env]?.pair?.priv)
-                this.sea.pair((response = {}) => {
-                    if (response.err) reject(response.err)
-                    else if (response.pub && response.priv && response.epub && response.epriv) {
-                        this.config[this.env].pair = response
-                        resolve(response)
-                    }
-                })
-            else resolve(this.config[this.env].pair)
-
-            console.log(`Environment: ${this.env}\nHTTPS: ${this.https ? true : false}\nHTTP: ${this.http ? true : false}\nPort: ${this.config[this.env].port}`)
-        }).then(
-            response => {
-                this.write()
-                if (callback) callback(response)
-                return this
-            },
-            e => console.error(e)
-        )
-    }
-
-    online(callback = () => {}) {
-        return new Promise((resolve, reject) => {
-            if (this.user.is || !this.config[this.env].pair) return reject()
-            else if (this.config[this.env]?.pair?.pub && this.config[this.env]?.pair?.priv && this.config[this.env]?.pair?.epub && this.config[this.env]?.pair?.epriv) {
-                this.user.auth(this.config[this.env]?.pair, response => {
-                    if (response.err) return reject(response.err)
-                    else if (this.user.is) {
-                        console.log(`Authenticated!\nPublic key: ${this.user.is.pub}`)
-                        this.config[this.env].pair = this.user._.sea
-
-                        // put basic informations
-                        this.user.put(
-                            {
-                                since: GUN.state(),
-                                name: this.config.name || null,
-                                domain: this.config[this.env]?.domain || null,
-                                https: this.https ? true : false,
-                                http: this.http ? true : false,
-                                port: this.config[this.env]?.port || null,
-                                peers: JSON.stringify(this.config[this.env]?.peers) || null
-                            },
-                            (response = {}) => {
-                                if (response.err) reject(response.err)
-                                else resolve(response)
-                            }
-                        )
-                    }
-                })
-            }
-        })
-            .then(
-                async response => {
-                    if (callback) callback(response)
-
-                    // update Godaddy DNS
-                    await this.status.ddns()
-
-                    // update IP
-                    await this.status.ip()
-
-                    // update last online timestamp
-                    await this.status.alive()
-                    return this
-                },
-                e => console.error(e)
-            )
-            .catch(e => {
-                if (this.user.is) this.user.leave()
-            })
-    }
-
-    activate(callback = () => {}) {
-        return new Promise((resolve, reject) => {
-            if (!this.user.is) return reject()
-
-            const cert = this.config?.[this.env]?.system?.cert?.peer || this.config?.[this.env]?.system?.cert?.message || null
-
-            if (this.config[this.env]?.system?.cert?.message && cert) {
-                // link peer to system hub
-                const args = [
-                    {
-                        "#": `~${this.user.is.pub}`
-                    },
-                    (response = {}) => {
-                        if (response.err) reject(response.err)
-                        else resolve(response)
-                    },
-                    {
-                        opt: {
-                            cert
-                        }
-                    }
-                ]
-
-                this.gun
-                    .get(`~${this.config[this.env]?.system?.pub}`)
-                    .get("peer")
-                    .get(this.user.is.pub)
-                    .put(...args)
-            }
-        }).then(
-            response => {
-                if (callback) callback(response)
-                return this
-            },
-            e => console.error(e)
-        )
-    }
-
-    configip() {
-        // Default configuration (fallback)
-        const fallback = {
-            timeout: 5000,
-            dnstimeout: 3000,
-            agent: "Air-GUN-Peer/1.0",
-            dns: [
-                { hostname: "myip.opendns.com", resolver: "resolver1.opendns.com" },
-                { hostname: "myip.opendns.com", resolver: "resolver2.opendns.com" }
-            ],
-            http: [
-                { url: "https://checkip.amazonaws.com", format: "text" },
-                { url: "https://ipv4.icanhazip.com", format: "text" }
-            ]
-        }
-
-        // Lazy reload config to get latest values
-        this.read()
-
-        // Check if ip config exists in air.json
-        if (this.config.ip) {
-            const ip = this.config.ip
-
-            // Build configuration from air.json with environment overrides
-            const config = {
-                timeout: process.env.IP_TIMEOUT ? parseInt(process.env.IP_TIMEOUT) : ip.timeout || defaults.timeout.ip,
-
-                dnsTimeout: process.env.IP_DNS_TIMEOUT ? parseInt(process.env.IP_DNS_TIMEOUT) : ip.dnstimeout || defaults.timeout.dns,
-
-                userAgent: process.env.IP_AGENT || ip.agent || defaults.ip.agent,
-
-                dnsServices: ip.dns || defaults.ip.dns,
-                httpServices: ip.http || defaults.ip.http
-            }
-
-            return config
-        } else {
-            // If no ip in config, add it for future use
-            this.config.ip = {
-                timeout: defaults.timeout.ip,
-                dnstimeout: defaults.timeout.dns,
-                agent: defaults.ip.agent,
-                dns: defaults.ip.dns,
-                http: defaults.ip.http
-            }
-
-            // Save the default config to air.json for next time
-            this.write()
-
-            // Return default config with environment overrides
-            return {
-                timeout: process.env.IP_TIMEOUT ? parseInt(process.env.IP_TIMEOUT) : defaults.timeout.ip,
-                dnsTimeout: process.env.IP_DNS_TIMEOUT ? parseInt(process.env.IP_DNS_TIMEOUT) : defaults.timeout.dns,
-                userAgent: process.env.IP_AGENT || defaults.ip.agent,
-                dnsServices: defaults.ip.dns,
-                httpServices: defaults.ip.http
-            }
-        }
-    }
-
-    ipvalidate(ip) {
-        // Use network module's validate method for both IPv4 and IPv6
-        return network.validate(ip)
-    }
-
-    async dnsip(service, config) {
-        try {
-            // Try dig first
             try {
-                const digCommand = `dig +short ${service.hostname} @${service.resolver}`
-                const { stdout } = await execAsync(digCommand, { timeout: config.dnsTimeout })
-                const ip = stdout.trim()
-                if (this.ipvalidate(ip)) {
-                    console.log(`IP detected via DNS (dig): ${service.hostname}@${service.resolver} = ${ip}`)
-                    return ip
+                const env = this.config.env
+                const port = this.config.port || (env === 'production' ? 443 : 8765)
+                
+                // Check port availability
+                const existing = this.processManager.find(port)
+                if (existing) {
+                    const message = `Port ${port} already in use by process ${existing.pid} (${existing.name})`
+                    console.error(message)
+                    console.error('To kill the process: kill ' + existing.pid)
+                    console.error('Or change port in air.json')
+                    throw new Error(message)
                 }
-            } catch (digError) {
-                console.log(`DNS dig failed for ${service.hostname}@${service.resolver}:`, digError.message)
-            }
-
-            // Try nslookup as fallback
-            try {
-                const nslookupCommand = `nslookup ${service.hostname} ${service.resolver}`
-                const { stdout } = await execAsync(nslookupCommand, { timeout: config.dnsTimeout })
-                const lines = stdout.split("\n")
-                for (const line of lines) {
-                    const match = line.match(/Address:\s*(\d+\.\d+\.\d+\.\d+)/)
-                    if (match) {
-                        const ip = match[1]
-                        // Skip resolver IP addresses
-                        if (this.ipvalidate(ip) && !ip.startsWith("208.67.222.") && !ip.startsWith("208.67.220.") && !ip.startsWith("8.8.8.") && !ip.startsWith("8.8.4.")) {
-                            console.log(`IP detected via DNS (nslookup): ${service.hostname}@${service.resolver} = ${ip}`)
-                            return ip
+                
+                // Create server
+                if (env === 'production' && this.config.ssl?.key && this.config.ssl?.cert) {
+                    // HTTPS server
+                    try {
+                        const options = {
+                            key: fs.readFileSync(this.config.ssl.key),
+                            cert: fs.readFileSync(this.config.ssl.cert)
                         }
-                    }
-                }
-            } catch (nslookupError) {
-                console.log(`DNS nslookup failed for ${service.hostname}@${service.resolver}:`, nslookupError.message)
-            }
-        } catch (importError) {
-            console.log("DNS method unavailable:", importError.message)
-        }
-
-        return null
-    }
-
-    async httpip(service, config) {
-        try {
-            const controller = new AbortController()
-            const timeoutId = setTimeout(() => controller.abort(), config.timeout)
-
-            const response = await fetch(service.url, {
-                signal: controller.signal,
-                headers: { "User-Agent": config.userAgent }
-            })
-
-            clearTimeout(timeoutId)
-
-            if (response.ok) {
-                let ip = ""
-
-                if (service.format === "json") {
-                    const data = await response.json()
-                    ip = service.field ? data[service.field] : data.ip
-                    if (service.field === "origin" && ip?.includes(",")) {
-                        ip = ip.split(",")[0]
+                        this.server = https.createServer(options, GUN.serve).listen(port)
+                        console.log(`Creating HTTPS server on port ${port}...`)
+                    } catch (sslError) {
+                        console.error('SSL certificate error:', sslError.message)
+                        console.log('Falling back to HTTP...')
+                        this.server = http.createServer(GUN.serve).listen(port)
                     }
                 } else {
-                    ip = await response.text()
+                    // HTTP server
+                    this.server = http.createServer(GUN.serve).listen(port)
+                    console.log(`Creating HTTP server on port ${port}...`)
                 }
-
-                ip = ip?.toString().trim().replace(/\r?\n/g, "") || ""
-
-                if (this.ipvalidate(ip)) {
-                    console.log(`IP detected via HTTP: ${service.url} = ${ip}`)
-                    return ip
-                }
-            }
-        } catch (error) {
-            console.log(`HTTP service ${service.url} failed:`, error.message)
-        }
-
-        return null
-    }
-
-    async ipget() {
-        console.log("Attempting to detect public IP address...")
-        
-        // Use new network module for dual-stack support
-        const ips = await network.get()
-        
-        if (ips.ipv4) {
-            console.log(`IPv4 detected: ${ips.ipv4}`)
-        }
-        if (ips.ipv6) {
-            console.log(`IPv6 detected: ${ips.ipv6}`)
-        }
-        
-        // Store both IPs for later use
-        this.publicIPs = ips
-        
-        // Return primary IP (prefers IPv4 for compatibility)
-        return ips.primary
-    }
-
-    ddns(callback = () => {}) {
-        return new Promise((resolve, reject) => {
-            if (!this.user.is) return reject()
-            const config = path.join(this.config.root, "ddns.json")
-            const content = fs.existsSync(config) ? fs.readFileSync(config) : null
-            const ddns = JSON.parse(content)
-
-            if (ddns && typeof ddns === "object" && Object.keys(ddns).length > 0) {
-                this.user.put(ddns, (response = {}) => {
-                    if (response.err) reject(response.err)
-                    else resolve(response)
-                })
-            }
-            resolve()
-        }).then(
-            response => {
-                if (callback) callback(response)
-                setTimeout(() => this.status.ddns(), 5 * 60 * 1000)
-                return this
-            },
-            e => console.error(e)
-        )
-    }
-
-    ipupdate(callback = () => {}) {
-        return new Promise((resolve, reject) => {
-            if (!this.user.is) return reject()
-            
-            // Initialize IP tracking if not exists
-            if (!this.ipTracking) {
-                this.ipTracking = {
-                    lastIP: null,
-                    lastCheck: 0,
-                    checksWithoutChange: 0,
-                    failureCount: 0,
-                    checkInterval: 60000, // Start with 1 minute
-                    minInterval: 30000,   // 30 seconds minimum
-                    normalInterval: 60000, // 1 minute normal
-                    maxInterval: 300000   // 5 minutes maximum
-                }
-            }
-            
-            this.ipget()
-                .then(ip => {
-                    if (ip) {
-                        const hasChanged = this.ipTracking.lastIP && this.ipTracking.lastIP !== ip
-                        
-                        // Store both IPv4 and IPv6 if available
-                        const ipData = {
-                            ip: ip, // Primary IP for backward compatibility
-                            ipv4: this.publicIPs?.ipv4 || null,
-                            ipv6: this.publicIPs?.ipv6 || null,
-                            hasIPv6: this.publicIPs?.hasIPv6 || false,
-                            timestamp: GUN.state()
-                        }
-                        
-                        this.user.put(ipData, (response = {}) => {
-                            if (response.err) reject(response.err)
-                            else resolve(response)
-                        })
-                        
-                        // IP change detected - update immediately and check more frequently
-                        if (hasChanged) {
-                            console.log(`[IP CHANGE] ${this.ipTracking.lastIP} → ${ip}`)
-                            this.ipTracking.checksWithoutChange = 0
-                            this.ipTracking.checkInterval = this.ipTracking.minInterval // Fast check
-                            
-                            // Update DDNS immediately on change
-                            if (this.config[this.env]?.godaddy && this.publicIPs) {
-                                network.update(this.config[this.env], this.publicIPs)
-                                    .then(results => {
-                                        console.log("[DDNS] Updated successfully:", results)
-                                    })
-                                    .catch(err => {
-                                        console.error("[DDNS] Update failed:", err)
-                                        // Retry DDNS update after 10 seconds
-                                        setTimeout(() => {
-                                            network.update(this.config[this.env], this.publicIPs)
-                                                .catch(e => console.error("[DDNS] Retry failed:", e))
-                                        }, 10000)
-                                    })
-                            }
-                        } else {
-                            // No change - gradually slow down checking
-                            this.ipTracking.checksWithoutChange++
-                            
-                            // Adaptive interval based on stability
-                            if (this.ipTracking.checksWithoutChange > 10) {
-                                // Very stable - check every 5 minutes
-                                this.ipTracking.checkInterval = this.ipTracking.maxInterval
-                            } else if (this.ipTracking.checksWithoutChange > 5) {
-                                // Stable - check every 2 minutes
-                                this.ipTracking.checkInterval = 120000
-                            } else if (this.ipTracking.checksWithoutChange > 2) {
-                                // Normal - check every minute
-                                this.ipTracking.checkInterval = this.ipTracking.normalInterval
-                            }
-                            // else keep fast checking after recent change
-                        }
-                        
-                        // Update tracking
-                        this.ipTracking.lastIP = ip
-                        this.ipTracking.lastCheck = Date.now()
-                        this.ipTracking.failureCount = 0
-                        
-                    } else {
-                        // IP detection failed
-                        this.ipTracking.failureCount++
-                        
-                        // Use cached IP if available and recent failure
-                        if (this.ipTracking.lastIP && this.ipTracking.failureCount < 3) {
-                            console.warn("[IP] Detection failed, using cached IP:", this.ipTracking.lastIP)
-                            resolve({ cached: true, ip: this.ipTracking.lastIP })
-                        } else {
-                            reject(new Error("Unable to detect public IP"))
-                        }
-                    }
-                })
-                .catch(e => {
-                    this.ipTracking.failureCount++
+                
+                this.server.on('listening', () => {
+                    const protocol = this.server instanceof https.Server ? 'https' : 'http'
+                    const actualPort = this.server.address().port
+                    console.log(`✓ Server listening on ${protocol}://localhost:${actualPort}`)
                     
-                    // Use cached IP on temporary failure
-                    if (this.ipTracking.lastIP && this.ipTracking.failureCount < 3) {
-                        console.warn("[IP] Detection error, using cached:", e.message)
-                        resolve({ cached: true, ip: this.ipTracking.lastIP })
+                    // Reset restart count on successful start
+                    this.restarts.count = 0
+                    resolve()
+                })
+                
+                this.server.on('error', (error) => {
+                    console.error('Server error:', error.message)
+                    
+                    if (error.code === 'EADDRINUSE') {
+                        console.error(`Port ${port} is already in use`)
+                        console.error('Try: lsof -i:' + port + ' to find the process')
+                        reject(error)
+                    } else if (error.code === 'EACCES') {
+                        console.error(`Permission denied for port ${port}`)
+                        console.error('Try: sudo npm start (for ports below 1024)')
+                        reject(error)
                     } else {
-                        reject(e)
+                        // Other errors trigger restart
+                        this.restart().catch(reject)
                     }
                 })
-        }).then(
-            response => {
-                if (callback) callback(response)
                 
-                // Schedule next check with adaptive interval
-                const nextCheck = this.ipTracking?.checkInterval || 60000
-                setTimeout(() => this.status.ip(), nextCheck)
+                this.server.on('close', () => {
+                    console.log('Server closed')
+                })
                 
-                // Log next check time if in debug mode
-                if (process.env.DEBUG) {
-                    console.log(`[IP] Next check in ${nextCheck/1000}s`)
-                }
-                
-                return this
-            },
-            e => {
-                console.error("[IP] Update failed:", e)
-                // Retry sooner on failure
-                setTimeout(() => this.status.ip(), 30000)
+            } catch (error) {
+                reject(error)
             }
-        )
+        })
     }
 
-    alive(callback = () => {}) {
-        return new Promise((resolve, reject) => {
-            if (!this.user.is) return reject()
-            this.user.put(
-                {
-                    alive: GUN.state()
-                },
-                (response = {}) => {
-                    if (response.err) reject(response.err)
-                    else resolve(response)
-                }
-            )
-        }).then(
-            response => {
-                if (callback) callback(response)
-                setTimeout(() => this.status.alive(), 60 * 1000)
-                return this
-            },
-            e => console.error(e)
-        )
+    /**
+     * Initialize GUN database
+     */
+    async run() {
+        if (!this.server) {
+            throw new Error('Server not initialized')
+        }
+        
+        // Create data directory if it doesn't exist
+        const dataPath = this.config.file || 'radata'
+        if (!fs.existsSync(dataPath)) {
+            fs.mkdirSync(dataPath, { recursive: true })
+        }
+        
+        // Initialize GUN
+        this.gun = GUN({
+            web: this.server,
+            peers: this.config.peers || [],
+            file: dataPath,
+            axe: false, // Disable to prevent WebSocket errors
+            localStorage: false
+        })
+        
+        // Create user instance
+        this.user = this.gun.user()
+        
+        // Update status reporter
+        this.statusReporter.updateUser(this.user)
+        
+        console.log('✓ GUN database initialized')
+        console.log(`  Data directory: ${dataPath}`)
+        if (this.config.peers && this.config.peers.length > 0) {
+            console.log(`  Connected to ${this.config.peers.length} peer(s)`)
+        }
+        
+        return this
     }
 
-    // Cleanup method to stop all timers and processes
-    cleanup() {
+    /**
+     * Authenticate and go online
+     */
+    async online() {
+        if (!this.user) {
+            throw new Error('User not initialized')
+        }
+        
+        // Authenticate with SEA pair if provided
+        if (this.config.pair?.pub && this.config.pair?.priv) {
+            return new Promise((resolve, reject) => {
+                this.user.auth(this.config.pair, (ack) => {
+                    if (ack.err) {
+                        console.error('Authentication failed:', ack.err)
+                        // Don't reject, just run anonymously
+                        console.log('Running in anonymous mode')
+                        this.statusReporter.start()
+                        resolve(this)
+                    } else {
+                        console.log('✓ Authenticated as:', this.config.pair.pub.slice(0, 20) + '...')
+                        
+                        // Start status reporting
+                        this.statusReporter.start()
+                        
+                        // Activate with hub if configured
+                        if (this.config.hub) {
+                            this.activate(this.config.hub)
+                        }
+                        
+                        resolve(this)
+                    }
+                })
+            })
+        } else {
+            console.log('No authentication pair provided, running anonymously')
+            
+            // Start status reporting anyway (limited functionality)
+            this.statusReporter.start()
+            
+            return this
+        }
+    }
+
+    /**
+     * Sync configuration from remote
+     */
+    async sync() {
+        const updated = await this.configManager.sync(this.config.sync)
+        if (updated) {
+            this.config = updated
+            this.statusReporter.updateConfig(this.config)
+            
+            // Schedule next sync
+            setTimeout(() => this.sync(), 3600000) // 1 hour
+        }
+        return this
+    }
+
+    /**
+     * Restart server with exponential backoff
+     */
+    async restart() {
+        this.restarts.count++
+        
+        if (this.restarts.count > this.restarts.max) {
+            console.error(`Maximum restart attempts (${this.restarts.max}) reached. Exiting...`)
+            this.processManager.clean()
+            process.exit(1)
+        }
+        
+        // Calculate delay with exponential backoff and jitter
+        const exponentialDelay = Math.min(
+            this.restarts.baseDelay * Math.pow(2, this.restarts.count - 1),
+            this.restarts.maxDelay
+        )
+        const jitter = exponentialDelay * (Math.random() * 0.4 - 0.2) // ±20% jitter
+        const delay = Math.round(exponentialDelay + jitter)
+        
+        console.log(`Restarting in ${delay}ms (attempt ${this.restarts.count}/${this.restarts.max})...`)
+        
+        // Stop everything
+        await this.stop()
+        
+        // Wait before restart
+        await new Promise(resolve => setTimeout(resolve, delay))
+        
+        // Restart
+        try {
+            await this.init()
+            await this.run()
+            await this.online()
+            
+            // Reset counter on successful restart
+            this.restarts.count = 0
+            console.log('✓ Restart successful')
+        } catch (error) {
+            console.error('Restart failed:', error.message)
+            await this.restart() // Recursive retry
+        }
+    }
+
+    /**
+     * Stop server and cleanup
+     */
+    async stop() {
+        // Stop status reporting
+        this.statusReporter.stop()
+        
+        // Close server
         if (this.server) {
-            this.server.close()
-            this.server = null
+            return new Promise((resolve) => {
+                this.server.close(() => {
+                    console.log('Server stopped')
+                    this.server = null
+                    resolve()
+                })
+                
+                // Force close after timeout
+                setTimeout(() => {
+                    if (this.server) {
+                        console.log('Force closing server...')
+                        this.server = null
+                    }
+                    resolve()
+                }, 5000)
+            })
         }
-        if (this.gun) {
-            this.gun = null
+        
+        return Promise.resolve()
+    }
+
+    /**
+     * Activate peer with hub
+     */
+    async activate(hubKey) {
+        return this.statusReporter.activate(hubKey)
+    }
+
+    /**
+     * Read configuration
+     */
+    read() {
+        const config = this.configManager.read()
+        
+        // Apply environment variables
+        if (process.env.ENV) config.env = process.env.ENV
+        if (process.env.NAME) config.name = process.env.NAME
+        if (process.env.ROOT) config.root = process.env.ROOT
+        if (process.env.BASH) config.bash = process.env.BASH
+        if (process.env.SYNC) config.sync = process.env.SYNC
+        
+        const env = config.env || 'development'
+        const envConfig = config[env] || {}
+        
+        if (process.env.DOMAIN) envConfig.domain = process.env.DOMAIN
+        if (process.env.PORT) envConfig.port = parseInt(process.env.PORT)
+        if (process.env.SSL_KEY) envConfig.ssl = { ...envConfig.ssl, key: process.env.SSL_KEY }
+        if (process.env.SSL_CERT) envConfig.ssl = { ...envConfig.ssl, cert: process.env.SSL_CERT }
+        
+        // Merge environment config
+        return { ...config, ...envConfig }
+    }
+
+    /**
+     * Write configuration
+     */
+    write(config) {
+        const success = this.configManager.write(config)
+        if (success) {
+            this.config = config
+            this.statusReporter.updateConfig(this.config)
         }
-        if (this.user) {
-            this.user = null
-        }
-        // Don't modify restart count here - tests may check initial values
-        // Restart prevention is handled by skipping init() in test mode
+        return success
+    }
+
+    /**
+     * Check PID file - delegated to ProcessManager
+     */
+    check() {
+        return this.processManager.check()
+    }
+
+    /**
+     * Clean PID file - delegated to ProcessManager
+     */
+    clean() {
+        return this.processManager.clean()
+    }
+
+    /**
+     * Find process using port - delegated to ProcessManager
+     */
+    find(port) {
+        return this.processManager.find(port)
+    }
+    
+    /**
+     * Cleanup - backward compatibility alias for clean()
+     */
+    cleanup() {
+        return this.clean()
     }
 }
 
+export { Peer }
 export default Peer

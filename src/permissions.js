@@ -11,7 +11,7 @@ import syspaths from './syspaths.js'
  * Handles file/directory permissions intelligently
  */
 
-export class Permissions {
+class Permissions {
     constructor() {
         this.isRoot = process.getuid && process.getuid() === 0
         this.user = os.userInfo().username
@@ -266,4 +266,5 @@ export class Permissions {
     }
 }
 
-export default new Permissions()
+const permissions = new Permissions()
+export default permissions

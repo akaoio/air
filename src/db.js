@@ -1,5 +1,6 @@
-import Peer from "./Peer.js"
+import { Peer } from "./Peer.js"
 
-export const db = new Peer()
+const db = new Peer()
 
-export default { db }
+export { db }
+export default db

@@ -14,7 +14,7 @@ const __dirname = path.dirname(__filename)
  * 2. NPM package (air.json in parent project)
  * 3. Development mode (running from source)
  */
-export const detectPaths = () => {
+const detectPaths = () => {
     const paths = {
         // Script location (where Air code lives)
         script: path.resolve(__dirname, '..'),
@@ -70,7 +70,7 @@ export const detectPaths = () => {
  * Get the correct root path for Air
  * Priority: CLI args > ENV > detected path
  */
-export const getRootPath = (cliArg = null) => {
+const getRootPath = (cliArg = null) => {
     if (cliArg) return path.resolve(cliArg)
     if (process.env.AIR_ROOT) return path.resolve(process.env.AIR_ROOT)
     if (process.env.ROOT) return path.resolve(process.env.ROOT)
@@ -82,7 +82,7 @@ export const getRootPath = (cliArg = null) => {
 /**
  * Get the correct bash/script path
  */
-export const getBashPath = (cliArg = null) => {
+const getBashPath = (cliArg = null) => {
     if (cliArg) return path.resolve(cliArg)
     if (process.env.AIR_BASH) return path.resolve(process.env.AIR_BASH)
     if (process.env.BASH) return path.resolve(process.env.BASH)
@@ -94,7 +94,7 @@ export const getBashPath = (cliArg = null) => {
 /**
  * Get full paths configuration
  */
-export const getPaths = (rootArg = null, bashArg = null) => {
+const getPaths = (rootArg = null, bashArg = null) => {
     const detected = detectPaths()
     
     return {
@@ -106,6 +106,13 @@ export const getPaths = (rootArg = null, bashArg = null) => {
         isPackage: detected.isPackage,
         isDevelopment: detected.isDevelopment
     }
+}
+
+export {
+    detectPaths,
+    getRootPath,
+    getBashPath,
+    getPaths
 }
 
 export default {

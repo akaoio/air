@@ -13,7 +13,7 @@ const dnsResolve6 = promisify(dns.resolve6)
 /**
  * Network utilities with IPv4/IPv6 dual-stack support
  */
-export class Network {
+class Network {
     constructor() {
         this.ipv4Services = [
             'https://api.ipify.org?format=json',
@@ -350,4 +350,5 @@ export class Network {
     }
 }
 
-export default new Network()
+const network = new Network()
+export default network
