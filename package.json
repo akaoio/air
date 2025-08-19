@@ -14,27 +14,15 @@
     },
     "scripts": {
         "start": "node main.js",
-        "ui": "node ui.js",
         "test": "node test/runner.js",
         "format": "npx prettier --write .",
-        "setup": "node script/quicksetup.js",
-        "setup:advanced": "node script/install.js",
+        "setup": "node script/install.js",
         "config": "node script/config.js",
         "ddns": "node script/ddns.js",
         "status": "node script/status.js",
         "logs": "node script/logs.js",
-        "security": "node script/security.js",
-        "arch": "node script/architecture.js",
-        "lifecycle": "node script/lifecycle.js",
-        "update": "node script/updater.js",
-        "uninstall": "node script/uninstall.js",
-        "install": "node script/lifecycle.js install",
-        "upgrade": "node script/lifecycle.js update",
-        "rollback": "node script/lifecycle.js rollback",
-        "health": "node script/lifecycle.js health",
-        "feedback": "node script/feedback.js",
-        "test:lifecycle": "node test/lifecycle.test.js",
-        "postinstall": "node script/postinstall.js"
+        "update": "node script/update.js",
+        "uninstall": "node script/uninstall.js"
     },
     "devDependencies": {
         "prettier": "^2.4.1"

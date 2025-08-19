@@ -46,7 +46,7 @@ export class Network {
     /**
      * Check if IPv6 is available on the system
      */
-    async hasipv6() {
+    async has() {
         try {
             // Try to create an IPv6 socket
             const socket = net.createConnection({ port: 443, host: '::1', family: 6 })
@@ -198,12 +198,12 @@ export class Network {
     /**
      * Get both IPv4 and IPv6 addresses
      */
-    async getips() {
+    async get() {
         const result = {
             ipv4: null,
             ipv6: null,
             primary: null,
-            hasIPv6: await this.hasipv6()
+            hasIPv6: await this.has()
         }
         
         // Get IPv4
@@ -224,11 +224,11 @@ export class Network {
      * Monitor IP changes
      */
     async monitor(callback, interval = 300000) { // 5 minutes default
-        let lastIPs = await this.getips()
+        let lastIPs = await this.get()
         callback(lastIPs)
         
         return setInterval(async () => {
-            const currentIPs = await this.getips()
+            const currentIPs = await this.get()
             
             // Check for changes
             if (currentIPs.ipv4 !== lastIPs.ipv4 || currentIPs.ipv6 !== lastIPs.ipv6) {
@@ -283,7 +283,7 @@ export class Network {
     /**
      * Update DDNS with IPv4/IPv6 support
      */
-    async updateddns(config, ips) {
+    async update(config, ips) {
         if (!config.godaddy || !config.godaddy.domain) return null
         
         const { domain, host, key, secret } = config.godaddy

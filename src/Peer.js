@@ -181,7 +181,7 @@ export class Peer {
         
         // Check for existing instance (skip if in test mode with skipPidCheck)
         if (!config?.skipPidCheck) {
-            this.checkpid()
+            this.check()
             this.init()
         }
 
@@ -192,22 +192,22 @@ export class Peer {
         
         // Group IP-related methods
         this.ip = {
-            get: this.getip.bind(this),
-            validate: this.validateip.bind(this),
-            dns: this.dnsip.bind(this),
-            http: this.httpip.bind(this),
-            config: this.configip.bind(this)
+            get: this.ipget.bind(this),
+            validate: this.ipvalidate.bind(this),
+            dns: this.ipdns.bind(this),
+            http: this.iphttp.bind(this),
+            config: this.ipconfig.bind(this)
         }
         
         // Group status-related methods
         this.status = {
             ddns: this.ddns.bind(this),
-            ip: this.updateip.bind(this),
+            ip: this.ipupdate.bind(this),
             alive: this.alive.bind(this)
         }
     }
 
-    checkpid() {
+    check() {
         try {
             // Check if PID file exists
             if (fs.existsSync(this.pidFile)) {
@@ -277,7 +277,7 @@ export class Peer {
         }
     }
 
-    cleanpid() {
+    clean() {
         try {
             if (fs.existsSync(this.pidFile)) {
                 const currentPid = parseInt(fs.readFileSync(this.pidFile, 'utf8').trim())
@@ -328,7 +328,7 @@ export class Peer {
                 // Try to find process using the port
                 const portToCheck = this.config?.[this.env]?.port
                 if (portToCheck) {
-                    this.findport(portToCheck).then(pid => {
+                    this.find(portToCheck).then(pid => {
                         if (pid) {
                             console.log(`Port is being used by process ${pid}`)
                             console.log('Air instance is already running. Exiting...')
@@ -391,7 +391,7 @@ export class Peer {
         }
     }
 
-    async findport(port) {
+    async find(port) {
         try {
             // Try lsof first (macOS/Linux)
             const { stdout } = await execAsync(`lsof -ti:${port}`)
@@ -766,7 +766,7 @@ export class Peer {
         }
     }
 
-    validateip(ip) {
+    ipvalidate(ip) {
         // Use network module's validate method for both IPv4 and IPv6
         return network.validate(ip)
     }
@@ -778,7 +778,7 @@ export class Peer {
                 const digCommand = `dig +short ${service.hostname} @${service.resolver}`
                 const { stdout } = await execAsync(digCommand, { timeout: config.dnsTimeout })
                 const ip = stdout.trim()
-                if (this.validateip(ip)) {
+                if (this.ipvalidate(ip)) {
                     console.log(`IP detected via DNS (dig): ${service.hostname}@${service.resolver} = ${ip}`)
                     return ip
                 }
@@ -796,7 +796,7 @@ export class Peer {
                     if (match) {
                         const ip = match[1]
                         // Skip resolver IP addresses
-                        if (this.validateip(ip) && !ip.startsWith("208.67.222.") && !ip.startsWith("208.67.220.") && !ip.startsWith("8.8.8.") && !ip.startsWith("8.8.4.")) {
+                        if (this.ipvalidate(ip) && !ip.startsWith("208.67.222.") && !ip.startsWith("208.67.220.") && !ip.startsWith("8.8.8.") && !ip.startsWith("8.8.4.")) {
                             console.log(`IP detected via DNS (nslookup): ${service.hostname}@${service.resolver} = ${ip}`)
                             return ip
                         }
@@ -839,7 +839,7 @@ export class Peer {
 
                 ip = ip?.toString().trim().replace(/\r?\n/g, "") || ""
 
-                if (this.validateip(ip)) {
+                if (this.ipvalidate(ip)) {
                     console.log(`IP detected via HTTP: ${service.url} = ${ip}`)
                     return ip
                 }
@@ -851,11 +851,11 @@ export class Peer {
         return null
     }
 
-    async getip() {
+    async ipget() {
         console.log("Attempting to detect public IP address...")
         
         // Use new network module for dual-stack support
-        const ips = await network.getips()
+        const ips = await network.get()
         
         if (ips.ipv4) {
             console.log(`IPv4 detected: ${ips.ipv4}`)
@@ -895,7 +895,7 @@ export class Peer {
         )
     }
 
-    updateip(callback = () => {}) {
+    ipupdate(callback = () => {}) {
         return new Promise((resolve, reject) => {
             if (!this.user.is) return reject()
             
@@ -913,7 +913,7 @@ export class Peer {
                 }
             }
             
-            this.getip()
+            this.ipget()
                 .then(ip => {
                     if (ip) {
                         const hasChanged = this.ipTracking.lastIP && this.ipTracking.lastIP !== ip
@@ -940,7 +940,7 @@ export class Peer {
                             
                             // Update DDNS immediately on change
                             if (this.config[this.env]?.godaddy && this.publicIPs) {
-                                network.updateddns(this.config[this.env], this.publicIPs)
+                                network.update(this.config[this.env], this.publicIPs)
                                     .then(results => {
                                         console.log("[DDNS] Updated successfully:", results)
                                     })
@@ -948,7 +948,7 @@ export class Peer {
                                         console.error("[DDNS] Update failed:", err)
                                         // Retry DDNS update after 10 seconds
                                         setTimeout(() => {
-                                            network.updateddns(this.config[this.env], this.publicIPs)
+                                            network.update(this.config[this.env], this.publicIPs)
                                                 .catch(e => console.error("[DDNS] Retry failed:", e))
                                         }, 10000)
                                     })
