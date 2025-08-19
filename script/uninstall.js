@@ -196,36 +196,64 @@ class Uninstaller {
     }
 
     async removeservice() {
-        const serviceName = `air-${this.config.name}`
+        const serviceName = this.config.name // Remove air- prefix
         const results = []
+        const isUserService = syspaths.isuserservice()
         
         try {
-            // Stop service
-            try {
-                execSync(`sudo systemctl stop ${serviceName}`, { stdio: 'ignore' })
-                results.push(`Service ${serviceName} stopped`)
-            } catch (e) {
-                results.push(`Service ${serviceName} not running`)
+            if (isUserService) {
+                // User service
+                try {
+                    execSync(`systemctl --user stop ${serviceName}`, { stdio: 'ignore' })
+                    results.push(`User service ${serviceName} stopped`)
+                } catch (e) {
+                    results.push(`User service ${serviceName} not running`)
+                }
+                
+                try {
+                    execSync(`systemctl --user disable ${serviceName}`, { stdio: 'ignore' })
+                    results.push(`User service ${serviceName} disabled`)
+                } catch (e) {
+                    // Service might not be enabled
+                }
+                
+                // Remove user service file
+                const servicePath = syspaths.service(serviceName)
+                if (servicePath && fs.existsSync(servicePath)) {
+                    fs.unlinkSync(servicePath)
+                    results.push('User service file removed')
+                }
+                
+                // Reload user systemd
+                execSync('systemctl --user daemon-reload')
+                results.push('User systemd reloaded')
+            } else {
+                // System service
+                try {
+                    execSync(`sudo systemctl stop ${serviceName}`, { stdio: 'ignore' })
+                    results.push(`Service ${serviceName} stopped`)
+                } catch (e) {
+                    results.push(`Service ${serviceName} not running`)
+                }
+                
+                try {
+                    execSync(`sudo systemctl disable ${serviceName}`, { stdio: 'ignore' })
+                    results.push(`Service ${serviceName} disabled`)
+                } catch (e) {
+                    // Service might not be enabled
+                }
+                
+                // Remove service file
+                const servicePath = syspaths.service(serviceName)
+                if (servicePath && fs.existsSync(servicePath)) {
+                    execSync(`sudo rm ${servicePath}`)
+                    results.push('Service file removed')
+                }
+                
+                // Reload systemd
+                execSync('sudo systemctl daemon-reload')
+                results.push('Systemd reloaded')
             }
-            
-            // Disable service
-            try {
-                execSync(`sudo systemctl disable ${serviceName}`, { stdio: 'ignore' })
-                results.push(`Service ${serviceName} disabled`)
-            } catch (e) {
-                // Service might not be enabled
-            }
-            
-            // Remove service file
-            const servicePath = syspaths.service(serviceName)
-            if (servicePath && fs.existsSync(servicePath)) {
-                execSync(`sudo rm ${servicePath}`)
-                results.push('Service file removed')
-            }
-            
-            // Reload systemd
-            execSync('sudo systemctl daemon-reload')
-            results.push('Systemd reloaded')
             
             return results.join(', ')
         } catch (e) {
@@ -250,7 +278,9 @@ class Uninstaller {
                 return !line.includes('ddns.js') && 
                        !line.includes('ddns.sh') &&
                        !line.includes('air-ddns') &&
-                       !line.includes(`air-${this.config.name}`)
+                       !line.includes(`air-${this.config.name}`) &&
+                       !line.includes('certbot renew') && // Remove certbot renewal
+                       !line.includes(this.config.name)
             })
             
             // Update crontab
@@ -286,9 +316,16 @@ class Uninstaller {
                 results.push('SSL directory removed')
             }
             
+            // Remove user-level Let's Encrypt directory if exists
+            const userLetsEncrypt = path.join(this.config.root, '.letsencrypt')
+            if (fs.existsSync(userLetsEncrypt)) {
+                fs.rmSync(userLetsEncrypt, { recursive: true, force: true })
+                results.push('User Let\'s Encrypt directory removed')
+            }
+            
             // Remove renewal hook
             const hooksDir = syspaths.renewalhooks('deploy')
-            const hookPath = hooksDir ? path.join(hooksDir, 'air-copy-certs.sh') : null
+            const hookPath = hooksDir ? path.join(hooksDir, `${this.config.name}-renew.sh`) : null
             if (hookPath && fs.existsSync(hookPath)) {
                 try {
                     execSync(`sudo rm ${hookPath}`, { stdio: 'ignore' })

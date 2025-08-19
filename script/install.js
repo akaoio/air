@@ -8,6 +8,7 @@ import { fileURLToPath } from 'url'
 import { Terminal, colors, red, green, yellow, blue, cyan, gray, white, bold, dim } from '@akaoio/tui'
 import { getPaths } from '../src/paths.js'
 import syspaths from '../src/syspaths.js'
+import permissions from '../src/permissions.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -816,7 +817,8 @@ class AirInstaller {
         if (!this.config.service || !this.config.service.enabled) return
         
         try {
-            const serviceName = `air-${this.config.name}`
+            const serviceName = this.config.name // Remove air- prefix
+            const isUserService = syspaths.isuserservice()
             const servicePath = syspaths.service(serviceName)
             const nodeExecutable = syspaths.node()
             const projectRoot = this.config.root
@@ -843,17 +845,33 @@ Environment="AIR_ROOT=${projectRoot}"
 WantedBy=multi-user.target
 `
             
-            // Write service file (requires sudo)
-            const tempFile = syspaths.tmp(`${serviceName}.service`)
-            fs.writeFileSync(tempFile, serviceContent)
-            execSync(`sudo cp ${tempFile} ${servicePath}`)
-            fs.unlinkSync(tempFile)
-            
-            // Reload systemd and enable service
-            execSync('sudo systemctl daemon-reload')
-            execSync(`sudo systemctl enable ${serviceName}`)
-            
-            console.log(`✓ Service ${serviceName} created and enabled`)
+            // Write service file
+            if (isUserService) {
+                // User service - no sudo needed
+                fs.writeFileSync(servicePath, serviceContent)
+                
+                // Reload user systemd and enable service
+                execSync('systemctl --user daemon-reload')
+                execSync(`systemctl --user enable ${serviceName}`)
+                
+                console.log(`✓ User service ${serviceName} created and enabled`)
+                console.log(`  Start with: systemctl --user start ${serviceName}`)
+                console.log(`  Status: systemctl --user status ${serviceName}`)
+            } else {
+                // System service - requires sudo
+                const tempFile = syspaths.tmp(`${serviceName}.service`)
+                fs.writeFileSync(tempFile, serviceContent)
+                execSync(`sudo cp ${tempFile} ${servicePath}`)
+                fs.unlinkSync(tempFile)
+                
+                // Reload systemd and enable service
+                execSync('sudo systemctl daemon-reload')
+                execSync(`sudo systemctl enable ${serviceName}`)
+                
+                console.log(`✓ System service ${serviceName} created and enabled`)
+                console.log(`  Start with: sudo systemctl start ${serviceName}`)
+                console.log(`  Status: sudo systemctl status ${serviceName}`)
+            }
         } catch (error) {
             console.error('Failed to create systemd service:', error.message)
             console.log('You may need to run this installer with sudo')
@@ -862,7 +880,199 @@ WantedBy=multi-user.target
 
     async setupLetsEncrypt() {
         if (!this.config.ssl || this.config.sslType !== 'letsencrypt') return
-        // Implementation for Let's Encrypt setup
+        
+        try {
+            const domain = this.config.domain
+            const email = this.config.certbotEmail
+            const projectRoot = this.config.root
+            
+            // Check if certbot is installed
+            try {
+                execSync('which certbot', { stdio: 'ignore' })
+            } catch {
+                console.log('⚠ Certbot not installed. Please install certbot first:')
+                console.log('  Ubuntu/Debian: sudo apt install certbot')
+                console.log('  RHEL/CentOS: sudo yum install certbot')
+                return
+            }
+            
+            // Determine if we should use system or user-level certificates
+            const useUserCerts = !permissions.isRoot && !permissions.canmanageservice()
+            
+            if (useUserCerts) {
+                // User-level Let's Encrypt (no sudo required)
+                const userCertDir = path.join(projectRoot, '.letsencrypt')
+                console.log('Setting up user-level Let\'s Encrypt certificates...')
+                
+                // Create directories
+                fs.mkdirSync(userCertDir, { recursive: true })
+                fs.mkdirSync(path.join(userCertDir, 'work'), { recursive: true })
+                fs.mkdirSync(path.join(userCertDir, 'logs'), { recursive: true })
+                
+                // Use standalone mode with high port (no root needed)
+                const certCommand = `certbot certonly \
+                    --standalone \
+                    --preferred-challenges http \
+                    --http-01-port 8080 \
+                    --non-interactive \
+                    --agree-tos \
+                    --email ${email} \
+                    --domains ${domain} \
+                    --config-dir ${userCertDir} \
+                    --work-dir ${path.join(userCertDir, 'work')} \
+                    --logs-dir ${path.join(userCertDir, 'logs')}`
+                
+                console.log('Note: Make sure port 8080 is accessible from internet')
+                console.log('Running certbot (may take a moment)...')
+                
+                try {
+                    execSync(certCommand, { stdio: 'inherit' })
+                    
+                    // Create symlinks in ssl directory
+                    const sslDir = path.join(projectRoot, 'ssl')
+                    fs.mkdirSync(sslDir, { recursive: true })
+                    
+                    const certPath = path.join(userCertDir, 'live', domain)
+                    fs.symlinkSync(
+                        path.join(certPath, 'privkey.pem'),
+                        path.join(sslDir, 'privkey.pem')
+                    )
+                    fs.symlinkSync(
+                        path.join(certPath, 'fullchain.pem'),
+                        path.join(sslDir, 'fullchain.pem')
+                    )
+                    
+                    console.log('✓ User-level SSL certificates obtained')
+                    
+                    // Add renewal to user crontab
+                    this.setupCertbotRenewal(true)
+                } catch (err) {
+                    console.error('Failed to obtain certificates:', err.message)
+                    console.log('You may need to:')
+                    console.log('1. Ensure domain points to this server')
+                    console.log('2. Open port 8080 in firewall')
+                    console.log('3. Try running manually with sudo')
+                }
+            } else {
+                // System-level Let's Encrypt (requires sudo)
+                console.log('Setting up system-level Let\'s Encrypt certificates...')
+                
+                const certCommand = `sudo certbot certonly \
+                    --standalone \
+                    --non-interactive \
+                    --agree-tos \
+                    --email ${email} \
+                    --domains ${domain}`
+                
+                console.log('Running certbot with sudo (may take a moment)...')
+                
+                try {
+                    execSync(certCommand, { stdio: 'inherit' })
+                    
+                    // Copy certificates to project ssl directory
+                    const sslDir = path.join(projectRoot, 'ssl')
+                    fs.mkdirSync(sslDir, { recursive: true })
+                    
+                    const sourcePath = `/etc/letsencrypt/live/${domain}`
+                    execSync(`sudo cp ${sourcePath}/privkey.pem ${sslDir}/`)
+                    execSync(`sudo cp ${sourcePath}/fullchain.pem ${sslDir}/`)
+                    execSync(`sudo chown ${process.env.USER}:${process.env.USER} ${sslDir}/*.pem`)
+                    execSync(`chmod 600 ${sslDir}/*.pem`)
+                    
+                    console.log('✓ System SSL certificates obtained and copied')
+                    
+                    // Create renewal hook
+                    this.createRenewalHook()
+                } catch (err) {
+                    console.error('Failed to obtain certificates:', err.message)
+                    console.log('Please ensure:')
+                    console.log('1. Domain points to this server')
+                    console.log('2. Port 80 is available')
+                    console.log('3. You have sudo privileges')
+                }
+            }
+        } catch (err) {
+            console.error('Let\'s Encrypt setup failed:', err.message)
+        }
+    }
+    
+    setupCertbotRenewal(userLevel = false) {
+        try {
+            const projectRoot = this.config.root
+            const domain = this.config.domain
+            
+            if (userLevel) {
+                // Add to user crontab
+                const userCertDir = path.join(projectRoot, '.letsencrypt')
+                const renewCommand = `certbot renew --config-dir ${userCertDir} --work-dir ${path.join(userCertDir, 'work')} --logs-dir ${path.join(userCertDir, 'logs')} --deploy-hook "cp ${userCertDir}/live/${domain}/*.pem ${projectRoot}/ssl/"`
+                
+                // Add to crontab (runs daily at 2 AM)
+                let currentCron = ''
+                try {
+                    currentCron = execSync('crontab -l 2>/dev/null').toString()
+                } catch {}
+                
+                // Remove old renewal entries
+                const lines = currentCron.split('\n').filter(line => 
+                    !line.includes('certbot renew')
+                )
+                
+                // Add new renewal entry
+                lines.push(`0 2 * * * ${renewCommand} >> ${syspaths.logfile('certbot.log')} 2>&1`)
+                
+                const newCron = lines.filter(line => line.trim()).join('\n') + '\n'
+                const cronTempFile = syspaths.crontmp('-certbot')
+                fs.writeFileSync(cronTempFile, newCron)
+                execSync(`crontab ${cronTempFile}`)
+                fs.unlinkSync(cronTempFile)
+                
+                console.log('✓ Certbot renewal cron job added')
+            }
+        } catch (err) {
+            console.error('Failed to setup renewal:', err.message)
+        }
+    }
+    
+    createRenewalHook() {
+        try {
+            const projectRoot = this.config.root
+            const domain = this.config.domain
+            const hooksDir = syspaths.renewalhooks('deploy')
+            
+            if (!hooksDir) {
+                console.log('⚠ Could not create renewal hook (Let\'s Encrypt directory not found)')
+                return
+            }
+            
+            const hookScript = `#!/bin/bash
+# Air SSL certificate renewal hook
+# Auto-generated by Air installer
+
+DOMAIN="${domain}"
+AIR_ROOT="${projectRoot}"
+SSL_DIR="$AIR_ROOT/ssl"
+
+# Copy new certificates
+cp /etc/letsencrypt/live/$DOMAIN/privkey.pem $SSL_DIR/
+cp /etc/letsencrypt/live/$DOMAIN/fullchain.pem $SSL_DIR/
+chmod 600 $SSL_DIR/*.pem
+chown ${process.env.USER}:${process.env.USER} $SSL_DIR/*.pem
+
+# Restart Air service if running
+systemctl is-active ${this.config.name} && systemctl restart ${this.config.name} || true
+`
+            const hookPath = path.join(hooksDir, `${this.config.name}-renew.sh`)
+            const tempHook = syspaths.tmp(`air-hook-${Date.now()}.sh`)
+            
+            fs.writeFileSync(tempHook, hookScript)
+            execSync(`sudo cp ${tempHook} ${hookPath}`)
+            execSync(`sudo chmod +x ${hookPath}`)
+            fs.unlinkSync(tempHook)
+            
+            console.log('✓ Certificate renewal hook created')
+        } catch (err) {
+            console.error('Failed to create renewal hook:', err.message)
+        }
     }
 
     async setupCron() {
