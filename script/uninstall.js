@@ -306,15 +306,23 @@ class Uninstaller {
             // Remove all air PID files
             const files = fs.readdirSync(this.config.root)
             let pidCount = 0
+            let failedCount = 0
             
             files.forEach(file => {
                 if (file.startsWith('.air-') && file.endsWith('.pid')) {
-                    fs.unlinkSync(path.join(this.config.root, file))
-                    pidCount++
+                    try {
+                        fs.unlinkSync(path.join(this.config.root, file))
+                        pidCount++
+                    } catch (e) {
+                        failedCount++
+                        // Permission error or other issue - continue with other files
+                    }
                 }
             })
             
-            if (pidCount > 0) {
+            if (failedCount > 0) {
+                return `Removed ${pidCount} PID file(s), ${failedCount} failed`
+            } else if (pidCount > 0) {
                 return `Removed ${pidCount} PID file(s)`
             } else {
                 return 'No PID files found'

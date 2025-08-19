@@ -121,13 +121,13 @@ suite('peer tests', () => {
     test('should reject path traversal in root', () => {
         assert.throws(() => {
             new Peer({ root: '../../../etc/passwd', skipPidCheck: true })
-        }, /Invalid root path/)
+        }, /Invalid root path: potential path traversal detected/)
     })
 
     test('should reject tilde in root', () => {
         assert.throws(() => {
             new Peer({ root: '~/badpath', skipPidCheck: true })
-        }, /Invalid root path/)
+        }, /Invalid root path: potential path traversal detected/)
     })
 
     test('should reject encoded dots in root', () => {

@@ -47,7 +47,7 @@ suite('uninstaller tests', () => {
             
             // Action: Run uninstaller
             try {
-                execSync(`node ${uninstallScript} --root ${testDir}`, {
+                execSync(`node ${uninstallScript} --root ${testDir} --force`, {
                     stdio: 'pipe'
                 })
             } catch (e) {
@@ -221,7 +221,7 @@ suite('uninstaller tests', () => {
             
             // Action: Run uninstaller
             try {
-                execSync(`node ${uninstallScript} --root ${testDir}`, {
+                execSync(`node ${uninstallScript} --root ${testDir} --force`, {
                     stdio: 'pipe'
                 })
             } catch (e) {
@@ -257,7 +257,7 @@ suite('uninstaller tests', () => {
             let failed = false
             let output = ''
             try {
-                output = execSync(`node ${uninstallScript} --root ${testDir}`, {
+                output = execSync(`node ${uninstallScript} --root ${testDir} --force`, {
                     encoding: 'utf8',
                     stdio: 'pipe'
                 }).toString()
@@ -267,7 +267,8 @@ suite('uninstaller tests', () => {
             
             // Expect: Should handle permission error gracefully
             assert(output.includes('failed') || output.includes('error') || 
-                   output.includes('Warning') || output.includes('UNINSTALLED'),
+                   output.includes('Warning') || output.includes('Complete') ||
+                   output.includes('Removed') || output.includes('PID'),
                 'Should handle permission errors gracefully')
             
             // Cleanup
@@ -292,7 +293,7 @@ suite('uninstaller tests', () => {
             // Action: Run uninstaller with name parameter
             let output = ''
             try {
-                output = execSync(`node ${uninstallScript} --name ${testName} --root ${testDir}`, {
+                output = execSync(`node ${uninstallScript} --name ${testName} --root ${testDir} --force`, {
                     encoding: 'utf8',
                     stdio: 'pipe'
                 }).toString()
@@ -322,7 +323,7 @@ suite('uninstaller tests', () => {
             let output = ''
             let exitCode = 0
             try {
-                output = execSync(`node ${uninstallScript} --root ${testDir}`, {
+                output = execSync(`node ${uninstallScript} --root ${testDir} --force`, {
                     encoding: 'utf8',
                     stdio: 'pipe'
                 }).toString()

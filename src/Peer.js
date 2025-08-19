@@ -88,17 +88,9 @@ export class Peer {
         }
         this.pidFile = null // Will be set after config initialization
 
-        // Use smart path detection
-        const paths = getPaths(
-            this.config.root || process.env.ROOT || process.argv[2],
-            this.config.bash || process.env.BASH || process.argv[3]
-        )
-        
-        this.config.root = paths.root
-        this.config.bash = paths.bash
-
-        // Validate root path to prevent path traversal BEFORE using it
-        const rootStr = String(this.config.root || '')
+        // Validate root path to prevent path traversal BEFORE processing
+        const rootInput = this.config.root || process.env.ROOT || process.argv[2] || ''
+        const rootStr = String(rootInput)
         if (rootStr.includes('..') || 
             rootStr.includes('~') || 
             rootStr.includes('%2e') || 
@@ -107,7 +99,14 @@ export class Peer {
             throw new Error('Invalid root path: potential path traversal detected')
         }
 
-        this.config.bash = (this.config.bash || process.env.BASH || process.argv[3] || cwd).replace(/\/\s*$/, "")
+        // Use smart path detection after validation
+        const paths = getPaths(
+            rootInput,
+            this.config.bash || process.env.BASH || process.argv[3]
+        )
+        
+        this.config.root = paths.root
+        this.config.bash = paths.bash
 
         // Path of the config file
         this.config.path = path.join(this.config.root, defaults.path.config)
