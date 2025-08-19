@@ -1,36 +1,91 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
+/**
+ * Peer class - TypeScript/Bun edition
+ * Fuck JavaScript's type coercion and Node's slow ass
+ */
 
-import { ConfigManager } from "./config.js"
-import { ProcessManager } from "./process.js"
-import { StatusReporter } from "./status.js"
-import network from "./network.js"
-import permissions from "./permissions.js"
-import syspaths from "./syspaths.js"
+import type { 
+    IPeer, 
+    PeerOptions, 
+    AirConfig, 
+    Environment,
+    EnvironmentConfig,
+    IPResult,
+    Runtime,
+    SSLConfig
+} from './types'
 
-import http from "http"
-import https from "https"
-import fs from "fs"
-import path from "path"
-import GUN from "@akaoio/gun"
-import "@akaoio/gun/sea.js"
-import "@akaoio/gun/nts.js"
+import { ConfigManager } from './config'
+import { ProcessManager } from './process'
+import { StatusReporter } from './status'
+import network from './network'
+import permissions from './permissions'
+import syspaths from './syspaths'
+
+import http from 'http'
+import https from 'https'
+import fs from 'fs'
+import path from 'path'
+import GUN from '@akaoio/gun'
+import '@akaoio/gun/sea.js'
+import '@akaoio/gun/nts.js'
 
 const sea = GUN.SEA
 
-/**
- * Peer class - orchestrates all managers
- * Refactored from 24 methods to 12 core methods
- */
-class Peer {
-    constructor(options = {}) {
-        // Process command line arguments
-        const cliArgs = {
+// Runtime detection
+const runtime: Runtime = (() => {
+    // @ts-ignore
+    if (typeof Bun !== 'undefined') return 'bun'
+    // @ts-ignore
+    if (typeof Deno !== 'undefined') return 'deno'
+    return 'node'
+})()
+
+console.log(`🚀 Running on ${runtime.toUpperCase()} runtime`)
+
+export class Peer implements IPeer {
+    // Managers
+    private configManager: ConfigManager
+    private processManager: ProcessManager
+    private statusReporter: StatusReporter
+    
+    // Core state
+    public server: http.Server | https.Server | null = null
+    public gun: any = null // GUN's types are fucked
+    public user: any = null // Same here
+    public readonly GUN = GUN
+    public readonly sea = sea
+    public config: AirConfig
+    
+    // Restart handling
+    private restarts = {
+        max: 5,
+        count: 0,
+        baseDelay: 5000,
+        maxDelay: 60000
+    }
+    
+    // Grouped interfaces
+    public readonly ip = {
+        get: (): Promise<IPResult> => network.get(),
+        validate: (ip: string): boolean => network.validate(ip)
+    }
+    
+    public readonly status = {
+        ddns: (): Promise<void> => this.statusReporter.ddns(),
+        ip: (): Promise<void> => this.statusReporter.ip(),
+        alive: (): void => this.statusReporter.alive()
+    }
+    
+    constructor(options: PeerOptions = {}) {
+        // Process command line arguments (Node.js style for compatibility)
+        const cliArgs: PeerOptions = {
             rootArg: process.argv[2],
             bashArg: process.argv[3],
-            env: process.argv[4],
+            env: process.argv[4] as Environment,
             name: process.argv[5],
             domain: process.argv[6],
-            port: process.argv[7],
+            port: process.argv[7] ? parseInt(process.argv[7]) : undefined,
             sslKey: process.argv[8],
             sslCert: process.argv[9],
             pub: process.argv[10],
@@ -40,7 +95,7 @@ class Peer {
         }
         
         // Merge options with CLI args
-        const merged = { ...options, ...cliArgs }
+        const merged: PeerOptions = { ...options, ...cliArgs }
         
         // Initialize managers
         this.configManager = new ConfigManager(merged)
@@ -50,20 +105,10 @@ class Peer {
         })
         this.statusReporter = new StatusReporter()
         
-        // Core state
-        this.server = null
-        this.gun = null
-        this.user = null
-        this.GUN = GUN
-        this.sea = sea
-        
-        // Restart handling
-        this.restarts = {
-            max: merged.maxRestarts || 5,
-            count: 0,
-            baseDelay: merged.restartDelay || 5000,
-            maxDelay: merged.maxRestartDelay || 60000
-        }
+        // Restart configuration
+        if (merged.maxRestarts) this.restarts.max = merged.maxRestarts
+        if (merged.restartDelay) this.restarts.baseDelay = merged.restartDelay
+        if (merged.maxRestartDelay) this.restarts.maxDelay = merged.maxRestartDelay
         
         // Load configuration
         this.config = this.read()
@@ -72,9 +117,9 @@ class Peer {
         if (cliArgs.env) this.config.env = cliArgs.env
         if (cliArgs.name) this.config.name = cliArgs.name
         
-        const env = this.config[this.config.env] || {}
+        const env = this.config[this.config.env] as Partial<EnvironmentConfig>
         if (cliArgs.domain) env.domain = cliArgs.domain
-        if (cliArgs.port) env.port = parseInt(cliArgs.port)
+        if (cliArgs.port) env.port = cliArgs.port
         if (cliArgs.sslKey && cliArgs.sslCert) {
             env.ssl = { key: cliArgs.sslKey, cert: cliArgs.sslCert }
         }
@@ -87,29 +132,17 @@ class Peer {
             }
         }
         
-        // Merge environment config back
-        this.config = { ...this.config, ...env }
+        // Type-safe merge
+        this.config = { ...this.config, ...env } as AirConfig
         
         // Update status reporter config
         this.statusReporter.updateConfig(this.config)
-        
-        // For backward compatibility - expose some methods through grouped interfaces
-        this.ip = {
-            get: () => network.get(),
-            validate: (ip) => network.validate(ip)
-        }
-        
-        this.status = {
-            ddns: () => this.statusReporter.ddns(),
-            ip: () => this.statusReporter.ip(),
-            alive: () => this.statusReporter.alive()
-        }
     }
 
     /**
      * Main startup sequence
      */
-    async start() {
+    async start(): Promise<IPeer> {
         console.log('Starting Air peer...')
         
         // Check for existing instance
@@ -137,11 +170,12 @@ class Peer {
     /**
      * Initialize HTTP/HTTPS server
      */
-    async init() {
+    async init(): Promise<void> {
         return new Promise((resolve, reject) => {
             try {
                 const env = this.config.env
-                const port = this.config.port || (env === 'production' ? 443 : 8765)
+                const envConfig = this.config[env] as Partial<EnvironmentConfig>
+                const port = envConfig?.port || (env === 'production' ? 443 : 8765)
                 
                 // Check port availability
                 const existing = this.processManager.find(port)
@@ -154,16 +188,16 @@ class Peer {
                 }
                 
                 // Create server
-                if (env === 'production' && this.config.ssl?.key && this.config.ssl?.cert) {
+                if (env === 'production' && envConfig?.ssl?.key && envConfig?.ssl?.cert) {
                     // HTTPS server
                     try {
                         const options = {
-                            key: fs.readFileSync(this.config.ssl.key),
-                            cert: fs.readFileSync(this.config.ssl.cert)
+                            key: fs.readFileSync(envConfig.ssl.key),
+                            cert: fs.readFileSync(envConfig.ssl.cert)
                         }
                         this.server = https.createServer(options, GUN.serve).listen(port)
                         console.log(`Creating HTTPS server on port ${port}...`)
-                    } catch (sslError) {
+                    } catch (sslError: any) {
                         console.error('SSL certificate error:', sslError.message)
                         console.log('Falling back to HTTP...')
                         this.server = http.createServer(GUN.serve).listen(port)
@@ -176,7 +210,7 @@ class Peer {
                 
                 this.server.on('listening', () => {
                     const protocol = this.server instanceof https.Server ? 'https' : 'http'
-                    const actualPort = this.server.address().port
+                    const actualPort = (this.server!.address() as any).port
                     console.log(`✓ Server listening on ${protocol}://localhost:${actualPort}`)
                     
                     // Reset restart count on successful start
@@ -184,7 +218,7 @@ class Peer {
                     resolve()
                 })
                 
-                this.server.on('error', (error) => {
+                this.server.on('error', (error: any) => {
                     console.error('Server error:', error.message)
                     
                     if (error.code === 'EADDRINUSE') {
@@ -193,7 +227,7 @@ class Peer {
                         reject(error)
                     } else if (error.code === 'EACCES') {
                         console.error(`Permission denied for port ${port}`)
-                        console.error('Try: sudo npm start (for ports below 1024)')
+                        console.error('Try: sudo bun start (for ports below 1024)')
                         reject(error)
                     } else {
                         // Other errors trigger restart
@@ -214,13 +248,15 @@ class Peer {
     /**
      * Initialize GUN database
      */
-    async run() {
+    async run(): Promise<IPeer> {
         if (!this.server) {
             throw new Error('Server not initialized')
         }
         
+        const envConfig = this.config[this.config.env] as Partial<EnvironmentConfig>
+        
         // Create data directory if it doesn't exist
-        const dataPath = this.config.file || 'radata'
+        const dataPath = envConfig?.file || 'radata'
         if (!fs.existsSync(dataPath)) {
             fs.mkdirSync(dataPath, { recursive: true })
         }
@@ -228,7 +264,7 @@ class Peer {
         // Initialize GUN
         this.gun = GUN({
             web: this.server,
-            peers: this.config.peers || [],
+            peers: envConfig?.peers || [],
             file: dataPath,
             axe: false, // Disable to prevent WebSocket errors
             localStorage: false
@@ -242,8 +278,8 @@ class Peer {
         
         console.log('✓ GUN database initialized')
         console.log(`  Data directory: ${dataPath}`)
-        if (this.config.peers && this.config.peers.length > 0) {
-            console.log(`  Connected to ${this.config.peers.length} peer(s)`)
+        if (envConfig?.peers && envConfig.peers.length > 0) {
+            console.log(`  Connected to ${envConfig.peers.length} peer(s)`)
         }
         
         return this
@@ -252,15 +288,17 @@ class Peer {
     /**
      * Authenticate and go online
      */
-    async online() {
+    async online(): Promise<IPeer> {
         if (!this.user) {
             throw new Error('User not initialized')
         }
         
+        const envConfig = this.config[this.config.env] as Partial<EnvironmentConfig>
+        
         // Authenticate with SEA pair if provided
-        if (this.config.pair?.pub && this.config.pair?.priv) {
+        if (envConfig?.pair?.pub && envConfig?.pair?.priv) {
             return new Promise((resolve, reject) => {
-                this.user.auth(this.config.pair, (ack) => {
+                this.user.auth(envConfig.pair, (ack: any) => {
                     if (ack.err) {
                         console.error('Authentication failed:', ack.err)
                         // Don't reject, just run anonymously
@@ -268,7 +306,7 @@ class Peer {
                         this.statusReporter.start()
                         resolve(this)
                     } else {
-                        console.log('✓ Authenticated as:', this.config.pair.pub.slice(0, 20) + '...')
+                        console.log('✓ Authenticated as:', envConfig.pair!.pub.slice(0, 20) + '...')
                         
                         // Start status reporting
                         this.statusReporter.start()
@@ -295,7 +333,7 @@ class Peer {
     /**
      * Sync configuration from remote
      */
-    async sync() {
+    async sync(): Promise<IPeer> {
         const updated = await this.configManager.sync(this.config.sync)
         if (updated) {
             this.config = updated
@@ -310,7 +348,7 @@ class Peer {
     /**
      * Restart server with exponential backoff
      */
-    async restart() {
+    async restart(): Promise<void> {
         this.restarts.count++
         
         if (this.restarts.count > this.restarts.max) {
@@ -344,7 +382,7 @@ class Peer {
             // Reset counter on successful restart
             this.restarts.count = 0
             console.log('✓ Restart successful')
-        } catch (error) {
+        } catch (error: any) {
             console.error('Restart failed:', error.message)
             await this.restart() // Recursive retry
         }
@@ -353,14 +391,14 @@ class Peer {
     /**
      * Stop server and cleanup
      */
-    async stop() {
+    async stop(): Promise<void> {
         // Stop status reporting
         this.statusReporter.stop()
         
         // Close server
         if (this.server) {
             return new Promise((resolve) => {
-                this.server.close(() => {
+                this.server!.close(() => {
                     console.log('Server stopped')
                     this.server = null
                     resolve()
@@ -383,39 +421,43 @@ class Peer {
     /**
      * Activate peer with hub
      */
-    async activate(hubKey) {
+    async activate(hubKey: string): Promise<unknown> {
         return this.statusReporter.activate(hubKey)
     }
 
     /**
      * Read configuration
      */
-    read() {
+    read(): AirConfig {
         const config = this.configManager.read()
         
-        // Apply environment variables
-        if (process.env.ENV) config.env = process.env.ENV
+        // Apply environment variables with proper typing
+        if (process.env.ENV) config.env = process.env.ENV as Environment
         if (process.env.NAME) config.name = process.env.NAME
         if (process.env.ROOT) config.root = process.env.ROOT
         if (process.env.BASH) config.bash = process.env.BASH
         if (process.env.SYNC) config.sync = process.env.SYNC
         
         const env = config.env || 'development'
-        const envConfig = config[env] || {}
+        const envConfig = config[env] as Partial<EnvironmentConfig>
         
         if (process.env.DOMAIN) envConfig.domain = process.env.DOMAIN
         if (process.env.PORT) envConfig.port = parseInt(process.env.PORT)
-        if (process.env.SSL_KEY) envConfig.ssl = { ...envConfig.ssl, key: process.env.SSL_KEY }
-        if (process.env.SSL_CERT) envConfig.ssl = { ...envConfig.ssl, cert: process.env.SSL_CERT }
+        if (process.env.SSL_KEY) {
+            envConfig.ssl = { ...envConfig.ssl, key: process.env.SSL_KEY } as SSLConfig
+        }
+        if (process.env.SSL_CERT) {
+            envConfig.ssl = { ...envConfig.ssl, cert: process.env.SSL_CERT } as SSLConfig
+        }
         
-        // Merge environment config
-        return { ...config, ...envConfig }
+        // Type-safe merge
+        return { ...config, ...envConfig } as AirConfig
     }
 
     /**
      * Write configuration
      */
-    write(config) {
+    write(config: AirConfig): boolean {
         const success = this.configManager.write(config)
         if (success) {
             this.config = config
@@ -427,31 +469,30 @@ class Peer {
     /**
      * Check PID file - delegated to ProcessManager
      */
-    check() {
+    check(): boolean {
         return this.processManager.check()
     }
 
     /**
      * Clean PID file - delegated to ProcessManager
      */
-    clean() {
+    clean(): void {
         return this.processManager.clean()
     }
 
     /**
      * Find process using port - delegated to ProcessManager
      */
-    find(port) {
+    find(port: number): { pid: string; name: string } | null {
         return this.processManager.find(port)
     }
     
     /**
      * Cleanup - backward compatibility alias for clean()
      */
-    cleanup() {
+    cleanup(): void {
         return this.clean()
     }
 }
 
-export { Peer }
 export default Peer

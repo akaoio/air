@@ -1,9 +1,14 @@
 {
     "name": "@akaoio/air",
     "type": "module",
-    "version": "1.0.1",
-    "description": "Distributed graph database",
-    "main": "index.js",
+    "version": "2.0.0",
+    "description": "Distributed graph database - TypeScript/Bun edition",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "engines": {
+        "bun": ">=1.0.0",
+        "node": ">=18.0.0"
+    },
     "license": "MIT",
     "bin": {
         "air-install": "./script/install.js"
@@ -13,9 +18,18 @@
         "node-fetch": "^3.3.2"
     },
     "scripts": {
-        "start": "node main.js",
-        "test": "node test/runner.js",
-        "format": "npx prettier --write .",
+        "start": "bun run src/main.ts || tsx src/main.ts",
+        "start:node": "tsx src/main.ts",
+        "start:bun": "bun run src/main.ts",
+        "dev": "bun --hot src/main.ts",
+        "build": "bun build src/index.ts --outdir dist --target bun || tsc",
+        "build:node": "tsc",
+        "build:bun": "bun build src/index.ts --outdir dist --target bun",
+        "test": "bun test || vitest",
+        "test:bun": "bun test",
+        "test:node": "vitest",
+        "typecheck": "tsc --noEmit",
+        "format": "bunx prettier --write . || npx prettier --write .",
         "setup": "node script/install.js",
         "config": "node script/config.js",
         "ddns": "node script/ddns.js",
@@ -25,6 +39,12 @@
         "uninstall": "node script/uninstall.js"
     },
     "devDependencies": {
-        "prettier": "^2.4.1"
+        "@types/bun": "^1.2.20",
+        "@types/node": "^20.19.11",
+        "bun-types": "^1.2.20",
+        "prettier": "^3.0.0",
+        "tsx": "^4.20.4",
+        "typescript": "^5.9.2",
+        "vitest": "^1.6.1"
     }
 }

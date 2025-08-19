@@ -1,4 +1,4 @@
-import { Peer } from "./Peer.js"
+import { Peer } from "./Peer"
 
 const db = new Peer()
 

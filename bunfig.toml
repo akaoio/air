@@ -1,0 +1,47 @@
+# Bun configuration
+# Favor Bun's native performance over Node.js compatibility
+
+[install]
+# Use Bun's lockfile format
+lockfile = "bun.lockb"
+
+# Faster installs
+concurrent = 16
+frozen = false
+
+[install.cache]
+# Cache packages for faster reinstalls
+disable = false
+dir = "~/.bun/install/cache"
+
+[test]
+# Test configuration
+root = "./test"
+preload = ["./test/setup.ts"]
+coverage = true
+coverageThreshold = 80
+
+[run]
+# Runtime configuration
+# Bun is 4x faster than Node.js
+silent = false
+bun = true
+
+# Hot reload for development
+[debug]
+hot = true
+
+# Build configuration
+[build]
+target = "bun"
+outdir = "./dist"
+minify = true
+sourcemap = "external"
+splitting = true
+external = ["@akaoio/gun"]
+
+# Bundle for production
+[bundle]
+format = "esm"
+platform = "node"
+target = "bun"
