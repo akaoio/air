@@ -6,11 +6,11 @@
     "lib": ["ES2022"],
     
     // Module resolution
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
+    "moduleResolution": "node",
+    "allowImportingTsExtensions": false,
     "resolveJsonModule": true,
     "allowJs": false,
-    "noEmit": true,
+    "noEmit": false,
     
     // Type checking
     "strict": true,
@@ -51,8 +51,7 @@
     "emitDecoratorMetadata": true
   },
   "include": [
-    "src/**/*.ts",
-    "test/**/*.ts"
+    "src/**/*.ts"
   ],
   "exclude": [
     "node_modules",

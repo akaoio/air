@@ -4,12 +4,27 @@ import fs from 'fs'
 import path from 'path'
 import { execSync } from 'child_process'
 
+interface ProcessConfig {
+    name?: string
+    root?: string
+    prefix?: string
+    suffix?: string
+}
+
+interface ProcessInfo {
+    pid: string
+    name: string
+}
+
 /**
  * Process management for Air
  * Handles PID files and process discovery
  */
 class ProcessManager {
-    constructor(config = {}) {
+    private config: Required<ProcessConfig>
+    private pidFile: string
+    
+    constructor(config: ProcessConfig = {}) {
         this.config = {
             name: config.name || 'air',
             root: config.root || process.cwd(),
@@ -25,7 +40,7 @@ class ProcessManager {
     /**
      * Check if another instance is running via PID file
      */
-    check() {
+    check(): boolean {
         try {
             if (fs.existsSync(this.pidFile)) {
                 const oldPid = parseInt(fs.readFileSync(this.pidFile, 'utf8'))
@@ -38,29 +53,33 @@ class ProcessManager {
                     console.error('To stop it: kill ' + oldPid)
                     console.error('Or remove PID file if process is dead: rm ' + this.pidFile)
                     return true
-                } catch (e) {
-                    // Process is not running, clean up stale PID file
-                    console.log('Found stale PID file, removing...')
+                } catch {
+                    // Process is dead, clean up stale PID file
+                    console.log('Found stale PID file, cleaning up...')
                     fs.unlinkSync(this.pidFile)
                 }
             }
             
-            // Write current PID
+            // Write new PID file
             fs.writeFileSync(this.pidFile, process.pid.toString())
             
-            // Set up cleanup on exit
-            const cleanup = () => this.clean()
-            process.on('exit', cleanup)
-            process.on('SIGINT', cleanup)
-            process.on('SIGTERM', cleanup)
-            process.on('uncaughtException', (err) => {
-                console.error('Uncaught exception:', err)
-                cleanup()
-                process.exit(1)
+            // Register cleanup on exit
+            process.on('exit', () => {
+                this.clean()
+            })
+            
+            process.on('SIGINT', () => {
+                this.clean()
+                process.exit(0)
+            })
+            
+            process.on('SIGTERM', () => {
+                this.clean()
+                process.exit(0)
             })
             
             return false
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error checking PID:', error.message)
             return false
         }
@@ -69,7 +88,7 @@ class ProcessManager {
     /**
      * Clean up PID file
      */
-    clean() {
+    clean(): void {
         try {
             if (fs.existsSync(this.pidFile)) {
                 const currentPid = parseInt(fs.readFileSync(this.pidFile, 'utf8'))
@@ -78,7 +97,7 @@ class ProcessManager {
                     console.log('PID file cleaned up')
                 }
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error cleaning PID file:', error.message)
         }
     }
@@ -86,16 +105,19 @@ class ProcessManager {
     /**
      * Find process using a specific port
      */
-    find(port) {
+    find(port: number): ProcessInfo | null {
         try {
-            let command
+            let command: string
             if (process.platform === 'darwin' || process.platform === 'linux') {
                 command = `lsof -i:${port} -P -n | grep LISTEN | awk '{print $2}' | head -1`
             } else if (process.platform === 'win32') {
                 command = `netstat -ano | findstr :${port} | findstr LISTENING`
                 const output = execSync(command, { encoding: 'utf8' }).trim()
                 const match = output.match(/\s+(\d+)\s*$/)
-                return match ? match[1] : null
+                if (match) {
+                    return { pid: match[1], name: 'unknown' }
+                }
+                return null
             } else {
                 return null
             }
@@ -123,26 +145,23 @@ class ProcessManager {
     /**
      * Kill process by PID
      */
-    kill(pid) {
+    kill(pid: number | string): boolean {
         try {
-            process.kill(pid, 'SIGTERM')
+            const numPid = typeof pid === 'string' ? parseInt(pid) : pid
+            process.kill(numPid, 'SIGTERM')
             return true
-        } catch (error) {
-            if (error.code === 'ESRCH') {
-                console.log(`Process ${pid} not found`)
-            } else {
-                console.error(`Failed to kill process ${pid}:`, error.message)
-            }
+        } catch {
             return false
         }
     }
 
     /**
-     * Check if process is running
+     * Check if a process is running
      */
-    isRunning(pid) {
+    isRunning(pid: number | string): boolean {
         try {
-            process.kill(pid, 0)
+            const numPid = typeof pid === 'string' ? parseInt(pid) : pid
+            process.kill(numPid, 0)
             return true
         } catch {
             return false
@@ -150,6 +169,5 @@ class ProcessManager {
     }
 }
 
-const processManager = new ProcessManager()
-export default processManager
-export { ProcessManager }
+export { ProcessManager, ProcessConfig, ProcessInfo }
+export default ProcessManager

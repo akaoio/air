@@ -107,7 +107,7 @@ export interface IStatusReporter {
     report(key: string, data: Record<string, unknown>): Promise<unknown>
     getStatus(): StatusInfo
     updateConfig(config: AirConfig): void
-    updateUser(user: GUN.User): void
+    updateUser(user: any): void
 }
 
 export interface StatusInfo {
@@ -179,10 +179,10 @@ export interface PeerOptions {
 export interface IPeer {
     // Properties
     server: HTTPServer | HTTPSServer | null
-    gun: GUN.IGunInstance | null
-    user: GUN.User | null
-    GUN: typeof GUN
-    sea: typeof GUN.SEA
+    gun: any | null
+    user: any | null
+    GUN: any
+    sea: any
     config: AirConfig
     
     // Core methods

@@ -19,13 +19,10 @@ import { ConfigManager } from './config'
 import { ProcessManager } from './process'
 import { StatusReporter } from './status'
 import network from './network'
-import permissions from './permissions'
-import syspaths from './syspaths'
 
 import http from 'http'
 import https from 'https'
 import fs from 'fs'
-import path from 'path'
 import GUN from '@akaoio/gun'
 import '@akaoio/gun/sea.js'
 import '@akaoio/gun/nts.js'
@@ -195,16 +192,16 @@ export class Peer implements IPeer {
                             key: fs.readFileSync(envConfig.ssl.key),
                             cert: fs.readFileSync(envConfig.ssl.cert)
                         }
-                        this.server = https.createServer(options, GUN.serve).listen(port)
+                        this.server = https.createServer(options, (GUN as any).serve).listen(port)
                         console.log(`Creating HTTPS server on port ${port}...`)
                     } catch (sslError: any) {
                         console.error('SSL certificate error:', sslError.message)
                         console.log('Falling back to HTTP...')
-                        this.server = http.createServer(GUN.serve).listen(port)
+                        this.server = http.createServer((GUN as any).serve).listen(port)
                     }
                 } else {
                     // HTTP server
-                    this.server = http.createServer(GUN.serve).listen(port)
+                    this.server = http.createServer((GUN as any).serve).listen(port)
                     console.log(`Creating HTTP server on port ${port}...`)
                 }
                 
@@ -297,7 +294,7 @@ export class Peer implements IPeer {
         
         // Authenticate with SEA pair if provided
         if (envConfig?.pair?.pub && envConfig?.pair?.priv) {
-            return new Promise((resolve, reject) => {
+            return new Promise((resolve) => {
                 this.user.auth(envConfig.pair, (ack: any) => {
                     if (ack.err) {
                         console.error('Authentication failed:', ack.err)

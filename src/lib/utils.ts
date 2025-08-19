@@ -1,4 +1,4 @@
-export const merge = (...args) => {
+export const merge = (...args: any[]): any => {
     // handle null/undefined inputs
     if (args.some(e => e === null || e === undefined)) {
         throw new Error('Cannot merge null or undefined values')
@@ -8,7 +8,7 @@ export const merge = (...args) => {
     const r = args.shift() || {}
     const seen = new WeakSet() // track circular references
     
-    const mergeRecursive = (target, source, depth = 0) => {
+    const mergeRecursive = (target: any, source: any, depth = 0): any => {
         // prevent infinite recursion
         if (depth > 100) return target
         if (seen.has(source)) return target
