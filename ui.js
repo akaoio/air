@@ -5,6 +5,7 @@ import fs from 'fs'
 import path from 'path'
 import { exec } from 'child_process'
 import { promisify } from 'util'
+import syspaths from './src/syspaths.js'
 
 const execAsync = promisify(exec)
 
@@ -312,7 +313,10 @@ class AirUI {
         
         this.logtail = setInterval(async () => {
             try {
-                const { stdout } = await execAsync('journalctl -u air -n 20 --no-pager 2>/dev/null || tail -20 /var/log/air.log 2>/dev/null || echo "No logs available"')
+                // Try journalctl first, then fallback to log file
+                const journalCmd = syspaths.journalctl('air', { lines: 20 })
+                const logFile = syspaths.logfile('air.log')
+                const { stdout } = await execAsync(`${journalCmd} 2>/dev/null || tail -20 ${logFile} 2>/dev/null || echo "No logs available"`)
                 const lines = stdout.split('\n').filter(l => l.trim())
                 
                 // Clear old log display

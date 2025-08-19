@@ -2,6 +2,7 @@ import { merge } from "./lib/utils.js"
 import { getPaths } from "./paths.js"
 import permissions from "./permissions.js"
 import network from "./network.js"
+import syspaths from "./syspaths.js"
 import http from "http"
 import https from "https"
 import fs from "fs"
@@ -145,9 +146,13 @@ export class Peer {
 
         this.config[this.env].system = this.config[this.env]?.system || {}
 
-        const key = process.env.SSL_KEY || process.argv[8] || this.config[this.env]?.ssl?.key || (this.config[this.env]?.domain && this.env === "production" ? `/etc/letsencrypt/live/${this.config[this.env]?.domain}/privkey.pem` : null)
+        // Get SSL paths intelligently
+        const domain = this.config[this.env]?.domain
+        const sslPaths = domain && this.env === "production" ? syspaths.ssl(domain) : null
+        
+        const key = process.env.SSL_KEY || process.argv[8] || this.config[this.env]?.ssl?.key || sslPaths?.key || null
 
-        const cert = process.env.SSL_CERT || process.argv[9] || this.config[this.env]?.ssl?.cert || (this.config[this.env]?.domain && this.env === "production" ? `/etc/letsencrypt/live/${this.config[this.env]?.domain}/cert.pem` : null)
+        const cert = process.env.SSL_CERT || process.argv[9] || this.config[this.env]?.ssl?.cert || sslPaths?.cert || null
 
         this.config[this.env].pair = this.config[this.env]?.pair || {}
 

@@ -6,6 +6,7 @@ import { execSync } from 'child_process'
 import { fileURLToPath } from 'url'
 import { Terminal, colors, red, green, yellow, blue, cyan, gray, white, bold, dim } from '@akaoio/tui'
 import { getPaths } from '../src/paths.js'
+import syspaths from '../src/syspaths.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -216,8 +217,8 @@ class Uninstaller {
             }
             
             // Remove service file
-            const servicePath = `/etc/systemd/system/${serviceName}.service`
-            if (fs.existsSync(servicePath)) {
+            const servicePath = syspaths.service(serviceName)
+            if (servicePath && fs.existsSync(servicePath)) {
                 execSync(`sudo rm ${servicePath}`)
                 results.push('Service file removed')
             }
@@ -257,9 +258,10 @@ class Uninstaller {
                 const newCron = filtered.filter(line => line.trim()).join('\n')
                 if (newCron.trim()) {
                     // Write new crontab if there are remaining entries
-                    fs.writeFileSync('/tmp/air-cron-uninstall.txt', newCron + '\n')
-                    execSync('crontab /tmp/air-cron-uninstall.txt')
-                    fs.unlinkSync('/tmp/air-cron-uninstall.txt')
+                    const cronTempFile = syspaths.crontmp('-uninstall')
+                    fs.writeFileSync(cronTempFile, newCron + '\n')
+                    execSync(`crontab ${cronTempFile}`)
+                    fs.unlinkSync(cronTempFile)
                 } else {
                     // Remove crontab entirely if empty
                     execSync('crontab -r 2>/dev/null || true')
@@ -285,8 +287,9 @@ class Uninstaller {
             }
             
             // Remove renewal hook
-            const hookPath = '/etc/letsencrypt/renewal-hooks/deploy/air-copy-certs.sh'
-            if (fs.existsSync(hookPath)) {
+            const hooksDir = syspaths.renewalhooks('deploy')
+            const hookPath = hooksDir ? path.join(hooksDir, 'air-copy-certs.sh') : null
+            if (hookPath && fs.existsSync(hookPath)) {
                 try {
                     execSync(`sudo rm ${hookPath}`, { stdio: 'ignore' })
                     results.push('Certificate renewal hook removed')

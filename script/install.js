@@ -7,6 +7,7 @@ import os from 'os'
 import { fileURLToPath } from 'url'
 import { Terminal, colors, red, green, yellow, blue, cyan, gray, white, bold, dim } from '@akaoio/tui'
 import { getPaths } from '../src/paths.js'
+import syspaths from '../src/syspaths.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -816,8 +817,8 @@ class AirInstaller {
         
         try {
             const serviceName = `air-${this.config.name}`
-            const servicePath = `/etc/systemd/system/${serviceName}.service`
-            const nodeExecutable = process.execPath
+            const servicePath = syspaths.service(serviceName)
+            const nodeExecutable = syspaths.node()
             const projectRoot = this.config.root
             const mainScript = path.join(projectRoot, 'main.js')
             
@@ -833,8 +834,8 @@ WorkingDirectory=${projectRoot}
 ExecStart=${nodeExecutable} ${mainScript}
 Restart=on-failure
 RestartSec=10
-StandardOutput=append:${path.join(projectRoot, 'logs', 'air.log')}
-StandardError=append:${path.join(projectRoot, 'logs', 'air-error.log')}
+StandardOutput=append:${syspaths.logfile('air.log')}
+StandardError=append:${syspaths.logfile('air-error.log')}
 Environment="NODE_ENV=${this.config.env}"
 Environment="AIR_ROOT=${projectRoot}"
 
@@ -843,9 +844,10 @@ WantedBy=multi-user.target
 `
             
             // Write service file (requires sudo)
-            fs.writeFileSync(`/tmp/${serviceName}.service`, serviceContent)
-            execSync(`sudo cp /tmp/${serviceName}.service ${servicePath}`)
-            fs.unlinkSync(`/tmp/${serviceName}.service`)
+            const tempFile = syspaths.tmp(`${serviceName}.service`)
+            fs.writeFileSync(tempFile, serviceContent)
+            execSync(`sudo cp ${tempFile} ${servicePath}`)
+            fs.unlinkSync(tempFile)
             
             // Reload systemd and enable service
             execSync('sudo systemctl daemon-reload')
@@ -878,9 +880,10 @@ WantedBy=multi-user.target
             // Setup DDNS cron job (runs every 5 minutes)
             // Use bash path for script location
             const ddnsScript = path.join(this.config.bash, 'ddns.js')
-            // Use current node executable instead of hardcoded path
-            const nodeExecutable = process.execPath
-            const ddnsCommand = `${nodeExecutable} ${ddnsScript} --root ${projectRoot} >> ${logDir}/ddns.log 2>&1`
+            // Use detected node executable
+            const nodeExecutable = syspaths.node()
+            const ddnsLogFile = syspaths.logfile('ddns.log')
+            const ddnsCommand = `${nodeExecutable} ${ddnsScript} --root ${projectRoot} >> ${ddnsLogFile} 2>&1`
             const cronEntry = `*/5 * * * * ${ddnsCommand}`
             
             // Get current crontab
@@ -902,9 +905,10 @@ WantedBy=multi-user.target
             
             // Write new crontab
             const newCron = lines.filter(line => line.trim()).join('\n') + '\n'
-            fs.writeFileSync('/tmp/air-cron.txt', newCron)
-            execSync('crontab /tmp/air-cron.txt')
-            fs.unlinkSync('/tmp/air-cron.txt')
+            const cronTempFile = syspaths.crontmp()
+            fs.writeFileSync(cronTempFile, newCron)
+            execSync(`crontab ${cronTempFile}`)
+            fs.unlinkSync(cronTempFile)
             
             console.log('✓ DDNS cron job configured')
         } catch (error) {

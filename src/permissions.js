@@ -4,6 +4,7 @@ import fs from 'fs'
 import path from 'path'
 import { execSync } from 'child_process'
 import os from 'os'
+import syspaths from './syspaths.js'
 
 /**
  * Smart permission handling for Air
@@ -130,7 +131,7 @@ export class Permissions {
     sudoWriteFile(filepath, content, options) {
         try {
             // Write to temp file first
-            const tempFile = `/tmp/air-temp-${Date.now()}`
+            const tempFile = syspaths.tmp(`air-temp-${Date.now()}`)
             fs.writeFileSync(tempFile, content, options)
             
             // Copy with sudo
