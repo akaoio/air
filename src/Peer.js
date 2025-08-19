@@ -11,9 +11,9 @@ import path from "path"
 // Native fetch is available in Node.js 18+
 import { exec } from "child_process"
 import { promisify } from "util"
-import GUN from "gun"
-import "gun/sea.js"
-import "gun/nts.js"
+import GUN from "@akaoio/gun"
+import "@akaoio/gun/sea.js"
+import "@akaoio/gun/nts.js"
 const sea = GUN.SEA
 const execAsync = promisify(exec)
 
