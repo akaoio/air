@@ -39,24 +39,33 @@ Air is a production-ready wrapper for [GUN](https://github.com/amark/gun) that s
 
 ## Installation
 
-### Quick Install (Recommended - NEW)
+### Quick Install (Recommended - ENHANCED)
 
-Air now includes an advanced Node.js installer with static IP configuration support:
+Air now features a seamless installation experience with automatic setup:
 
 ```bash
 git clone https://github.com/akaoio/air.git
 cd air
-npm install
-npm run setup
-npm run config  # Optional: Interactive configuration wizard
+npm install  # Automatically prompts for setup after installation
 ```
 
-**New installer features:**
-- **Static IP Configuration**: Auto-detects and configures static IP (perfect for Orange Pi/Armbian)
-- **Interactive UI**: Colored prompts with validation
-- **Network Detection**: Automatically finds interface, gateway, MAC address
-- **Multiple Config Methods**: Supports nmcli, netplan, and /etc/network/interfaces
-- **Better Error Handling**: Graceful fallbacks and clear error messages
+**Enhanced Installation Features:**
+- **🚀 Seamless Flow**: npm install automatically triggers setup wizard when needed
+- **🔐 Security Hardening**: Built-in security analysis and recommendations
+- **🏗️ Architecture Validation**: Prevents codebase drift with automated checks
+- **✨ Smart Defaults**: Intelligent configuration based on environment detection
+- **🎯 Quick Setup**: Streamlined wizard gets you running in under 60 seconds
+
+### Post-Installation Commands
+
+```bash
+npm start           # Start Air server
+npm run ui          # Start with interactive UI
+npm run security    # Run security analysis
+npm run arch        # Validate architecture
+npm run status      # Check system status
+npm run logs        # View recent logs
+```
 
 ### Alternative Installation Methods
 

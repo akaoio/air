@@ -1,7 +1,7 @@
 {
     "name": "@akaoio/air",
     "type": "module",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "Distributed graph database",
     "main": "index.js",
     "license": "MIT",
@@ -17,12 +17,15 @@
         "ui": "node ui.js",
         "test": "node test/runner.js",
         "format": "npx prettier --write .",
-        "setup": "node script/install.js",
+        "setup": "node script/quicksetup.js",
+        "setup:advanced": "node script/install.js",
         "config": "node script/config.js",
         "ddns": "node script/ddns.js",
         "status": "node script/status.js",
         "logs": "node script/logs.js",
-        "postinstall": "node script/install.js --check"
+        "security": "node script/security.js",
+        "arch": "node script/architecture.js",
+        "postinstall": "node script/postinstall.js"
     },
     "devDependencies": {
         "prettier": "^2.4.1"
