@@ -13,12 +13,12 @@ import type {
     IPResult,
     Runtime,
     SSLConfig
-} from './types'
+} from './types/index.js'
 
-import { ConfigManager } from './config'
-import { ProcessManager } from './process'
-import { StatusReporter } from './status'
-import network from './network'
+import { ConfigManager } from './config.js'
+import { ProcessManager } from './process.js'
+import { StatusReporter } from './status.js'
+import network from './network.js'
 
 import http from 'http'
 import https from 'https'
@@ -259,7 +259,7 @@ export class Peer implements IPeer {
         }
         
         // Initialize GUN
-        this.gun = GUN({
+        this.gun = (GUN as any)({
             web: this.server,
             peers: envConfig?.peers || [],
             file: dataPath,

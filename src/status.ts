@@ -9,7 +9,13 @@ import network from './network.js'
  * Reports alive status, IP updates, and DDNS updates to GUN
  */
 class StatusReporter {
-    constructor(options = {}) {
+    user: any
+    config: any
+    intervals: any
+    timers: any
+    lastStatus: any
+    
+    constructor(options: any = {}) {
         this.user = options.user || null
         this.config = options.config || {}
         this.intervals = {
@@ -43,7 +49,7 @@ class StatusReporter {
      */
     stop() {
         Object.values(this.timers).forEach(timer => {
-            if (timer) clearTimeout(timer)
+            if (timer) clearTimeout(timer as any)
         })
         this.timers = { alive: null, ip: null, ddns: null }
     }

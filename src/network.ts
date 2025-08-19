@@ -1,19 +1,17 @@
 #!/usr/bin/env node
 
-import { execSync } from 'child_process'
 import fetch from 'node-fetch'
 import dns from 'dns'
-import { promisify } from 'util'
 import net from 'net'
-
-const dnsLookup = promisify(dns.lookup)
-const dnsResolve4 = promisify(dns.resolve4)
-const dnsResolve6 = promisify(dns.resolve6)
 
 /**
  * Network utilities with IPv4/IPv6 dual-stack support
  */
 class Network {
+    ipv4Services: string[]
+    ipv6Services: string[]
+    dnsServers: any
+    
     constructor() {
         this.ipv4Services = [
             'https://api.ipify.org?format=json',
@@ -56,7 +54,7 @@ class Network {
             // Check for IPv6 interfaces
             const interfaces = require('os').networkInterfaces()
             for (const iface of Object.values(interfaces)) {
-                for (const config of iface) {
+                for (const config of (iface as any)) {
                     if (config.family === 'IPv6' && !config.internal) {
                         return true
                     }
@@ -144,9 +142,8 @@ class Network {
         for (const service of this.ipv4Services) {
             try {
                 const response = await fetch(service, {
-                    timeout: 5000,
                     headers: { 'User-Agent': 'Air-GUN-Peer/1.0' }
-                })
+                } as any)
                 const text = await response.text()
                 
                 // Handle JSON responses
@@ -173,9 +170,8 @@ class Network {
         for (const service of this.ipv6Services) {
             try {
                 const response = await fetch(service, {
-                    timeout: 5000,
                     headers: { 'User-Agent': 'Air-GUN-Peer/1.0' }
-                })
+                } as any)
                 const text = await response.text()
                 
                 // Handle JSON responses
@@ -263,7 +259,7 @@ class Network {
         const result = []
         
         for (const [name, configs] of Object.entries(interfaces)) {
-            for (const config of configs) {
+            for (const config of (configs as any)) {
                 if (!config.internal) {
                     result.push({
                         name,

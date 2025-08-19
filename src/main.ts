@@ -1,4 +1,4 @@
-import { db } from "./db"
+import { db } from "./db.js"
 const main = async () => {
     await db.start()
 }

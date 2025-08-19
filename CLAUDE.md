@@ -1,482 +1,463 @@
-# Air - GUN Database Wrapper Codebase Documentation
+# Air - GUN Database System Codebase Documentation for AI Assistants
 
 > **Last Updated**: December 2024  
-> **Version**: 1.0.0  
+> **Version**: 2.0.0  
+> **Language**: TypeScript
 > **Status**: Production Ready
 
 ## Project Overview
 
-Air is a production-ready wrapper for the GUN distributed graph database that provides peer-to-peer synchronization, automatic SSL management, and dynamic DNS updates. It is built on a custom enhanced version of GUN from akaoio/gun.
+Air is a production-ready distributed database system built on GUN, providing peer-to-peer synchronization, automatic SSL management, and dynamic DNS updates. The codebase has been fully migrated to TypeScript for type safety and modern development practices.
 
-## Quick Reference for AI Assistants
+## Critical Information for AI Assistants
 
-When working with this codebase:
-1. **Function naming convention**: All functions must use single-word names. Related functions are grouped using dot notation.
-   - Single-word functions: `read()`, `write()`, `sync()`, `init()`, `restart()`, `start()`, `run()`, `online()`, `activate()`
-   - Grouped functions: `ip.get()`, `ip.validate()`, `status.ddns()`, `status.ip()`, `status.alive()`
-   - No camelCase, underscores, or hyphens in function names
-2. **Test everything**: Run `npm test` before committing changes
-3. **PID file management**: Air uses PID files to prevent duplicate instances
-4. **Configuration precedence**: CLI arguments > environment variables > configuration file > defaults
-5. **Restart behavior**: Exponential backoff with jitter (5s, 10s, 20s, 40s, 60s max)
+### TypeScript and ES Modules
+
+**IMPORTANT**: This project uses TypeScript with ES modules for Node.js. When working with imports:
+
+1. **All relative imports MUST have `.js` extensions** even though source files are `.ts`:
+   ```typescript
+   // CORRECT - even though the file is config.ts
+   import { ConfigManager } from './config.js'
+   
+   // WRONG - will fail in Node.js
+   import { ConfigManager } from './config'
+   ```
+
+2. **Why this works**: TypeScript understands that `'./config.js'` refers to `./config.ts` during compilation, and the output will actually be `./config.js`
+
+3. **Build configurations**:
+   - `tsconfig.json` - Strict configuration for development
+   - `tsconfig.prod.json` - Permissive configuration for production builds with `"module": "NodeNext"`
+
+### Runtime Support
+
+Air supports three runtime environments:
+1. **Bun**: Native TypeScript execution (fastest)
+2. **Node.js with TypeScript**: Using tsx for development
+3. **Node.js without TypeScript**: Compiled JavaScript in `dist/` directory
+
+### Function Naming Convention
+
+**STRICT RULE**: All functions must use single-word names. Related functions are grouped using dot notation:
+- Single-word functions: `read()`, `write()`, `sync()`, `init()`, `restart()`
+- Grouped functions: `ip.get()`, `ip.validate()`, `status.ddns()`, `status.alive()`
+- **NEVER** use camelCase, underscores, or hyphens in function names
 
 ## Architecture & Core Components
 
-### Main Entry Points
+### Directory Structure
 
--   `main.js` - Application entry point that initializes and starts the database
--   `index.js` - Module export file for using Air as a library
--   `db.js` - Database instance factory that creates the Peer instance
+```
+src/                  # TypeScript source files
+├── main.ts          # Entry point
+├── index.ts         # Module exports
+├── db.ts            # Database factory
+├── Peer.ts          # Core peer class
+├── config.ts        # Configuration management
+├── process.ts       # Process management
+├── status.ts        # Status reporting
+├── network.ts       # Network utilities
+├── paths.ts         # Path resolution
+├── lib/
+│   └── utils.ts     # Utility functions
+└── types/
+    └── index.ts     # TypeScript type definitions
 
-### Core Class: Peer (Peer.js)
+dist/                # Compiled JavaScript output
+├── *.js            # Compiled ES modules
+└── lib/
+    └── utils.js    # Compiled utilities
 
-The `Peer` class is the heart of the application, managing:
+test/               # Test files (JavaScript)
+├── runner.js       # Test runner
+├── unit/          # Unit tests
+└── integration/   # Integration tests
+```
 
--   HTTP/HTTPS server creation with SSL support
--   GUN database initialization and peer connections
--   Configuration management (reading/writing air.json)
--   Automatic restart on crashes (maximum 5 attempts with exponential backoff)
--   User authentication using GUN SEA cryptographic pairs
--   Public IP detection using multiple methods (DNS and HTTP)
--   Dynamic DNS updates for GoDaddy
--   Remote configuration synchronization
--   Heartbeat/alive status reporting
+### Core Classes and Their Responsibilities
 
-Key methods in Peer.js:
+#### Peer Class (src/Peer.ts)
 
-**Core Methods (single-word naming):**
--   `start()` - Main initialization sequence (sync → run → online)
--   `init()` - Server initialization with error handling and restart logic
--   `restart()` - Handles server restart attempts with progressive delays
--   `run()` - Initializes GUN instance and user authentication
--   `online()` - Authenticates user and starts status reporting loops
--   `activate()` - Links peer to system hub
--   `read()` - Reads configuration from air.json file
--   `write()` - Writes configuration to air.json file
--   `sync()` - Syncs configuration from remote URL (runs every hour)
+The main class managing the distributed database instance:
 
-**IP Detection Methods (grouped with dot notation):**
--   `ip.get()` - Main IP detection method with fallbacks
--   `ip.validate()` - Validates IP address format and range
--   `ip.dns()` - DNS-based IP detection (dig/nslookup)
--   `ip.http()` - HTTP-based IP detection
--   `ip.config()` - Returns IP detection configuration
-
-**Status Methods (grouped with dot notation):**
--   `status.ddns()` - Updates GoDaddy DNS records (runs every 5 minutes)
--   `status.ip()` - Reports current public IP (runs every 5 minutes)
--   `status.alive()` - Sends heartbeat status (runs every minute)
-
-**Process Management (single-word naming):**
--   `checkpid()` - Checks for running instances via PID file
--   `cleanpid()` - Removes PID file on exit
--   `findport()` - Finds process using specific port
-
-**Internal Helper Methods (single-word naming):**
--   `getip()` - Internal method for IP detection
--   `dnsip()` - Internal DNS IP detection
--   `httpip()` - Internal HTTP IP detection
--   `configip()` - Internal IP config getter
--   `validateip()` - Internal IP validation
--   `ddns()` - Internal DDNS update
--   `updateip()` - Internal IP update
--   `alive()` - Internal alive status
-
-### Utilities
-
--   `libs/utils.js` - Contains `merge()` function for deep merging configuration objects
-
-## Configuration
-
-### Main Configuration File: air.json
-
-```json
-{
-    "root": "/path/to/air",           // Project root directory
-    "bash": "/path/to/scripts",       // Script directory
-    "env": "production",               // Environment (production/development)
-    "name": "mypeer",                  // Peer name
-    "sync": "https://...",            // Remote config sync URL (optional)
-    "ip": {                           // IP detection configuration
-        "timeout": 5000,
-        "dnstimeout": 3000,
-        "agent": "Air-GUN-Peer/1.0",
-        "dns": [...],                 // DNS services for IP detection
-        "http": [...]                 // HTTP services for IP detection
-    },
-    "production": {                   // Environment-specific config
-        "domain": "peer.example.com",
-        "port": 443,
-        "ssl": {
-            "key": "/path/to/privkey.pem",
-            "cert": "/path/to/cert.pem"
-        },
-        "godaddy": {                  // DDNS configuration
-            "domain": "example.com",
-            "host": "peer",
-            "key": "api_key",
-            "secret": "api_secret"
-        },
-        "peers": ["wss://peer1.com/gun"],
-        "pair": {                     // SEA cryptographic keys
-            "pub": "...",
-            "priv": "...",
-            "epub": "...",
-            "epriv": "..."
-        }
+```typescript
+export class Peer implements IPeer {
+    // Core methods (single-word naming)
+    async start()      // Main initialization
+    async restart()    // Restart with backoff
+    async init()       // Server initialization
+    async run()        // GUN initialization
+    async online()     // User authentication
+    async sync()       // Config synchronization
+    
+    // IP methods (dot notation grouping)
+    ip = {
+        get: async () => IPResult
+        validate: (ip: string) => boolean
+        dns: async () => string | null
+        http: async () => string | null
+    }
+    
+    // Status methods (dot notation grouping)
+    status = {
+        ddns: async () => void
+        ip: async () => void
+        alive: () => void
     }
 }
 ```
 
-### Environment Variables
+#### ConfigManager (src/config.ts)
 
-The application supports configuration via environment variables:
+Handles configuration with precedence: CLI > ENV > file > defaults
 
--   `ROOT` - Project root directory
--   `BASH` - Script directory
--   `ENV` - Environment (production/development)
--   `NAME` - Peer name
--   `DOMAIN` - Domain name
--   `PORT` - Server port
--   `SSL_KEY` - Path to SSL private key
--   `SSL_CERT` - Path to SSL certificate
--   `PUB`, `PRIV`, `EPUB`, `EPRIV` - SEA cryptographic keys
--   `IP_TIMEOUT` - IP detection timeout
--   `IP_DNS_TIMEOUT` - DNS query timeout
--   `IP_AGENT` - User agent for HTTP requests
-
-### Command Line Arguments
-
-The application accepts command-line arguments (processed sequentially):
-
-1. `argv[2]` - root directory
-2. `argv[3]` - bash directory
-3. `argv[4]` - environment
-4. `argv[5]` - peer name
-5. `argv[6]` - domain
-6. `argv[7]` - port
-7. `argv[8]` - SSL key path
-8. `argv[9]` - SSL cert path
-9. `argv[10-13]` - SEA keys (pub, priv, epub, epriv)
-
-## Dependencies
-
--   `gun` (github:akaoio/gun) - Custom enhanced GUN database
--   `node-fetch` (^3.0.0) - HTTP client for external API calls
--   `prettier` (^2.4.1) - Code formatter (dev dependency)
-
-## Installation & Management Scripts
-
-### install.sh
-
-An interactive installer that configures:
-
--   Environment configuration
--   SSL certificates (Let's Encrypt)
--   Systemd service
--   GoDaddy DDNS cron jobs
--   Peer connections
-
-Supports both interactive and command-line argument modes.
-
-### update.sh
-
-An automated update script that:
-
--   Pulls Git updates
--   Updates npm packages
--   Renews SSL certificates
--   Restarts services
-
-### ddns.sh
-
-Updates GoDaddy DNS A records with the current public IP address.
-
-### uninstall.sh
-
-Removes the systemd service and cleans up cron jobs.
-
-## Code Style & Conventions
-
-### JavaScript Style
-
--   ES6 modules (`import`/`export`)
--   Modern JavaScript features (arrow functions, async/await, optional chaining)
--   Configuration precedence: Command arguments > environment variables > configuration file > defaults
--   Error handling with try/catch blocks and Promise chains
--   Automatic retry logic for critical operations
-
-
-## Build & Test Commands
-
-### Available NPM Scripts
-
-```bash
-npm start          # Start the application (runs main.js)
-npm test           # Run test suite
-npm run format     # Format code with Prettier
+```typescript
+export class ConfigManager {
+    read(): AirConfig
+    write(config: AirConfig): void
+    merge(...configs: Partial<AirConfig>[]): AirConfig
+}
 ```
 
-### Running the Application
+#### ProcessManager (src/process.ts)
 
-```bash
-# Development mode
-npm start
+PID file management and port conflict detection:
 
-# Production mode with environment variable
-ENV=production npm start
-
-# With command-line arguments
-node main.js /path/to/root /path/to/bash production mypeer example.com 443
+```typescript
+export class ProcessManager {
+    checkpid(): boolean
+    cleanpid(): void
+    find(port: number): ProcessInfo | null
+}
 ```
 
-### Code Formatting
+#### StatusReporter (src/status.ts)
+
+Status reporting to GUN database:
+
+```typescript
+export class StatusReporter {
+    start(): void
+    stop(): void
+    alive(): void
+    ip(): Promise<void>
+    ddns(): Promise<void>
+}
+```
+
+#### Network (src/network.ts)
+
+IP detection and DDNS updates:
+
+```typescript
+class Network {
+    get(): Promise<IPResult>
+    validate(ip: string): boolean
+    update(config: AirConfig, ips: IPResult): Promise<UpdateResult[]>
+}
+```
+
+## Type System
+
+### Main Types (src/types/index.ts)
+
+```typescript
+interface AirConfig {
+    name: string
+    env: Environment
+    root?: string
+    bash?: string
+    sync?: string
+    [env: string]: EnvironmentConfig | any
+}
+
+interface EnvironmentConfig {
+    domain?: string
+    port: number
+    ssl?: SSLConfig
+    peers?: string[]
+    pair?: SEAPair
+    godaddy?: GoDaddyConfig
+}
+
+type Environment = 'production' | 'development'
+type Runtime = 'bun' | 'node' | 'deno'
+```
+
+## Building and Compilation
+
+### Development
 
 ```bash
-npm run format     # Format all files with Prettier
+# Run with Bun (native TypeScript)
+bun run src/main.ts
+
+# Run with Node.js + tsx
+npx tsx src/main.ts
+
+# Development with hot reload (Bun)
+npm run dev
+```
+
+### Production Build
+
+```bash
+# Compile TypeScript to JavaScript
+npm run build:prod
+# This runs: npx tsc -p tsconfig.prod.json
+
+# Run compiled JavaScript
+node dist/main.js
+```
+
+### Build Configuration Details
+
+**tsconfig.prod.json** (for production builds):
+```json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": false,
+    "noImplicitAny": false,
+    "skipLibCheck": true
+  }
+}
+```
+
+## Testing
+
+Tests remain in JavaScript for simplicity:
+
+```bash
+npm test              # Run all tests
+npm run test:unit     # Unit tests only
+npm run test:integration  # Integration tests
+```
+
+Test coverage includes:
+- Configuration precedence
+- IP detection methods
+- Restart logic
+- PID file management
+- Error scenarios
+
+## Common Development Tasks
+
+### Adding a New Feature
+
+1. Create TypeScript file in `src/`
+2. Use `.js` extensions for all relative imports
+3. Follow single-word or dot notation naming
+4. Add types to `src/types/index.ts`
+5. Run `npm run build:prod` to compile
+6. Test with `npm test`
+
+### Fixing TypeScript Errors
+
+If you encounter compilation errors:
+1. Use `npx tsc -p tsconfig.prod.json` for permissive build
+2. Cast problematic expressions with `as any` if needed
+3. Ensure all relative imports have `.js` extensions
+
+### Debugging
+
+```bash
+# Check TypeScript compilation
+npx tsc --noEmit
+
+# Build with source maps
+npx tsc -p tsconfig.prod.json --sourceMap
+
+# Run with debugging
+DEBUG=* node dist/main.js
 ```
 
 ## Important Implementation Details
 
 ### Restart Logic
 
-The Peer class implements automatic restart on server errors:
-
--   Maximum of 5 restart attempts
--   Progressive delay with exponential backoff:
-    -   Base delay: 5 seconds
-    -   Doubles with each attempt: 5s → 10s → 20s → 40s → 60s (capped at 60s)
-    -   Includes ±20% jitter to prevent the thundering herd problem
--   Resets counter upon successful start
--   Exits process after maximum attempts are reached
+- Maximum 5 attempts with exponential backoff
+- Delays: 5s → 10s → 20s → 40s → 60s (capped)
+- ±20% jitter to prevent thundering herd
 
 ### IP Detection Strategy
 
-Multiple fallback methods for detecting the public IP address:
-
-1. DNS queries using dig (fastest)
-2. DNS queries using nslookup (fallback)
-3. HTTP requests to multiple services
-4. Validates IP format and excludes private/reserved ranges
+1. DNS queries (fastest)
+2. HTTP requests to multiple services
+3. Validates IP format and excludes private ranges
 
 ### Configuration Merging
 
-Deep merge strategy with the following precedence:
-
-1. Command-line arguments (highest priority)
+Precedence (highest to lowest):
+1. Command-line arguments
 2. Environment variables
 3. Configuration file (air.json)
-4. Default values (lowest priority)
+4. Default values
 
-### Security Features
+### PID File Management
 
--   SEA cryptographic authentication
--   SSL/TLS support with automatic certificate management
--   Secure key storage in configuration
--   IP validation to prevent private IP address exposure
+- Creates `.air-${name}.pid` files
+- Prevents duplicate instances
+- Cleans up on exit
 
-## Monitoring & Status
+## Migration from JavaScript (v1.x)
 
-The application maintains several status update loops:
+### What Changed
 
--   **Heartbeat**: Every 60 seconds (alive status)
--   **IP Update**: Every 5 minutes (public IP detection)
--   **DDNS Update**: Every 5 minutes (GoDaddy DNS)
--   **Config Sync**: Every hour (remote configuration)
+1. **Language**: JavaScript → TypeScript
+2. **Imports**: Now require `.js` extensions
+3. **Build step**: Required for Node.js deployment
+4. **Type safety**: Full type definitions
+5. **Structure**: Source in `src/`, output in `dist/`
 
-All status updates are written to the authenticated GUN user node.
+### Key Migration Decisions
 
-## Error Handling
+1. **Why `.js` extensions in TypeScript?**
+   - Node.js ES modules require file extensions
+   - TypeScript's `"module": "NodeNext"` expects this pattern
+   - Avoids post-processing scripts (no monkey patches)
 
-The application includes comprehensive error handling:
+2. **Why two tsconfig files?**
+   - `tsconfig.json`: Strict for development and IDE support
+   - `tsconfig.prod.json`: Permissive for building runnable code
 
--   Server errors trigger automatic restarts
--   Failed operations log errors without crashing
--   Promise rejections are caught and logged
--   Network timeouts are configurable
--   Graceful degradation when optional features fail
-
-## Usage as a Module
-
-```javascript
-import { db } from "./index.js"
-
-const main = async () => {
-    await db.start()
-
-    // Access GUN instance and utilities
-    const { GUN, gun, sea, user } = db
-
-    // Your application logic
-    user.get("profile").put({ name: "Alice" })
-}
-
-main()
-```
-
-## GUN SEA Access
-
-Air exposes the complete GUN SEA API through:
-- `db.GUN` - GUN constructor
-- `db.gun` - GUN instance  
-- `db.sea` - SEA cryptographic functions
-- `db.user` - Air's authenticated user (keys from air.json `[env].pair`)
-
-Example implementations are available in the `examples/` directory.
-
-## Environment-Specific Behavior
-
-### Development
-
--   Default port: 8765
--   Default domain: localhost
--   No SSL by default
--   Simplified configuration
-
-### Production
-
--   Requires domain configuration
--   Automatic SSL with Let's Encrypt
--   DDNS updates enabled
--   Full peer synchronization
-
-## Testing
-
-The project includes a comprehensive test suite:
-
-```bash
-npm test  # Run all tests
-```
-
-### Test Structure
-- `test/runner.js` - Custom test runner with colored output
-- `test/unit/` - Unit tests for individual components
-  - `peer.test.js` - Peer class tests (45+ test cases)
-  - `utils.test.js` - Utility function tests (30+ test cases)
-  - `config.test.js` - Configuration handling tests (20+ test cases)
-  - `ip.test.js` - IP detection tests (25+ test cases)
-- `test/integration/` - Integration tests
-  - `lifecycle.test.js` - Full lifecycle tests (15+ test cases)
-- `test/fixtures/` - Test data and temporary files
-
-### Test Coverage
-- Configuration precedence and merging
-- IP validation and detection methods
-- Restart logic with exponential backoff
-- PID file management
-- Edge cases (null, undefined, malformed data)
-- Error scenarios (network failures, port conflicts)
-- Mock support for fetch, filesystem, process operations
-
-## Recent Changes & Improvements
-
-### December 2024
-1. **Refactored method names**: Removed all camelCase in favor of single-word names or dot notation
-2. **Added PID file management**: Prevents duplicate instances
-3. **Enhanced port conflict detection**: Better error messages and process identification
-4. **Comprehensive test suite**: 135+ test cases covering all components
-5. **Progressive restart delay**: Exponential backoff with jitter
-6. **Improved IP detection**: Multiple fallback methods (DNS, HTTP)
-
-## Notes for Future Development
-
-1. **Linting**: Consider adding ESLint for code consistency
-
-2. **Type Checking**: Consider adding TypeScript or JSDoc type annotations
-
-3. **Logging**: Currently uses console.log/error. Consider implementing structured logging.
-
-4. **Monitoring**: Status updates are written to GUN. Consider adding external monitoring/alerting.
-
-5. **Documentation**: API documentation for module usage could be expanded.
-
-6. **Security**: Review cryptographic key management and consider implementing key rotation.
-
-7. **Performance**: IP detection runs every 5 minutes. Consider caching or event-based updates.
-
-## Common Tasks
-
-### Adding a New Peer
-
-Edit air.json and add the new peer to the peers array:
-
-```json
-"peers": [
-    "wss://existing-peer.com/gun",
-    "wss://new-peer.com/gun"
-]
-```
-
-### Changing Port
-
-Update the port in air.json under the appropriate environment:
-
-```json
-"production": {
-    "port": 8080
-}
-```
-
-### Enabling SSL
-
-1. Obtain a domain and point it to the server
-2. Run the installer with the --ssl flag
-3. Alternatively, manually add SSL configuration to air.json
-
-### Debugging
-
--   Check systemd logs: `journalctl -u air-[name]`
--   View application output: `npm start`
--   Inspect configuration: `cat air.json`
--   Check GUN data: Files in `radata/` directory
--   Check for running instances: `ls -la .air-*.pid`
--   Find process using port: `lsof -i:8765` or `netstat -tlnp | grep :8765`
--   Run tests: `npm test`
+3. **Why keep tests in JavaScript?**
+   - Simpler test runner
+   - No compilation needed for tests
+   - Tests verify compiled output works
 
 ## Best Practices
 
 ### When Modifying Code
-1. **Run tests first**: Execute `npm test` to ensure nothing is broken
-2. **Follow the naming convention**: 
-   - All functions must use single-word names (e.g., `read()`, `write()`, `sync()`)
-   - Use dot notation to group related functions (e.g., `ip.get()`, `status.ddns()`)
-   - Never use camelCase, underscores, or hyphens in function names
-3. **Add tests for new features**: Place them in the appropriate test file
-4. **Update documentation**: Update both README.md and CLAUDE.md
-5. **Format code**: Run `npm run format` before committing
-6. **Use tmp/ for temporary files**: ALL temporary files, test outputs, and development artifacts MUST be placed in the `tmp/` directory (which is gitignored). Never create test, report, or trash files in the root or other directories
+
+1. **Always test builds**: Run `npm run build:prod` before committing
+2. **Verify imports**: Ensure all relative imports use `.js` extensions
+3. **Check runtime compatibility**: Test with `node dist/main.js`
+4. **Follow naming convention**: Single words or dot notation only
+5. **Update types**: Add new interfaces to `src/types/index.ts`
+6. **Use tmp/ for temporary files**: Never create temporary files elsewhere
+
+### TypeScript Guidelines
+
+1. **Import extensions**: Always use `.js` for relative imports
+2. **Type safety**: Add types where possible, use `any` sparingly
+3. **Build errors**: Use `tsconfig.prod.json` for permissive builds
+4. **Runtime detection**: Check `typeof Bun !== 'undefined'` for Bun
 
 ### Configuration Management
-1. **Never commit secrets**: Keep API keys in environment variables
-2. **Use configuration precedence**: CLI > ENV > file for flexibility
-3. **Validate configuration values**: Check for null/undefined before use
-4. **Back up air.json**: Create a backup before making major changes
 
-### Error Handling
-1. **Do not suppress errors**: Log them for debugging
-2. **Use try-catch blocks**: Especially for asynchronous operations
-3. **Implement fallbacks**: Particularly for network operations
-4. **Test error scenarios**: Include them in the test suite
+1. **Never commit secrets**: Use environment variables
+2. **Test configuration**: Verify with `ConfigManager.read()`
+3. **Backup air.json**: Before major changes
+4. **Validate values**: Check for null/undefined
 
-### Performance Considerations
-1. **IP detection caching**: Runs every 5 minutes; consider if more frequent updates are needed
-2. **Restart delays**: Exponential backoff prevents resource exhaustion
-3. **PID file checks**: Prevent duplicate instances and port conflicts
-4. **Configuration sync interval**: Runs every hour; adjust if needed
+## Troubleshooting Guide
 
-## Important Guidelines
+### Common Issues and Solutions
 
-### Naming Conventions
-- **Do not use camelCase**: All function names must be single words
-- **Do not use hyphens or underscores**: Only single-word naming is allowed
-- **Use dot notation for grouping**: Related functions can be grouped using dot notation (e.g., `ip.get()`, `status.alive()`)
+1. **Import errors in Node.js**
+   - Ensure all relative imports have `.js` extensions
+   - Check `"module": "NodeNext"` in tsconfig
+
+2. **TypeScript compilation fails**
+   - Use `tsconfig.prod.json` for production builds
+   - Cast problematic expressions to `any` if needed
+
+3. **Module not found errors**
+   - Verify file exists in `src/`
+   - Check import path includes `.js`
+   - Ensure TypeScript compiled successfully
+
+4. **PID file issues**
+   - Remove stale `.air-*.pid` files
+   - Check process not already running
+
+## Development Workflow
+
+### Standard Development Cycle
+
+```bash
+# 1. Make changes in src/
+edit src/feature.ts
+
+# 2. Ensure imports use .js
+import { something } from './other.js'
+
+# 3. Build
+npm run build:prod
+
+# 4. Test
+npm test
+
+# 5. Run
+node dist/main.js
+
+# 6. Commit
+git add -A
+git commit -m "feat: add new feature"
+git push
+```
+
+### Quick Commands Reference
+
+```bash
+npm start          # Run with best available runtime
+npm run dev        # Development with hot reload (Bun)
+npm run build:prod # Compile TypeScript to JavaScript
+npm test           # Run test suite
+npm run format     # Format code with Prettier
+```
+
+## Important Notes
 
 ### File Management
-- **Temporary files**: All temporary files, test outputs, and development artifacts must be placed in the `tmp/` directory
-- **Keep root clean**: Never create test, report, or trash files in the root directory or other project directories
-- **Git ignore tmp/**: The `tmp/` directory must be included in `.gitignore`
+- **Source files**: TypeScript in `src/`
+- **Compiled output**: JavaScript in `dist/`
+- **Temporary files**: MUST use `tmp/` directory
+- **Configuration**: `air.json` in root
+- **Tests**: JavaScript in `test/`
 
-### Development Workflow
-- **Test before committing**: Always run `npm test` and ensure all tests pass before committing
-- **Commit completed features**: Always commit and push when features are fixed or added
-- **Maintain test coverage**: Add tests for all new features and bug fixes
+### Git Workflow
+- `.gitignore` includes `dist/` and `tmp/`
+- Commit source files, not compiled output
+- Always push after fixing features
+
+### Performance Considerations
+- Bun: ~500ms startup, native TypeScript
+- Node.js + tsx: ~800ms startup, TypeScript transpilation
+- Node.js compiled: ~800ms startup, no transpilation overhead
+
+## Current Status (December 2024)
+
+### Completed
+✅ Full TypeScript migration
+✅ ES module configuration with .js extensions
+✅ Multi-runtime support (Bun, Node+TS, Node compiled)
+✅ Production build configuration
+✅ Type definitions for all components
+✅ No monkey patches or workarounds
+
+### Known Limitations
+- Some files excluded from strict build (syspaths.ts, permissions.ts)
+- GUN types use `any` due to complex dynamic API
+- Test files remain in JavaScript
+
+### Future Improvements
+- Stricter TypeScript configuration
+- Better GUN type definitions
+- TypeScript test migration
+- Source map support in production
+
+---
+
+**For AI Assistants**: When working on this codebase, always remember:
+1. Use `.js` extensions in all relative imports
+2. Follow single-word or dot notation naming
+3. Test with `npm run build:prod` before committing
+4. Place temporary files in `tmp/` only
+5. This is TypeScript that compiles to ES modules for Node.js

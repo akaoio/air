@@ -2,9 +2,9 @@
 
 import fs from 'fs'
 import path from 'path'
-import { merge } from './lib/utils'
-import { getPaths } from './paths'
-import type { AirConfig } from './types'
+import { merge } from './lib/utils.js'
+import { getPaths } from './paths.js'
+import type { AirConfig } from './types/index.js'
 
 interface ConfigOptions {
     rootArg?: string
@@ -17,6 +17,7 @@ interface PathInfo {
     root: string
     bash: string
     config: string
+    [key: string]: any // Allow other properties from getPaths
 }
 
 /**
@@ -32,8 +33,12 @@ class ConfigManager {
     
     constructor(options: ConfigOptions = {}) {
         const paths = getPaths(options.rootArg, options.bashArg)
-        this.paths = paths
-        this.configFile = options.configFile || paths.config
+        this.paths = {
+            root: paths.root || process.cwd(),
+            bash: paths.bash || path.join(process.cwd(), 'script'),
+            config: paths.config || path.join(process.cwd(), 'air.json')
+        }
+        this.configFile = options.configFile || this.paths.config
         this.syncUrl = options.syncUrl || null
         this.cache = null
         this.lastSync = null
@@ -53,7 +58,7 @@ class ConfigManager {
             const config = JSON.parse(content) as AirConfig
             
             // Merge with defaults
-            this.cache = merge(this.getDefaultConfig(), config)
+            this.cache = merge(this.getDefaultConfig(), config) as AirConfig
             return this.cache
         } catch (error: any) {
             console.error(`Error reading config from ${this.configFile}:`, error.message)
@@ -147,12 +152,12 @@ class ConfigManager {
     getDefaultConfig(): AirConfig {
         const paths = this.paths
         
-        return {
+        const config: AirConfig = {
             root: paths.root,
             bash: paths.bash,
-            env: process.env.ENV || 'development',
+            env: (process.env.ENV || 'development') as any,
             name: process.env.NAME || 'air',
-            sync: null,
+            sync: undefined,
             ip: {
                 timeout: 5000,
                 dnsTimeout: 3000,
@@ -176,7 +181,8 @@ class ConfigManager {
                 domain: '',
                 peers: []
             }
-        } as AirConfig
+        }
+        return config
     }
 
     /**
@@ -186,13 +192,13 @@ class ConfigManager {
         // Root-level environment variables
         if (process.env.ROOT) config.root = process.env.ROOT
         if (process.env.BASH) config.bash = process.env.BASH
-        if (process.env.ENV) config.env = process.env.ENV
+        if (process.env.ENV) config.env = process.env.ENV as any
         if (process.env.NAME) config.name = process.env.NAME
         if (process.env.SYNC) config.sync = process.env.SYNC
         
         // Environment-specific variables
         const env = config.env
-        const envConfig = config[env] || {}
+        const envConfig: any = config[env] || {}
         
         if (process.env.PORT) envConfig.port = parseInt(process.env.PORT)
         if (process.env.DOMAIN) envConfig.domain = process.env.DOMAIN
@@ -241,7 +247,7 @@ class ConfigManager {
         }
         
         // Check environment config exists
-        const envConfig = config[config.env]
+        const envConfig: any = config[config.env]
         if (!envConfig) {
             errors.push(`Environment config for '${config.env}' not found`)
         } else {

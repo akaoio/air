@@ -125,7 +125,7 @@ class ProcessManager {
             const pid = execSync(command, { encoding: 'utf8' }).trim()
             if (pid) {
                 // Get process details
-                const psCommand = process.platform === 'win32' 
+                const psCommand = process.platform === 'win32' as any
                     ? `tasklist /FI "PID eq ${pid}" /FO CSV`
                     : `ps -p ${pid} -o comm=`
                     
