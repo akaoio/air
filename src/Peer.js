@@ -898,9 +898,26 @@ export class Peer {
     updateip(callback = () => {}) {
         return new Promise((resolve, reject) => {
             if (!this.user.is) return reject()
+            
+            // Initialize IP tracking if not exists
+            if (!this.ipTracking) {
+                this.ipTracking = {
+                    lastIP: null,
+                    lastCheck: 0,
+                    checksWithoutChange: 0,
+                    failureCount: 0,
+                    checkInterval: 60000, // Start with 1 minute
+                    minInterval: 30000,   // 30 seconds minimum
+                    normalInterval: 60000, // 1 minute normal
+                    maxInterval: 300000   // 5 minutes maximum
+                }
+            }
+            
             this.getip()
                 .then(ip => {
                     if (ip) {
+                        const hasChanged = this.ipTracking.lastIP && this.ipTracking.lastIP !== ip
+                        
                         // Store both IPv4 and IPv6 if available
                         const ipData = {
                             ip: ip, // Primary IP for backward compatibility
@@ -915,28 +932,94 @@ export class Peer {
                             else resolve(response)
                         })
                         
-                        // Update DDNS with both IPs if configured
-                        if (this.config[this.env]?.godaddy && this.publicIPs) {
-                            network.updateddns(this.config[this.env], this.publicIPs)
-                                .then(results => {
-                                    console.log("DDNS update results:", results)
-                                })
-                                .catch(err => {
-                                    console.error("DDNS update failed:", err)
-                                })
+                        // IP change detected - update immediately and check more frequently
+                        if (hasChanged) {
+                            console.log(`[IP CHANGE] ${this.ipTracking.lastIP} → ${ip}`)
+                            this.ipTracking.checksWithoutChange = 0
+                            this.ipTracking.checkInterval = this.ipTracking.minInterval // Fast check
+                            
+                            // Update DDNS immediately on change
+                            if (this.config[this.env]?.godaddy && this.publicIPs) {
+                                network.updateddns(this.config[this.env], this.publicIPs)
+                                    .then(results => {
+                                        console.log("[DDNS] Updated successfully:", results)
+                                    })
+                                    .catch(err => {
+                                        console.error("[DDNS] Update failed:", err)
+                                        // Retry DDNS update after 10 seconds
+                                        setTimeout(() => {
+                                            network.updateddns(this.config[this.env], this.publicIPs)
+                                                .catch(e => console.error("[DDNS] Retry failed:", e))
+                                        }, 10000)
+                                    })
+                            }
+                        } else {
+                            // No change - gradually slow down checking
+                            this.ipTracking.checksWithoutChange++
+                            
+                            // Adaptive interval based on stability
+                            if (this.ipTracking.checksWithoutChange > 10) {
+                                // Very stable - check every 5 minutes
+                                this.ipTracking.checkInterval = this.ipTracking.maxInterval
+                            } else if (this.ipTracking.checksWithoutChange > 5) {
+                                // Stable - check every 2 minutes
+                                this.ipTracking.checkInterval = 120000
+                            } else if (this.ipTracking.checksWithoutChange > 2) {
+                                // Normal - check every minute
+                                this.ipTracking.checkInterval = this.ipTracking.normalInterval
+                            }
+                            // else keep fast checking after recent change
                         }
+                        
+                        // Update tracking
+                        this.ipTracking.lastIP = ip
+                        this.ipTracking.lastCheck = Date.now()
+                        this.ipTracking.failureCount = 0
+                        
                     } else {
-                        reject(new Error("Unable to detect public IP"))
+                        // IP detection failed
+                        this.ipTracking.failureCount++
+                        
+                        // Use cached IP if available and recent failure
+                        if (this.ipTracking.lastIP && this.ipTracking.failureCount < 3) {
+                            console.warn("[IP] Detection failed, using cached IP:", this.ipTracking.lastIP)
+                            resolve({ cached: true, ip: this.ipTracking.lastIP })
+                        } else {
+                            reject(new Error("Unable to detect public IP"))
+                        }
                     }
                 })
-                .catch(e => reject(e))
+                .catch(e => {
+                    this.ipTracking.failureCount++
+                    
+                    // Use cached IP on temporary failure
+                    if (this.ipTracking.lastIP && this.ipTracking.failureCount < 3) {
+                        console.warn("[IP] Detection error, using cached:", e.message)
+                        resolve({ cached: true, ip: this.ipTracking.lastIP })
+                    } else {
+                        reject(e)
+                    }
+                })
         }).then(
             response => {
                 if (callback) callback(response)
-                setTimeout(() => this.status.ip(), 5 * 60 * 1000)
+                
+                // Schedule next check with adaptive interval
+                const nextCheck = this.ipTracking?.checkInterval || 60000
+                setTimeout(() => this.status.ip(), nextCheck)
+                
+                // Log next check time if in debug mode
+                if (process.env.DEBUG) {
+                    console.log(`[IP] Next check in ${nextCheck/1000}s`)
+                }
+                
                 return this
             },
-            e => console.error(e)
+            e => {
+                console.error("[IP] Update failed:", e)
+                // Retry sooner on failure
+                setTimeout(() => this.status.ip(), 30000)
+            }
         )
     }
 
