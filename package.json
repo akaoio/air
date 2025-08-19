@@ -1,5 +1,5 @@
 {
-    "name": "air",
+    "name": "@akaoio/air",
     "type": "module",
     "version": "1.0.0",
     "description": "Distributed graph database",
@@ -20,6 +20,8 @@
         "setup": "node script/install.js",
         "config": "node script/config.js",
         "ddns": "node script/ddns.js",
+        "status": "node script/status.js",
+        "logs": "node script/logs.js",
         "postinstall": "node script/install.js --check"
     },
     "devDependencies": {
