@@ -245,7 +245,7 @@ ${colors.bright}This script will:${colors.reset}
             this.success('Air process stopped')
             
             // Remove PID files
-            const pidFiles = fs.readdirSync(this.config.root).filter(f => f.startsWith('.air-') && f.endsWith('.pid'))
+            const pidFiles = fs.readdirSync(this.config.root).filter(f => f.startsWith('.air') && f.endsWith('.pid'))
             pidFiles.forEach(file => {
                 const pidFile = path.join(this.config.root, file)
                 fs.unlinkSync(pidFile)

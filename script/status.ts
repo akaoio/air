@@ -40,7 +40,7 @@ function checkService(): ServiceStatus {
         const name = config.name || 'air'
 
         // Check for PID file
-        const pidFiles = fs.readdirSync(paths.root).filter(f => f.startsWith('.air-') && f.endsWith('.pid'))
+        const pidFiles = fs.readdirSync(paths.root).filter(f => f.startsWith('.air') && f.endsWith('.pid'))
         
         if (pidFiles.length > 0) {
             const pidFile = path.join(paths.root, pidFiles[0])

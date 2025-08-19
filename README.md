@@ -304,7 +304,7 @@ console.log('Current status:', status)
    # Find process using port
    lsof -i:8765
    # Or check PID file
-   ls -la .air-*.pid
+   ls -la .air*.pid
    ```
 
 2. **TypeScript compilation errors**:
@@ -320,7 +320,7 @@ console.log('Current status:', status)
 4. **Multiple instances**:
    ```bash
    # Remove stale PID files
-   rm .air-*.pid
+   rm .air*.pid
    ```
 
 ### Debugging

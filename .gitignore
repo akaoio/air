@@ -127,7 +127,7 @@ ssl/
 .air-state.json
 .air-backups/
 .update-log.json
-.air-*.pid
+.air*.pid
 .air-feedback.json
 .air-analytics.json
 air-feedback-export-*.json

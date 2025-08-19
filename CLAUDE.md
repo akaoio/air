@@ -301,7 +301,7 @@ Precedence (highest to lowest):
 
 ### PID File Management
 
-- Creates `.air-${name}.pid` files
+- Creates `.${name}.pid` files (e.g., `.air.pid`)
 - Prevents duplicate instances
 - Cleans up on exit
 
@@ -374,7 +374,7 @@ Precedence (highest to lowest):
    - Ensure TypeScript compiled successfully
 
 4. **PID file issues**
-   - Remove stale `.air-*.pid` files
+   - Remove stale `.air*.pid` files
    - Check process not already running
 
 ## Development Workflow
