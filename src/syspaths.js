@@ -4,10 +4,15 @@ import os from 'os'
 import path from 'path'
 import fs from 'fs'
 import { execSync } from 'child_process'
+import { fileURLToPath } from 'url'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 /**
  * Centralized system paths management
  * NO HARDCODED PATHS - Everything is detected intelligently
+ * Respects air.json configuration when available
  */
 
 class SystemPaths {
@@ -16,6 +21,53 @@ class SystemPaths {
         this.homedir = os.homedir()
         this.tmpdir = os.tmpdir()
         this.cache = {}
+        this.airConfig = null
+        this.loadAirConfig()
+    }
+
+    /**
+     * Load air.json configuration if available
+     * This allows air.json to override system detection
+     */
+    loadAirConfig() {
+        try {
+            // Try multiple locations for air.json
+            const locations = [
+                path.join(process.cwd(), 'air.json'),
+                path.join(path.dirname(path.dirname(__dirname)), 'air.json'), // Parent of src/
+                process.env.AIR_CONFIG // Environment variable
+            ].filter(Boolean)
+            
+            for (const loc of locations) {
+                if (fs.existsSync(loc)) {
+                    this.airConfig = JSON.parse(fs.readFileSync(loc, 'utf8'))
+                    break
+                }
+            }
+        } catch {
+            // air.json not found or invalid - use auto-detection
+        }
+    }
+
+    /**
+     * Get root directory from air.json or auto-detect
+     */
+    root() {
+        if (this.airConfig?.root) {
+            return path.resolve(this.airConfig.root)
+        }
+        return process.cwd()
+    }
+
+    /**
+     * Get bash/scripts directory from air.json or auto-detect
+     */
+    bash() {
+        if (this.airConfig?.bash) {
+            return path.resolve(this.airConfig.bash)
+        }
+        // Default to script directory
+        return path.join(this.root(), 'script')
     }
 
     /**
@@ -135,8 +187,30 @@ class SystemPaths {
 
     /**
      * Get SSL certificate paths for a domain
+     * Respects air.json SSL configuration first
      */
     ssl(domain) {
+        // Check air.json for SSL config first
+        const env = this.airConfig?.env || 'development'
+        if (this.airConfig?.[env]?.ssl) {
+            const sslConfig = this.airConfig[env].ssl
+            const root = this.airConfig?.root || process.cwd()
+            
+            // Handle relative or absolute paths
+            const resolvePath = (p) => {
+                if (!p) return null
+                return path.isAbsolute(p) ? p : path.join(root, p)
+            }
+            
+            return {
+                key: resolvePath(sslConfig.key),
+                cert: resolvePath(sslConfig.cert),
+                chain: resolvePath(sslConfig.chain),
+                fullchain: resolvePath(sslConfig.fullchain || sslConfig.cert)
+            }
+        }
+        
+        // Fallback to Let's Encrypt detection
         const leDir = this.letsencrypt()
         if (!leDir) return null
         
@@ -163,10 +237,31 @@ class SystemPaths {
 
     /**
      * Get log directory
-     * Intelligently determines the best location
+     * Respects air.json configuration or intelligently determines the best location
      */
     logs(appname = 'air') {
         if (this.cache.logs) return this.cache.logs
+        
+        // Check if logs path is configured in air.json
+        const env = this.airConfig?.env || 'development'
+        if (this.airConfig?.[env]?.logs) {
+            const configuredLogs = path.resolve(this.airConfig[env].logs)
+            if (!fs.existsSync(configuredLogs)) {
+                fs.mkdirSync(configuredLogs, { recursive: true })
+            }
+            this.cache.logs = configuredLogs
+            return configuredLogs
+        }
+        
+        // Default to logs directory in root from air.json
+        if (this.airConfig?.root) {
+            const rootLogs = path.join(this.airConfig.root, 'logs')
+            if (!fs.existsSync(rootLogs)) {
+                fs.mkdirSync(rootLogs, { recursive: true })
+            }
+            this.cache.logs = rootLogs
+            return rootLogs
+        }
         
         // Check standard locations
         const locations = [
@@ -437,6 +532,50 @@ class SystemPaths {
     clearcache() {
         this.cache = {}
     }
+
+    /**
+     * Update configuration from air.json
+     * This allows dynamic updates when air.json changes
+     */
+    updateConfig(config) {
+        if (config && typeof config === 'object') {
+            this.airConfig = config
+            this.clearcache() // Clear cache to use new config
+        }
+    }
+
+    /**
+     * Get service name from air.json or default
+     */
+    serviceName(defaultName = 'air') {
+        return this.airConfig?.name || defaultName
+    }
+
+    /**
+     * Check if running as a module
+     * Air can run standalone or as an npm module
+     */
+    isModule() {
+        // Check if we're in node_modules
+        const scriptPath = __dirname
+        return scriptPath.includes('node_modules')
+    }
+
+    /**
+     * Get configuration priority
+     * Returns where configuration should be read from
+     */
+    configPriority() {
+        return {
+            isModule: this.isModule(),
+            hasAirJson: !!this.airConfig,
+            configSource: this.airConfig ? 'air.json' : 'auto-detection',
+            root: this.root(),
+            bash: this.bash()
+        }
+    }
 }
 
-export default new SystemPaths()
+// Export as singleton but allow config updates
+const syspaths = new SystemPaths()
+export default syspaths

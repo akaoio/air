@@ -467,6 +467,10 @@ export class Peer {
                     config = JSON.parse(config)
                     this.config = merge(this.config, config)
                     this.configLastModified = modifiedTime
+                    
+                    // Update syspaths with new config
+                    syspaths.updateConfig(this.config)
+                    
                     console.log('Configuration reloaded from air.json')
                 }
             } catch (error) {
@@ -543,6 +547,9 @@ export class Peer {
             // Update modification tracking after write
             const stat = fs.statSync(this.config.path)
             this.configLastModified = stat.mtime.getTime()
+            
+            // Update syspaths with new config
+            syspaths.updateConfig(this.config)
         }
         return this.config
     }
