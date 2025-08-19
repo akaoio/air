@@ -34,6 +34,7 @@
         "health": "node script/lifecycle.js health",
         "feedback": "node script/feedback.js",
         "test:lifecycle": "node test/lifecycle.test.js",
+        "ipwatch": "node script/ipwatch.js",
         "postinstall": "node script/postinstall.js"
     },
     "devDependencies": {
