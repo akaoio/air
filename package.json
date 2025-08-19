@@ -10,7 +10,6 @@
     },
     "dependencies": {
         "@akaoio/gun": "^0.2020.1240",
-        "@akaoio/tui": "2.1.0",
         "node-fetch": "^3.3.2"
     },
     "scripts": {

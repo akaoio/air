@@ -1,5 +1,6 @@
 # Project
 *.service
+*.bak
 air.json
 config.json
 ddns.json
