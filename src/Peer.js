@@ -1,4 +1,5 @@
 import { merge } from "./lib/utils.js"
+import { getPaths } from "./paths.js"
 import http from "http"
 import https from "https"
 import fs from "fs"
@@ -87,9 +88,14 @@ export class Peer {
         }
         this.pidFile = null // Will be set after config initialization
 
-        const cwd = fileURLToPath(path.dirname(import.meta.url))
-
-        this.config.root = this.config.root || process.env.ROOT || process.argv[2] || process.env.PWD || process.cwd() || cwd
+        // Use smart path detection
+        const paths = getPaths(
+            this.config.root || process.env.ROOT || process.argv[2],
+            this.config.bash || process.env.BASH || process.argv[3]
+        )
+        
+        this.config.root = paths.root
+        this.config.bash = paths.bash
 
         // Validate root path to prevent path traversal BEFORE using it
         const rootStr = String(this.config.root || '')
@@ -474,12 +480,13 @@ export class Peer {
 
     generate(env = defaults.environment) {
         const dev = env === 'development'
+        const paths = getPaths() // Get paths for default config
         
         return {
             name: dev ? 'localhost' : null,
             env,
-            root: process.cwd(),
-            bash: process.cwd(),
+            root: paths.root,
+            bash: paths.bash,
             sync: null,
             
             [env]: {

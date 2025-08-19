@@ -6,6 +6,7 @@ import { exec } from 'child_process'
 import { promisify } from 'util'
 // Native fetch is available in Node.js 18+
 import { fileURLToPath } from 'url'
+import { getPaths } from '../src/paths.js'
 
 const execAsync = promisify(exec)
 const __filename = fileURLToPath(import.meta.url)
@@ -13,8 +14,11 @@ const __dirname = path.dirname(__filename)
 
 class DDNS {
     constructor() {
+        // Use smart path detection
+        const paths = getPaths()
+        
         this.config = {
-            root: process.cwd(),
+            root: paths.root,
             env: null,
             domain: null,
             host: null,

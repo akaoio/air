@@ -5,13 +5,18 @@ import path from 'path'
 import { execSync } from 'child_process'
 import { fileURLToPath } from 'url'
 import { Terminal, colors, red, green, yellow, blue, cyan, gray, white, bold, dim } from '@akaoio/tui'
+import { getPaths } from '../src/paths.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 class Uninstaller {
     constructor() {
-        this.config = {}
+        // Initialize with smart path detection
+        const paths = getPaths()
+        this.config = {
+            root: paths.root
+        }
         this.configFile = 'air.json'
         this.terminal = new Terminal()
         this.parseargs()
@@ -48,7 +53,8 @@ class Uninstaller {
         }
         
         if (!this.config.root) {
-            this.config.root = process.cwd()
+            const paths = getPaths()
+            this.config.root = paths.root
         }
     }
 
@@ -228,10 +234,6 @@ class Uninstaller {
 
     async removecron() {
         try {
-            // Remove cron jobs for this specific Air instance
-            const cronIdentifier = `# Air DDNS for ${this.config.name}`
-            const cronPath = `cd ${this.config.root} && /usr/bin/node ddns.js`
-            
             // Get current crontab
             let currentCron = ''
             try {
@@ -241,18 +243,27 @@ class Uninstaller {
                 return 'No cron jobs found'
             }
             
-            // Filter out Air-related entries for this instance
+            // Filter out Air-related entries (both old and new formats)
             const lines = currentCron.split('\n')
             const filtered = lines.filter(line => {
-                return !line.includes(cronIdentifier) && 
-                       !line.includes(cronPath) &&
-                       !line.includes(`air-${this.config.name}-ddns.log`)
+                return !line.includes('ddns.js') && 
+                       !line.includes('ddns.sh') &&
+                       !line.includes('air-ddns') &&
+                       !line.includes(`air-${this.config.name}`)
             })
             
             // Update crontab
             if (filtered.length < lines.length) {
-                const newCron = filtered.join('\n')
-                execSync(`echo "${newCron}" | crontab -`, { shell: '/bin/bash' })
+                const newCron = filtered.filter(line => line.trim()).join('\n')
+                if (newCron.trim()) {
+                    // Write new crontab if there are remaining entries
+                    fs.writeFileSync('/tmp/air-cron-uninstall.txt', newCron + '\n')
+                    execSync('crontab /tmp/air-cron-uninstall.txt')
+                    fs.unlinkSync('/tmp/air-cron-uninstall.txt')
+                } else {
+                    // Remove crontab entirely if empty
+                    execSync('crontab -r 2>/dev/null || true')
+                }
                 return 'Cron jobs removed'
             } else {
                 return 'No Air cron jobs found'

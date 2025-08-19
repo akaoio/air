@@ -9,11 +9,12 @@
         "air-install": "./script/install.js"
     },
     "dependencies": {
-        "@akaoio/tui": "^2.0.6",
+        "@akaoio/tui": "2.1.0",
         "gun": "github:akaoio/gun"
     },
     "scripts": {
         "start": "node main.js",
+        "ui": "node ui.js",
         "test": "node test/runner.js",
         "format": "npx prettier --write .",
         "setup": "node script/install.js",

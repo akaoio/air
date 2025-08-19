@@ -6,6 +6,7 @@ import path from 'path'
 import os from 'os'
 import { fileURLToPath } from 'url'
 import { Terminal, colors, red, green, yellow, blue, cyan, gray, white, bold, dim } from '@akaoio/tui'
+import { getPaths } from '../src/paths.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -13,9 +14,12 @@ class AirInstaller {
     constructor() {
         this.parseArgs()
         
+        // Use smart path detection
+        const paths = getPaths(this.args.root, this.args.bash)
+        
         this.config = {
-            root: this.args.root || process.cwd(),
-            bash: __dirname,
+            root: paths.root,
+            bash: paths.bash,
             env: this.args.env || 'development',
             name: this.args.name || 'air',
             port: this.args.port || 8765,
@@ -819,7 +823,49 @@ class AirInstaller {
 
     async setupCron() {
         if (!this.config.godaddy || !this.config.godaddy.domain) return
-        // Implementation for cron setup
+        
+        try {
+            const projectRoot = this.config.root
+            const logDir = path.join(projectRoot, 'logs')
+            
+            // Create logs directory if it doesn't exist
+            if (!fs.existsSync(logDir)) {
+                fs.mkdirSync(logDir, { recursive: true })
+            }
+            
+            // Setup DDNS cron job (runs every 5 minutes)
+            // Use bash path for script location
+            const ddnsScript = path.join(this.config.bash, 'ddns.js')
+            const ddnsCommand = `cd ${projectRoot} && /usr/bin/node ${ddnsScript} >> ${logDir}/ddns.log 2>&1`
+            const cronEntry = `*/5 * * * * ${ddnsCommand}`
+            
+            // Get current crontab
+            let currentCron = ''
+            try {
+                currentCron = execSync('crontab -l 2>/dev/null').toString()
+            } catch (e) {
+                // No existing crontab
+            }
+            
+            // Remove old Air-related entries
+            const lines = currentCron.split('\n').filter(line => 
+                !line.includes('ddns.js') && 
+                !line.includes('air-ddns')
+            )
+            
+            // Add new entry
+            lines.push(cronEntry)
+            
+            // Write new crontab
+            const newCron = lines.filter(line => line.trim()).join('\n') + '\n'
+            fs.writeFileSync('/tmp/air-cron.txt', newCron)
+            execSync('crontab /tmp/air-cron.txt')
+            fs.unlinkSync('/tmp/air-cron.txt')
+            
+            console.log('✓ DDNS cron job configured')
+        } catch (error) {
+            console.error('Failed to setup cron job:', error.message)
+        }
     }
 
     async setupStaticIPInteractive() {

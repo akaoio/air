@@ -4,14 +4,18 @@ import fs from 'fs'
 import path from 'path'
 import { execSync } from 'child_process'
 import { fileURLToPath } from 'url'
+import { getPaths } from '../src/paths.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 class Updater {
     constructor() {
+        // Use smart path detection
+        const paths = getPaths()
+        
         this.config = {
-            root: process.cwd(),
+            root: paths.root,
             name: 'air'
         }
         this.configFile = 'air.json'
