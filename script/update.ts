@@ -7,14 +7,14 @@ import { execSync } from 'child_process'
 import { fileURLToPath } from 'url'
 import { getPaths } from '../src/paths.js'
 import type { AirConfig } from '../src/types/index.js'
-import { AirUI, LocalService, isWindows, isMac, isTermux, hasSystemd, hasSudo } from './ui.js'
+import { TUI, LocalService, isWindows, isMac, isTermux, hasSystemd, hasSudo } from '@akaoio/tui'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 class AirUpdater {
     private config: any
-    private ui: AirUI
+    private ui: TUI
     
     constructor() {
         // Use smart path detection
@@ -26,7 +26,7 @@ class AirUpdater {
             env: 'development'
         }
         
-        this.ui = new AirUI('Air System Updater')
+        this.ui = new TUI({ title: 'Air System Updater' })
         this.loadConfig()
     }
 

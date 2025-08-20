@@ -10,7 +10,7 @@ import { getPaths } from '../src/paths.js'
 import syspaths from '../src/syspaths.js'
 import permissions from '../src/permissions.js'
 import type { AirConfig } from '../src/types/index.js'
-import { AirUI, LocalSSL, LocalService, getPlatformPaths, hasSudo, hasSystemd, isTermux, isWindows, isMac, isLinux } from './ui.js'
+import { TUI, LocalSSL, LocalService, getPlatformPaths, hasSudo, hasSystemd, isTermux, isWindows, isMac, isLinux } from '@akaoio/tui'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -39,7 +39,7 @@ class AirInstaller {
     private args: InstallerArgs
     private platform: NodeJS.Platform
     private hostname: string
-    private ui: AirUI
+    private ui: TUI
     private domainValue: string = '' // Store domain value to avoid asking twice
     
     constructor() {
@@ -61,7 +61,7 @@ class AirInstaller {
         }
         this.platform = os.platform()
         this.hostname = os.hostname()
-        this.ui = new AirUI('Air GUN Database Installer')
+        this.ui = new TUI({ title: 'Air GUN Database Installer' })
     }
     
     parseArgs(): void {

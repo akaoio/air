@@ -7,18 +7,18 @@ import { execSync } from 'child_process'
 import { fileURLToPath } from 'url'
 import { getPaths } from '../src/paths.js'
 import type { AirConfig } from '../src/types/index.js'
-import { AirUI, isWindows, isMac, isTermux, hasSystemd } from './ui.js'
+import { TUI, isWindows, isMac, isTermux, hasSystemd } from '@akaoio/tui'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 class AirStatus {
     private config: any
-    private ui: AirUI
+    private ui: TUI
     private paths: any
     
     constructor() {
         this.paths = getPaths()
-        this.ui = new AirUI('Air System Status')
+        this.ui = new TUI({ title: 'Air System Status' })
         this.config = this.loadConfig()
     }
     
