@@ -6,33 +6,13 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import { fileURLToPath } from 'url'
-import { getPaths } from '../src/paths'
-import syspaths from '../src/syspaths'
-import permissions from '../src/permissions'
-import readline from 'readline'
-import type { AirConfig } from '../src/types'
+import { getPaths } from '../src/paths.js'
+import syspaths from '../src/syspaths.js'
+import permissions from '../src/permissions.js'
+import type { AirConfig } from '../src/types/index.js'
+import { AirUI, LocalSSL, LocalService, getPlatformPaths, hasSudo, hasSystemd, isTermux, isWindows, isMac, isLinux } from './ui.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-
-// ANSI color codes
-const colors = {
-    reset: '\x1b[0m',
-    bright: '\x1b[1m',
-    dim: '\x1b[2m',
-    red: '\x1b[31m',
-    green: '\x1b[32m',
-    yellow: '\x1b[33m',
-    blue: '\x1b[34m',
-    magenta: '\x1b[35m',
-    cyan: '\x1b[36m',
-    white: '\x1b[37m',
-    bgRed: '\x1b[41m',
-    bgGreen: '\x1b[42m',
-    bgYellow: '\x1b[43m',
-    bgBlue: '\x1b[44m',
-    bgMagenta: '\x1b[45m',
-    bgCyan: '\x1b[46m'
-}
 
 interface InstallerArgs {
     check?: boolean
@@ -54,17 +34,13 @@ interface InstallerArgs {
     }
 }
 
-interface SystemInfo {
-    hasSystemd?: boolean
-}
-
 class AirInstaller {
     private config: any
     private args: InstallerArgs
     private platform: NodeJS.Platform
     private hostname: string
-    private systemInfo: SystemInfo
-    private rl: readline.Interface
+    private ui: AirUI
+    private domainValue: string = '' // Store domain value to avoid asking twice
     
     constructor() {
         this.args = {}
@@ -81,18 +57,11 @@ class AirInstaller {
             port: this.args.port || 8765,
             domain: this.args.domain || 'localhost',
             peers: [],
-            sync: null,
-            ssl: false,
-            godaddy: {},
-            network: {}
+            sync: null
         }
         this.platform = os.platform()
         this.hostname = os.hostname()
-        this.systemInfo = {}
-        this.rl = readline.createInterface({
-            input: process.stdin,
-            output: process.stdout
-        })
+        this.ui = new AirUI('Air GUN Database Installer')
     }
     
     parseArgs(): void {
@@ -103,6 +72,7 @@ class AirInstaller {
         }
         
         const argv = process.argv.slice(2)
+        
         for (let i = 0; i < argv.length; i++) {
             const arg = argv[i]
             
@@ -110,8 +80,7 @@ class AirInstaller {
                 this.args.check = true
             } else if (arg === '--quick' || arg === '-q') {
                 this.args.quick = true
-                this.args.nonInteractive = true
-            } else if (arg === '--non-interactive' || arg === '-n') {
+            } else if (arg === '--non-interactive' || arg === '--yes' || arg === '-y') {
                 this.args.nonInteractive = true
             } else if ((arg === '--root' || arg === '-r') && i + 1 < argv.length) {
                 this.args.root = argv[++i]
@@ -119,7 +88,7 @@ class AirInstaller {
                 this.args.bash = argv[++i]
             } else if ((arg === '--env' || arg === '-e') && i + 1 < argv.length) {
                 this.args.env = argv[++i]
-            } else if ((arg === '--name') && i + 1 < argv.length) {
+            } else if ((arg === '--name' || arg === '-n') && i + 1 < argv.length) {
                 this.args.name = argv[++i]
             } else if ((arg === '--port' || arg === '-p') && i + 1 < argv.length) {
                 this.args.port = parseInt(argv[++i])
@@ -136,429 +105,339 @@ class AirInstaller {
                     key: argv[++i],
                     secret: argv[++i]
                 }
+                i++ // Skip secret arg
             }
         }
     }
     
-    // Colored output methods
-    success(message: string): void {
-        console.log(colors.green + colors.bright + '✓ ' + colors.reset + colors.green + message + colors.reset)
-    }
-    
-    error(message: string): void {
-        console.log(colors.red + colors.bright + '✗ ' + colors.reset + colors.red + message + colors.reset)
-    }
-    
-    warning(message: string): void {
-        console.log(colors.yellow + colors.bright + '⚠ ' + colors.reset + colors.yellow + message + colors.reset)
-    }
-    
-    info(message: string): void {
-        console.log(colors.cyan + 'ℹ ' + message + colors.reset)
-    }
-    
-    header(title: string): void {
-        const width = 60
-        const padding = Math.floor((width - title.length - 2) / 2)
-        const line = '═'.repeat(width)
-        
-        console.log('')
-        console.log(colors.cyan + colors.bright + line + colors.reset)
-        console.log(colors.cyan + colors.bright + '║' + ' '.repeat(padding) + title + ' '.repeat(width - padding - title.length - 2) + '║' + colors.reset)
-        console.log(colors.cyan + colors.bright + line + colors.reset)
-        console.log('')
-    }
-    
-    section(title: string): void {
-        console.log('')
-        console.log(colors.magenta + colors.bright + '▶ ' + title + colors.reset)
-        console.log(colors.magenta + '  ' + '─'.repeat(title.length + 2) + colors.reset)
-        console.log('')
-    }
-    
-    async prompt(question: string, defaultValue = ''): Promise<string> {
-        return new Promise((resolve) => {
-            const q = defaultValue ? `${question} (${colors.dim}${defaultValue}${colors.reset}): ` : `${question}: `
-            this.rl.question(q, (answer) => {
-                resolve(answer || defaultValue)
-            })
-        })
-    }
-    
-    async confirm(question: string, defaultYes = true): Promise<boolean> {
-        const defaultText = defaultYes ? 'Y/n' : 'y/N'
-        const answer = await this.prompt(`${question} (${colors.bright}${defaultText}${colors.reset})`)
-        const normalized = answer.toLowerCase().trim()
-        
-        if (normalized === '') {
-            return defaultYes
+    async run(): Promise<void> {
+        try {
+            this.ui.clear()
+            const header = this.ui.createHeader()
+            console.log(header)
+            
+            await this.checkSystem()
+            
+            if (this.args.check) {
+                console.log('\nSystem check complete.')
+                process.exit(0)
+            }
+            
+            await this.buildConfig()
+            await this.setupDDNS()
+            await this.setupSSL()
+            await this.saveConfig()
+            await this.setupService()
+            await this.finalReport()
+            
+        } catch (err) {
+            this.ui.showError('Installation failed', err.message)
+            process.exit(1)
         }
-        
-        return normalized === 'y' || normalized === 'yes'
     }
     
-    async checkSystem(): Promise<boolean> {
-        this.section('System Check')
+    async checkSystem(): Promise<void> {
+        const items = []
         
-        // Check Node.js version
+        // Node.js version
         const nodeVersion = process.version
-        this.info(`Node.js: ${nodeVersion}`)
+        items.push({ label: 'Node.js', value: nodeVersion, status: 'info' })
         
-        // Check npm version
+        // npm version
         try {
-            const npmVersion = execSync('npm --version').toString().trim()
-            this.info(`npm: ${npmVersion}`)
+            const npmVersion = execSync('npm --version', { encoding: 'utf8' }).trim()
+            items.push({ label: 'npm', value: npmVersion, status: 'info' })
         } catch {
-            this.error('npm: not found')
+            items.push({ label: 'npm', value: 'Not found', status: 'warning' })
         }
         
-        // Check Git
+        // Git version
         try {
-            const gitVersion = execSync('git --version').toString().trim()
-            this.info(`Git: ${gitVersion}`)
+            const gitVersion = execSync('git --version', { encoding: 'utf8' }).trim()
+            items.push({ label: 'Git', value: gitVersion, status: 'info' })
         } catch {
-            this.warning('Git: not found')
+            items.push({ label: 'Git', value: 'Not found', status: 'warning' })
         }
         
-        // Check platform
-        this.info(`Platform: ${this.platform}`)
-        this.info(`Hostname: ${this.hostname}`)
+        // Platform info
+        items.push({ label: 'Platform', value: this.platform, status: 'info' })
+        items.push({ label: 'Hostname', value: this.hostname, status: 'info' })
         
-        // Check permissions
-        const perms = await permissions.check(this.config.root)
-        if (perms.canWrite) {
-            this.success('Permissions: OK')
+        // Permissions
+        const sudoAvailable = hasSudo()
+        items.push({ 
+            label: 'Permissions', 
+            value: sudoAvailable ? 'Full (sudo available)' : 'Limited (no sudo)', 
+            status: sudoAvailable ? 'success' : 'warning' 
+        })
+        
+        // Service management
+        if (isWindows()) {
+            items.push({ label: 'Service', value: 'Windows Startup', status: 'success' })
+        } else if (isMac()) {
+            items.push({ label: 'Service', value: 'launchd', status: 'success' })
+        } else if (isTermux()) {
+            items.push({ label: 'Service', value: 'Termux service', status: 'success' })
+        } else if (hasSystemd()) {
+            items.push({ label: 'Systemd', value: 'Available', status: 'success' })
         } else {
-            this.warning('Permissions: Limited')
+            items.push({ label: 'Service', value: 'Cron fallback', status: 'warning' })
         }
         
-        if (perms.isRoot) {
-            this.warning('Running as root/administrator')
-        }
-        
-        // Check if systemd is available (Linux)
-        if (this.platform === 'linux') {
-            try {
-                execSync('which systemctl', { stdio: 'ignore' })
-                this.systemInfo.hasSystemd = true
-                this.success('Systemd: Available')
-            } catch {
-                this.systemInfo.hasSystemd = false
-                this.warning('Systemd: Not available')
-            }
-        }
-        
-        // Check for existing Air installation
+        // Check for existing installation
         const configPath = path.join(this.config.root, 'air.json')
         if (fs.existsSync(configPath)) {
-            this.warning('Existing Air installation found')
-            const existingConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'))
-            this.info(`  Name: ${existingConfig.name}`)
-            this.info(`  Environment: ${existingConfig.env}`)
-            
-            if (!this.args.nonInteractive) {
-                const overwrite = await this.confirm('Overwrite existing configuration?', false)
-                if (!overwrite) {
-                    this.warning('Installation cancelled')
-                    process.exit(0)
+            try {
+                const existing = JSON.parse(fs.readFileSync(configPath, 'utf8'))
+                items.push({ label: 'Existing Air installation found', value: '', status: 'warning' })
+                items.push({ label: '  Name', value: existing.name, status: 'info' })
+                items.push({ label: '  Environment', value: existing.env, status: 'info' })
+                
+                if (!this.args.nonInteractive) {
+                    const overwrite = await this.ui.confirm('Overwrite existing configuration?', false)
+                    if (!overwrite) {
+                        this.ui.showSuccess('Keeping existing configuration')
+                        process.exit(0)
+                    }
                 }
+            } catch (err) {
+                // Invalid JSON, proceed with installation
             }
         }
         
-        return true
+        const statusSection = this.ui.createStatusSection('System Check', items)
+        console.log(statusSection)
     }
     
-    async configureBasic(): Promise<void> {
-        this.section('Basic Configuration')
+    async buildConfig(): Promise<void> {
+        const items = []
         
         if (!this.args.nonInteractive) {
-            this.config.name = await this.prompt('Node name', this.config.name)
-            this.config.env = await this.prompt('Environment (development/production)', this.config.env)
+            this.config.name = await this.ui.prompt('Instance name', this.config.name)
+            this.config.env = await this.ui.select('Environment', ['development', 'production'], 
+                this.config.env === 'production' ? 1 : 0)
             
             if (this.config.env === 'production') {
-                this.config.domain = await this.prompt('Domain name', this.config.domain)
-                this.config.port = parseInt(await this.prompt('Port', String(this.config.port)))
+                // Store domain to avoid asking twice
+                this.domainValue = await this.ui.prompt('Domain name', this.config.domain)
+                this.config.domain = this.domainValue
+                this.config.port = parseInt(await this.ui.prompt('Port', String(this.config.port)))
                 
-                const enableSSL = await this.confirm('Enable SSL/HTTPS?', this.config.ssl)
-                if (enableSSL) {
+                const setupSSL = await this.ui.confirm('Enable SSL?', true)
+                if (setupSSL) {
                     this.config.ssl = true
                 }
-            } else {
-                this.config.port = parseInt(await this.prompt('Port', String(this.config.port)))
+                
+                const addPeers = await this.ui.confirm('Add peer URLs?', false)
+                if (addPeers) {
+                    const peerList = await this.ui.prompt('Peer URLs (comma-separated)', '')
+                    this.config.peers = peerList.split(',').map(p => p.trim()).filter(p => p)
+                }
             }
             
-            const syncUrl = await this.prompt('Remote config sync URL (optional)', '')
+            const syncUrl = await this.ui.prompt('Remote config sync URL (optional)', '')
             if (syncUrl) {
                 this.config.sync = syncUrl
             }
         }
         
         // Create environment-specific config
-        const envConfig = {
+        const envConfig: any = {
             domain: this.config.domain,
             port: this.config.port,
             peers: this.config.peers || []
         }
         
         if (this.config.ssl) {
+            const paths = getPlatformPaths()
+            const sslPath = paths.ssl
             envConfig.ssl = {
-                key: path.join('/etc/letsencrypt/live', this.config.domain, 'privkey.pem'),
-                cert: path.join('/etc/letsencrypt/live', this.config.domain, 'fullchain.pem')
+                key: path.join(sslPath, `${this.config.domain}.key`),
+                cert: path.join(sslPath, `${this.config.domain}.crt`)
             }
         }
         
         this.config[this.config.env] = envConfig
         
-        // Remove temporary properties
+        // Clean up temporary properties but keep domain for later use
+        this.domainValue = this.config.domain // Store for later
         delete this.config.domain
         delete this.config.port
         delete this.config.peers
         delete this.config.ssl
-        delete this.config.godaddy
-        delete this.config.network
+        
+        items.push({ label: 'Name', value: this.config.name, status: 'success' })
+        items.push({ label: 'Environment', value: this.config.env, status: 'success' })
+        items.push({ label: 'Root', value: this.config.root, status: 'success' })
+        
+        const configSection = this.ui.createStatusSection('Configuration', items)
+        console.log(configSection)
     }
     
-    async configurePeers(): Promise<void> {
-        this.section('Peer Configuration')
+    async setupDDNS(): Promise<void> {
+        if (this.config.env !== 'production') return
+        if (this.args.nonInteractive && !this.args.godaddy) return
         
-        if (this.args.nonInteractive) {
-            this.info('Skipping peer configuration (non-interactive mode)')
-            return
-        }
+        const items = []
         
-        const addPeers = await this.confirm('Add peer connections?', false)
-        if (!addPeers) return
-        
-        const peers = []
-        let addMore = true
-        
-        while (addMore) {
-            const peerUrl = await this.prompt('Peer URL (e.g., wss://peer.example.com/gun)')
-            if (peerUrl) {
-                peers.push(peerUrl)
-                this.success(`Added peer: ${peerUrl}`)
-            }
-            
-            addMore = await this.confirm('Add another peer?', false)
-        }
-        
-        if (peers.length > 0) {
-            this.config[this.config.env].peers = peers
-        }
-    }
-    
-    async configureGodaddy(): Promise<void> {
-        this.section('GoDaddy DDNS Configuration')
-        
-        if (this.args.nonInteractive) {
-            if (this.args.godaddy) {
-                this.config[this.config.env].godaddy = this.args.godaddy
-                this.success('GoDaddy DDNS configured from command line')
-            } else {
-                this.info('Skipping GoDaddy configuration (non-interactive mode)')
-            }
-            return
-        }
-        
-        const useGodaddy = await this.confirm('Configure GoDaddy DDNS?', false)
+        const useGodaddy = this.args.godaddy || await this.ui.confirm('Configure GoDaddy DDNS?', false)
         if (!useGodaddy) return
         
-        const godaddy = {}
-        godaddy.domain = await this.prompt('GoDaddy domain (e.g., example.com)')
-        godaddy.host = await this.prompt('Subdomain/host (e.g., peer)', '@')
-        godaddy.key = await this.prompt('GoDaddy API key')
-        godaddy.secret = await this.prompt('GoDaddy API secret')
+        const godaddy: any = this.args.godaddy || {}
+        
+        if (!this.args.godaddy) {
+            // Use stored domain value if it matches or ask for a new one
+            const defaultDomain = this.domainValue?.includes('.') ? 
+                this.domainValue.split('.').slice(-2).join('.') : ''
+            godaddy.domain = await this.ui.prompt('GoDaddy domain (e.g., example.com)', defaultDomain)
+            
+            const defaultHost = this.domainValue?.includes('.') ? 
+                this.domainValue.split('.').slice(0, -2).join('.') || '@' : '@'
+            godaddy.host = await this.ui.prompt('Subdomain/host (e.g., peer)', defaultHost)
+            
+            godaddy.key = await this.ui.prompt('GoDaddy API key')
+            godaddy.secret = await this.ui.prompt('GoDaddy API secret', '', true)
+        }
         
         this.config[this.config.env].godaddy = godaddy
-        this.success('GoDaddy DDNS configured')
+        
+        items.push({ label: 'Domain', value: godaddy.domain, status: 'success' })
+        items.push({ label: 'Host', value: godaddy.host, status: 'success' })
+        items.push({ label: 'API Key', value: '***' + godaddy.key.slice(-4), status: 'success' })
+        
+        const ddnsSection = this.ui.createStatusSection('GoDaddy DDNS', items)
+        console.log(ddnsSection)
     }
     
     async setupSSL(): Promise<void> {
         if (!this.config[this.config.env].ssl) return
         
-        this.section('SSL Certificate Setup')
-        
-        const domain = this.config[this.config.env].domain
+        const items = []
+        const ssl = new LocalSSL()
+        const domain = this.config[this.config.env].domain || this.domainValue
         
         // Check if certificates already exist
         const keyPath = this.config[this.config.env].ssl.key
         const certPath = this.config[this.config.env].ssl.cert
         
         if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
-            this.success('SSL certificates already exist')
-            return
-        }
-        
-        if (this.args.nonInteractive) {
-            this.warning('SSL certificates not found. Please set up manually.')
-            return
-        }
-        
-        // Install certbot if needed
-        this.info('Checking for certbot...')
-        try {
-            execSync('which certbot', { stdio: 'ignore' })
-            this.success('Certbot found')
-        } catch {
-            this.info('Installing certbot...')
-            
-            try {
-                if (this.platform === 'linux') {
-                    // Try apt first
+            items.push({ label: 'SSL Status', value: 'Certificates exist', status: 'success' })
+        } else {
+            if (this.args.nonInteractive) {
+                items.push({ label: 'SSL Status', value: 'Manual setup required', status: 'warning' })
+            } else {
+                const sslMethod = await this.ui.select('SSL Certificate Method', [
+                    'Self-signed (for testing)',
+                    'Let\'s Encrypt (production)',
+                    'Skip SSL setup'
+                ], 0)
+                
+                if (sslMethod === 'Self-signed (for testing)') {
                     try {
-                        execSync('sudo apt-get update && sudo apt-get install -y certbot', { stdio: 'inherit' })
-                    } catch {
-                        // Try yum
-                        try {
-                            execSync('sudo yum install -y certbot', { stdio: 'inherit' })
-                        } catch {
-                            // Try snap
-                            execSync('sudo snap install --classic certbot', { stdio: 'inherit' })
-                        }
+                        const result = await ssl.generateSelfSigned(domain)
+                        this.config[this.config.env].ssl = result
+                        items.push({ label: 'SSL Status', value: 'Self-signed created', status: 'success' })
+                    } catch (err) {
+                        items.push({ label: 'SSL Status', value: 'Failed: ' + err.message, status: 'error' })
                     }
+                } else if (sslMethod === 'Let\'s Encrypt (production)') {
+                    const email = await this.ui.prompt('Email for SSL notifications')
+                    try {
+                        const result = await ssl.generateLetsEncrypt(domain, email)
+                        this.config[this.config.env].ssl = result
+                        items.push({ label: 'SSL Status', value: 'Let\'s Encrypt obtained', status: 'success' })
+                    } catch (err) {
+                        items.push({ label: 'SSL Status', value: 'Failed: ' + err.message, status: 'error' })
+                        items.push({ label: 'Note', value: 'Manual setup required', status: 'warning' })
+                    }
+                } else {
+                    delete this.config[this.config.env].ssl
+                    items.push({ label: 'SSL Status', value: 'Skipped', status: 'info' })
                 }
-                this.success('Certbot installed')
-            } catch (err) {
-                this.error('Failed to install certbot. Please install manually.')
-                return
             }
         }
         
-        // Request certificate
-        this.info(`Requesting SSL certificate for ${domain}...`)
-        
-        try {
-            const email = await this.prompt('Email for SSL notifications')
-            const cmd = `sudo certbot certonly --standalone -d ${domain} --email ${email} --agree-tos --non-interactive`
-            
-            execSync(cmd, { stdio: 'inherit' })
-            this.success('SSL certificate obtained successfully')
-        } catch (err) {
-            this.error('Failed to obtain SSL certificate')
-            this.info('Please run certbot manually or check your domain configuration')
+        if (items.length > 0) {
+            const sslSection = this.ui.createStatusSection('SSL Certificate', items)
+            console.log(sslSection)
         }
     }
     
-    async setupSystemd(): Promise<void> {
-        if (!this.systemInfo.hasSystemd) return
-        if (this.config.env !== 'production') return
-        
-        this.section('Systemd Service Setup')
-        
-        if (this.args.nonInteractive) {
-            this.info('Skipping systemd setup (non-interactive mode)')
-            return
-        }
-        
-        const setupService = await this.confirm('Set up systemd service?', true)
-        if (!setupService) return
-        
-        const serviceName = `air-${this.config.name}`
-        const serviceFile = `/etc/systemd/system/${serviceName}.service`
-        
-        const serviceContent = `[Unit]
-Description=Air GUN Database - ${this.config.name}
-After=network.target
-
-[Service]
-Type=simple
-User=${process.env.USER || 'root'}
-WorkingDirectory=${this.config.root}
-ExecStart=/usr/bin/node ${path.join(this.config.root, 'main.js')}
-Restart=on-failure
-RestartSec=10
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=${serviceName}
-Environment="NODE_ENV=${this.config.env}"
-
-[Install]
-WantedBy=multi-user.target`
-        
-        try {
-            // Write service file
-            fs.writeFileSync(`/tmp/${serviceName}.service`, serviceContent)
-            execSync(`sudo mv /tmp/${serviceName}.service ${serviceFile}`)
-            
-            // Reload systemd
-            execSync('sudo systemctl daemon-reload')
-            
-            // Enable service
-            execSync(`sudo systemctl enable ${serviceName}`)
-            
-            this.success(`Service ${serviceName} created and enabled`)
-            
-            const startNow = await this.confirm('Start the service now?', true)
-            if (startNow) {
-                execSync(`sudo systemctl start ${serviceName}`)
-                this.success(`Service ${serviceName} started`)
-            }
-        } catch (err) {
-            this.error(`Failed to set up systemd service: ${err.message}`)
-        }
-    }
-    
-    async saveConfiguration(): Promise<void> {
-        this.section('Saving Configuration')
-        
+    async saveConfig(): Promise<void> {
         const configPath = path.join(this.config.root, 'air.json')
         
         try {
             fs.writeFileSync(configPath, JSON.stringify(this.config, null, 2))
-            this.success(`Configuration saved to ${configPath}`)
+            this.ui.showSuccess(`Configuration saved to ${configPath}`)
         } catch (err) {
-            this.error(`Failed to save configuration: ${err.message}`)
-            process.exit(1)
+            throw new Error(`Failed to save configuration: ${err.message}`)
         }
     }
     
-    showSummary(): void {
-        console.log('')
-        console.log(colors.green + colors.bright + '╔════════════════════════════════════════════════════════════╗' + colors.reset)
-        console.log(colors.green + colors.bright + '║' + colors.reset + '           🎉 ' + colors.green + colors.bright + 'Air Installation Complete!' + colors.reset + ' 🎉              ' + colors.green + colors.bright + '║' + colors.reset)
-        console.log(colors.green + colors.bright + '╚════════════════════════════════════════════════════════════╝' + colors.reset)
-        console.log('')
-        console.log(colors.bright + 'Configuration:' + colors.reset)
-        console.log(`  📛 Name: ${colors.cyan}${this.config.name}${colors.reset}`)
-        console.log(`  🌍 Environment: ${colors.cyan}${this.config.env}${colors.reset}`)
-        console.log(`  📁 Root: ${colors.cyan}${this.config.root}${colors.reset}`)
-        console.log(`  🔧 Bash: ${colors.cyan}${this.config.bash}${colors.reset}`)
-        console.log('')
-        console.log(colors.bright + 'Next steps:' + colors.reset)
-        console.log(`  1️⃣  Start Air: ${colors.green}npm start${colors.reset}`)
-        console.log(`  2️⃣  Check status: ${colors.green}npm run status${colors.reset}`)
-        console.log(`  3️⃣  View logs: ${colors.green}npm run logs${colors.reset}`)
-        console.log('')
-        console.log(colors.cyan + 'Thank you for using Air! 🚀' + colors.reset)
-        console.log('')
-    }
-    
-    async run(): Promise<void> {
-        if (this.args.check) {
-            this.header('Air Installer - System Check')
-            await this.checkSystem()
-            this.rl.close()
-            process.exit(0)
+    async setupService(): Promise<void> {
+        if (this.config.env !== 'production') return
+        if (this.args.nonInteractive) return
+        
+        const items = []
+        const setupService = await this.ui.confirm('Set up auto-start service?', true)
+        
+        if (setupService) {
+            const service = new LocalService(`air-${this.config.name}`)
+            
+            try {
+                service.install(this.config)
+                
+                if (isWindows()) {
+                    items.push({ label: 'Service', value: 'Windows Startup configured', status: 'success' })
+                } else if (isMac()) {
+                    items.push({ label: 'Service', value: 'launchd configured', status: 'success' })
+                } else if (isTermux()) {
+                    items.push({ label: 'Service', value: 'Termux service configured', status: 'success' })
+                } else if (hasSystemd()) {
+                    items.push({ label: 'Service', value: 'Systemd user service configured', status: 'success' })
+                } else {
+                    items.push({ label: 'Service', value: 'Cron job configured', status: 'success' })
+                }
+                
+                items.push({ label: 'Auto-start', value: 'Enabled', status: 'success' })
+            } catch (err) {
+                items.push({ label: 'Service', value: 'Setup failed: ' + err.message, status: 'error' })
+            }
+        } else {
+            items.push({ label: 'Service', value: 'Skipped', status: 'info' })
         }
         
-        this.header('Air GUN Database Installer')
+        if (items.length > 0) {
+            const serviceSection = this.ui.createStatusSection('Service Setup', items)
+            console.log(serviceSection)
+        }
+    }
+    
+    async finalReport(): Promise<void> {
+        console.log('\n' + '═'.repeat(60))
+        this.ui.showSuccess('Installation complete!')
         
-        await this.checkSystem()
-        await this.configureBasic()
-        await this.configurePeers()
-        await this.configureGodaddy()
-        await this.setupSSL()
-        await this.saveConfiguration()
-        await this.setupSystemd()
-        this.showSummary()
+        console.log('\nNext steps:')
+        console.log('1. Start Air:')
+        console.log(`   bun run ${this.config.root}/src/main.ts`)
+        console.log('')
+        console.log('2. Check status:')
+        console.log(`   bun ${path.join(__dirname, 'status.ts')}`)
+        console.log('')
         
-        this.rl.close()
+        if (this.config.env === 'production' && this.config[this.config.env].ssl) {
+            console.log('3. Access your peer:')
+            const domain = this.config[this.config.env].domain || this.domainValue
+            console.log(`   https://${domain}:${this.config[this.config.env].port}`)
+        }
+        
+        console.log('\n' + '═'.repeat(60))
     }
 }
 
 // Run installer
 const installer = new AirInstaller()
 installer.run().catch(err => {
-    console.error(colors.red + colors.bright + 'Installation failed:' + colors.reset, err)
+    console.error('Installation failed:', err)
     process.exit(1)
 })

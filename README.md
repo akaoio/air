@@ -31,7 +31,7 @@ cd air
 npm install
 
 # Run interactive installer (optional)
-./install.sh
+bun script/install.ts
 ```
 
 ### Running Air
@@ -194,7 +194,7 @@ bun test
 
 ```bash
 # Install as systemd service
-sudo ./install.sh --systemd
+sudo bun script/install.ts --systemd
 
 # Service management
 sudo systemctl start air-my-peer
@@ -414,7 +414,7 @@ Air supports automatic SSL certificate management:
 
 ```bash
 # Auto-provision with Let's Encrypt
-./install.sh --ssl --domain peer.example.com
+bun script/install.ts --ssl --domain peer.example.com
 
 # Manual configuration
 echo "SSL_KEY=/etc/letsencrypt/live/peer.example.com/privkey.pem" >> .env

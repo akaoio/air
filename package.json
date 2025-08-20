@@ -32,7 +32,7 @@
         "test:all": "npm run test",
         "typecheck": "tsc --noEmit",
         "format": "bunx prettier --write . || npx prettier --write .",
-        "setup": "bun script/install.ts || tsx script/install.ts",
+        "install": "bun script/install.ts || tsx script/install.ts",
         "config": "bun script/config.ts || tsx script/config.ts",
         "ddns": "bun script/ddns.ts || tsx script/ddns.ts",
         "status": "bun script/status.ts || tsx script/status.ts",

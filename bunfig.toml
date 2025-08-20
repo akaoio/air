@@ -12,7 +12,7 @@ frozen = false
 [install.cache]
 # Cache packages for faster reinstalls
 disable = false
-dir = "~/.bun/install/cache"
+# Let Bun use its default cache location
 
 [test]
 # Test configuration

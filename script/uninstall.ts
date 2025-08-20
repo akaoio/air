@@ -5,400 +5,364 @@ import fs from 'fs'
 import path from 'path'
 import { execSync } from 'child_process'
 import { fileURLToPath } from 'url'
-import { getPaths } from '../src/paths'
-import syspaths from '../src/syspaths'
-import readline from 'readline'
-import type { AirConfig } from '../src/types'
+import { getPaths } from '../src/paths.js'
+import type { AirConfig } from '../src/types/index.js'
+import { AirUI, LocalService, isWindows, isMac, isTermux, hasSystemd, hasSudo } from './ui.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-// ANSI color codes
-const colors = {
-    reset: '\x1b[0m',
-    bright: '\x1b[1m',
-    dim: '\x1b[2m',
-    red: '\x1b[31m',
-    green: '\x1b[32m',
-    yellow: '\x1b[33m',
-    blue: '\x1b[34m',
-    magenta: '\x1b[35m',
-    cyan: '\x1b[36m',
-    white: '\x1b[37m'
-}
-
-class Uninstaller {
+class AirUninstaller {
+    private config: any
+    private ui: AirUI
+    
     constructor() {
-        // Initialize with smart path detection
+        // Use smart path detection
         const paths = getPaths()
-        this.config = {
-            root: paths.root
-        }
-        this.configFile = 'air.json'
-        this.rl = readline.createInterface({
-            input: process.stdin,
-            output: process.stdout
-        })
-        this.parseargs()
-        this.loadconfig()
-    }
-
-    parseargs() {
-        const args = process.argv.slice(2)
         
-        for (let i = 0; i < args.length; i++) {
-            if (args[i] === '--force' || args[i] === '-f') {
-                this.force = true
-            } else if (args[i] === '--help' || args[i] === '-h') {
-                this.showhelp()
-                process.exit(0)
-            }
+        this.config = {
+            root: paths.root,
+            name: 'air',
+            env: 'development'
         }
+        
+        this.ui = new AirUI('Air Uninstaller')
+        this.loadConfig()
     }
 
-    showhelp() {
-        console.log(`
-${colors.bright}Air Uninstaller${colors.reset}
-
-${colors.bright}Usage:${colors.reset} npm run uninstall [options]
-
-${colors.bright}Options:${colors.reset}
-  --force, -f    Force uninstall without confirmation
-  --help, -h     Show this help message
-
-${colors.bright}This script will:${colors.reset}
-  - Stop and disable systemd service
-  - Remove systemd service file
-  - Remove cron jobs
-  - Optionally remove configuration and data
-`)
-    }
-
-    loadconfig() {
-        const configPath = path.join(this.config.root, this.configFile)
+    loadConfig(): void {
+        const configPath = path.join(this.config.root, 'air.json')
         if (fs.existsSync(configPath)) {
             try {
-                const configData = fs.readFileSync(configPath, 'utf8')
-                this.config = { ...this.config, ...JSON.parse(configData) }
-            } catch (err) {
-                console.error(colors.yellow + 'Warning: Could not read configuration file' + colors.reset)
+                const existing = JSON.parse(fs.readFileSync(configPath, 'utf8'))
+                if (existing.name) {
+                    this.config.name = existing.name
+                }
+                if (existing.env) {
+                    this.config.env = existing.env
+                }
+            } catch (e) {
+                this.ui.showWarning('Could not parse config file')
             }
         }
     }
 
-    // Colored output methods
-    success(message) {
-        console.log(colors.green + colors.bright + '✓ ' + colors.reset + colors.green + message + colors.reset)
-    }
-    
-    error(message) {
-        console.log(colors.red + colors.bright + '✗ ' + colors.reset + colors.red + message + colors.reset)
-    }
-    
-    warning(message) {
-        console.log(colors.yellow + colors.bright + '⚠ ' + colors.reset + colors.yellow + message + colors.reset)
-    }
-    
-    info(message) {
-        console.log(colors.cyan + 'ℹ ' + message + colors.reset)
-    }
-    
-    header(title) {
-        const width = 60
-        const padding = Math.floor((width - title.length - 2) / 2)
-        const line = '═'.repeat(width)
-        
-        console.log('')
-        console.log(colors.red + colors.bright + line + colors.reset)
-        console.log(colors.red + colors.bright + '║' + ' '.repeat(padding) + title + ' '.repeat(width - padding - title.length - 2) + '║' + colors.reset)
-        console.log(colors.red + colors.bright + line + colors.reset)
-        console.log('')
-    }
-    
-    section(title) {
-        console.log('')
-        console.log(colors.magenta + colors.bright + '▶ ' + title + colors.reset)
-        console.log(colors.magenta + '  ' + '─'.repeat(title.length + 2) + colors.reset)
-        console.log('')
-    }
-
-    async prompt(question, defaultValue = '') {
-        return new Promise((resolve) => {
-            const q = defaultValue ? `${question} (${colors.dim}${defaultValue}${colors.reset}): ` : `${question}: `
-            this.rl.question(q, (answer) => {
-                resolve(answer || defaultValue)
-            })
-        })
-    }
-
-    async confirm(question, defaultYes = true) {
-        if (this.force) return true
-        
-        const defaultText = defaultYes ? 'Y/n' : 'y/N'
-        const answer = await this.prompt(`${question} (${colors.bright}${defaultText}${colors.reset})`)
-        const normalized = answer.toLowerCase().trim()
-        
-        if (normalized === '') {
-            return defaultYes
-        }
-        
-        return normalized === 'y' || normalized === 'yes'
-    }
-
-    async removeSystemdService() {
-        this.section('Removing systemd service')
-        
-        const serviceName = `air-${this.config.name || 'air'}`
-        const serviceFile = `/etc/systemd/system/${serviceName}.service`
-        
-        // Check if service exists
-        if (!fs.existsSync(serviceFile)) {
-            this.info('No systemd service found')
-            return
-        }
-        
+    async run(): Promise<void> {
         try {
-            // Stop service
-            try {
-                execSync(`sudo systemctl stop ${serviceName}`, { stdio: 'inherit' })
-                this.success(`Service ${serviceName} stopped`)
-            } catch {
-                // Service might already be stopped
-            }
+            this.ui.clear()
+            console.log(this.ui.createHeader())
             
-            // Disable service
-            try {
-                execSync(`sudo systemctl disable ${serviceName}`, { stdio: 'inherit' })
-                this.success(`Service ${serviceName} disabled`)
-            } catch {
-                // Service might already be disabled
-            }
+            // Confirm uninstallation
+            const confirm = await this.ui.confirm(
+                `Are you sure you want to uninstall Air (${this.config.name})?`,
+                false
+            )
             
-            // Remove service file
-            execSync(`sudo rm ${serviceFile}`)
-            this.success(`Service file removed: ${serviceFile}`)
-            
-            // Reload systemd
-            execSync('sudo systemctl daemon-reload')
-            this.success('Systemd configuration reloaded')
-            
-        } catch (err) {
-            this.error(`Error removing systemd service: ${err.message}`)
-        }
-    }
-
-    async removeCronJobs() {
-        this.section('Removing cron jobs')
-        
-        try {
-            // Get current crontab
-            let crontab = ''
-            try {
-                crontab = execSync('crontab -l 2>/dev/null').toString()
-            } catch {
-                this.info('No cron jobs found')
+            if (!confirm) {
+                this.ui.showInfo('Uninstallation cancelled')
+                this.ui.close()
                 return
             }
             
-            // Filter out Air-related jobs
-            const lines = crontab.split('\n')
-            const filtered = lines.filter(line => {
-                return !line.includes('air') && 
-                       !line.includes('Air') && 
-                       !line.includes('ddns.sh') &&
-                       !line.includes(this.config.root)
+            const tasks = []
+            
+            // Stop running processes
+            const stopResult = await this.stopProcesses()
+            tasks.push({
+                label: 'Stop processes',
+                value: stopResult.message,
+                status: stopResult.success ? 'success' as const : 'warning' as const
             })
             
-            if (lines.length === filtered.length) {
-                this.info('No Air-related cron jobs found')
-                return
-            }
-            
-            // Save new crontab
-            const newCrontab = filtered.join('\n')
-            fs.writeFileSync('/tmp/new_crontab', newCrontab)
-            execSync('crontab /tmp/new_crontab')
-            fs.unlinkSync('/tmp/new_crontab')
-            
-            const removed = lines.length - filtered.length
-            this.success(`Removed ${removed} Air-related cron job(s)`)
-            
-        } catch (err) {
-            this.error(`Error removing cron jobs: ${err.message}`)
-        }
-    }
-
-    async stopRunningProcess() {
-        this.section('Stopping Air process')
-        
-        try {
-            // Check if Air is running
-            const pids = execSync('pgrep -f "node.*main.js" 2>/dev/null || true').toString().trim()
-            
-            if (!pids) {
-                this.info('Air is not running')
-                return
-            }
-            
-            // Kill the process
-            execSync('pkill -f "node.*main.js"')
-            this.success('Air process stopped')
-            
-            // Remove PID files
-            const pidFiles = fs.readdirSync(this.config.root).filter(f => f.startsWith('.air') && f.endsWith('.pid'))
-            pidFiles.forEach(file => {
-                const pidFile = path.join(this.config.root, file)
-                fs.unlinkSync(pidFile)
-                this.success(`Removed PID file: ${file}`)
+            // Remove service
+            const serviceResult = await this.removeService()
+            tasks.push({
+                label: 'Remove service',
+                value: serviceResult.message,
+                status: serviceResult.success ? 'success' as const : 'warning' as const
             })
             
-        } catch (err) {
-            this.error(`Error stopping process: ${err.message}`)
-        }
-    }
-
-    async removeConfiguration() {
-        this.section('Configuration removal')
-        
-        const configPath = path.join(this.config.root, this.configFile)
-        
-        if (!fs.existsSync(configPath)) {
-            this.info('No configuration file found')
-            return
-        }
-        
-        const remove = await this.confirm('Remove configuration file (air.json)?', false)
-        
-        if (remove) {
-            fs.unlinkSync(configPath)
-            this.success('Configuration file removed')
-        } else {
-            this.info('Configuration file kept')
-        }
-    }
-
-    async removeData() {
-        this.section('Data removal')
-        
-        const dataDir = path.join(this.config.root, 'radata')
-        
-        if (!fs.existsSync(dataDir)) {
-            this.info('No data directory found')
-            return
-        }
-        
-        // Calculate size
-        let size = 0
-        try {
-            const output = execSync(`du -sh "${dataDir}" 2>/dev/null`).toString()
-            size = output.split('\t')[0]
-        } catch {
-            size = 'unknown size'
-        }
-        
-        const remove = await this.confirm(`Remove data directory (${size})?`, false)
-        
-        if (remove) {
-            execSync(`rm -rf "${dataDir}"`)
-            this.success('Data directory removed')
-        } else {
-            this.info('Data directory kept')
-        }
-    }
-
-    async removeLogs() {
-        this.section('Log removal')
-        
-        const logPaths = [
-            path.join(this.config.root, 'logs'),
-            '/var/log/air',
-            path.join(this.config.root, '*.log')
-        ]
-        
-        let logsFound = false
-        
-        for (const logPath of logPaths) {
-            if (fs.existsSync(logPath) || logPath.includes('*')) {
-                logsFound = true
-                break
+            // Clean PID files
+            const pidResult = await this.cleanPidFiles()
+            tasks.push({
+                label: 'Clean PID files',
+                value: pidResult.message,
+                status: pidResult.success ? 'success' as const : 'info' as const
+            })
+            
+            // Remove cron jobs
+            const cronResult = await this.removeCronJobs()
+            tasks.push({
+                label: 'Remove cron jobs',
+                value: cronResult.message,
+                status: cronResult.success ? 'success' as const : 'info' as const
+            })
+            
+            // Optional: Remove configuration
+            const removeConfig = await this.ui.confirm('Remove configuration file?', false)
+            if (removeConfig) {
+                const configResult = await this.removeConfig()
+                tasks.push({
+                    label: 'Remove config',
+                    value: configResult.message,
+                    status: configResult.success ? 'success' as const : 'warning' as const
+                })
             }
-        }
-        
-        if (!logsFound) {
-            this.info('No log files found')
-            return
-        }
-        
-        const remove = await this.confirm('Remove log files?', false)
-        
-        if (remove) {
-            for (const logPath of logPaths) {
-                try {
-                    if (logPath.includes('*')) {
-                        execSync(`rm -f ${logPath} 2>/dev/null || true`)
-                    } else if (fs.existsSync(logPath)) {
-                        execSync(`rm -rf "${logPath}"`)
-                    }
-                } catch {
-                    // Ignore errors
+            
+            // Optional: Remove SSL certificates
+            if (this.config.ssl) {
+                const removeSSL = await this.ui.confirm('Remove SSL certificates?', false)
+                if (removeSSL) {
+                    const sslResult = await this.removeSSL()
+                    tasks.push({
+                        label: 'Remove SSL',
+                        value: sslResult.message,
+                        status: sslResult.success ? 'success' as const : 'warning' as const
+                    })
                 }
             }
-            this.success('Log files removed')
-        } else {
-            this.info('Log files kept')
+            
+            // Show results
+            const statusSection = this.ui.createStatusSection('Uninstall Results', tasks)
+            console.log(statusSection)
+            
+            this.ui.showSuccess('Air has been uninstalled')
+            
+            console.log('\nTo completely remove Air, you can:')
+            console.log('1. Delete this directory:')
+            console.log(`   rm -rf ${this.config.root}`)
+            console.log('\n2. Remove npm packages:')
+            console.log('   npm uninstall -g @akaoio/air')
+            
+        } catch (err: any) {
+            this.ui.showError('Uninstallation failed', err.message)
+            process.exit(1)
+        } finally {
+            this.ui.close()
         }
     }
-
-    showSummary() {
-        console.log('')
-        console.log(colors.red + colors.bright + '╔════════════════════════════════════════════════════════════╗' + colors.reset)
-        console.log(colors.red + colors.bright + '║' + colors.reset + '         ' + colors.bright + 'Air Uninstallation Complete!' + colors.reset + '                 ' + colors.red + colors.bright + '║' + colors.reset)
-        console.log(colors.red + colors.bright + '╚════════════════════════════════════════════════════════════╝' + colors.reset)
-        console.log('')
-        console.log(colors.bright + 'The following components have been processed:' + colors.reset)
-        console.log(`  ✓ Systemd service`)
-        console.log(`  ✓ Cron jobs`)
-        console.log(`  ✓ Running processes`)
-        console.log(`  ✓ Configuration files`)
-        console.log(`  ✓ Data directory`)
-        console.log(`  ✓ Log files`)
-        console.log('')
-        console.log(colors.cyan + 'Air has been uninstalled from your system.' + colors.reset)
-        console.log(colors.cyan + 'Thank you for using Air!' + colors.reset)
-        console.log('')
-    }
-
-    async run() {
-        this.header('Air Uninstaller')
-        
-        this.warning('This will uninstall Air from your system.')
-        
-        if (!this.force) {
-            const proceed = await this.confirm('Continue with uninstallation?', false)
-            if (!proceed) {
-                this.info('Uninstallation cancelled')
-                this.rl.close()
-                process.exit(0)
+    
+    async stopProcesses(): Promise<{success: boolean, message: string}> {
+        try {
+            let stopped = false
+            
+            // Check for PID file
+            const pidFile = path.join(this.config.root, `.${this.config.name}.pid`)
+            if (fs.existsSync(pidFile)) {
+                try {
+                    const pid = parseInt(fs.readFileSync(pidFile, 'utf8'))
+                    
+                    // Check if process is running
+                    try {
+                        process.kill(pid, 0) // Test if process exists
+                        process.kill(pid, 'SIGTERM') // Terminate it
+                        
+                        // Wait a moment for graceful shutdown
+                        await new Promise(resolve => setTimeout(resolve, 2000))
+                        
+                        // Force kill if still running
+                        try {
+                            process.kill(pid, 0)
+                            process.kill(pid, 'SIGKILL')
+                        } catch {
+                            // Process is gone, good
+                        }
+                        
+                        stopped = true
+                    } catch {
+                        // Process not running
+                    }
+                } catch (e) {
+                    // Invalid PID file
+                }
             }
+            
+            // Also try to stop by name
+            try {
+                if (isWindows()) {
+                    execSync(`taskkill /F /IM node.exe /FI "WINDOWTITLE eq *air*"`, { stdio: 'ignore' })
+                    stopped = true
+                } else {
+                    // Try pkill
+                    try {
+                        execSync(`pkill -f "air.*main\\.(ts|js)"`, { stdio: 'ignore' })
+                        stopped = true
+                    } catch {}
+                }
+            } catch {}
+            
+            if (stopped) {
+                return { success: true, message: 'Processes stopped' }
+            } else {
+                return { success: true, message: 'No running processes found' }
+            }
+            
+        } catch (e: any) {
+            return { success: false, message: 'Failed to stop processes' }
+        }
+    }
+    
+    async removeService(): Promise<{success: boolean, message: string}> {
+        const service = new LocalService(`air-${this.config.name}`)
+        
+        try {
+            // Use our unified service uninstaller
+            service.uninstall(this.config)
+            
+            // Verify service is gone
+            if (isWindows()) {
+                return { success: true, message: 'Windows startup removed' }
+            } else if (isMac()) {
+                return { success: true, message: 'launchd service removed' }
+            } else if (isTermux()) {
+                return { success: true, message: 'Termux service removed' }
+            } else if (hasSystemd()) {
+                // Check both user and system services
+                let found = false
+                try {
+                    execSync(`systemctl --user status air-${this.config.name}`, { stdio: 'ignore' })
+                    found = true
+                } catch {}
+                
+                if (!found && hasSudo()) {
+                    try {
+                        execSync(`sudo systemctl status air-${this.config.name}`, { stdio: 'ignore' })
+                        found = true
+                    } catch {}
+                }
+                
+                if (!found) {
+                    return { success: true, message: 'Systemd service removed' }
+                } else {
+                    return { success: false, message: 'Service may still exist' }
+                }
+            }
+            
+            return { success: true, message: 'No service found' }
+            
+        } catch (e: any) {
+            return { success: false, message: e.message }
+        }
+    }
+    
+    async cleanPidFiles(): Promise<{success: boolean, message: string}> {
+        try {
+            let cleaned = 0
+            
+            // Remove main PID file
+            const pidFile = path.join(this.config.root, `.${this.config.name}.pid`)
+            if (fs.existsSync(pidFile)) {
+                fs.unlinkSync(pidFile)
+                cleaned++
+            }
+            
+            // Remove any other Air PID files
+            const files = fs.readdirSync(this.config.root)
+            files.forEach(file => {
+                if (file.startsWith('.air') && file.endsWith('.pid')) {
+                    fs.unlinkSync(path.join(this.config.root, file))
+                    cleaned++
+                }
+            })
+            
+            if (cleaned > 0) {
+                return { success: true, message: `${cleaned} PID file(s) removed` }
+            } else {
+                return { success: true, message: 'No PID files found' }
+            }
+            
+        } catch (e: any) {
+            return { success: false, message: 'Failed to clean PID files' }
+        }
+    }
+    
+    async removeCronJobs(): Promise<{success: boolean, message: string}> {
+        if (isWindows() || isMac()) {
+            return { success: true, message: 'Not applicable' }
         }
         
-        // Perform uninstallation steps
-        await this.stopRunningProcess()
-        await this.removeSystemdService()
-        await this.removeCronJobs()
-        await this.removeConfiguration()
-        await this.removeData()
-        await this.removeLogs()
-        
-        this.showSummary()
-        
-        this.rl.close()
+        try {
+            let currentCron = ''
+            try {
+                currentCron = execSync('crontab -l', { encoding: 'utf8' })
+            } catch {
+                return { success: true, message: 'No crontab found' }
+            }
+            
+            // Filter out Air-related cron jobs
+            const lines = currentCron.split('\n').filter(line => 
+                !line.includes(this.config.root) && 
+                !line.includes('air') &&
+                !line.includes(this.config.name)
+            )
+            
+            if (lines.length !== currentCron.split('\n').length) {
+                // Some lines were removed
+                const newCron = lines.join('\n')
+                const tmpFile = path.join('/tmp', `cron-${Date.now()}`)
+                fs.writeFileSync(tmpFile, newCron)
+                execSync(`crontab "${tmpFile}"`, { stdio: 'ignore' })
+                fs.unlinkSync(tmpFile)
+                return { success: true, message: 'Cron jobs removed' }
+            } else {
+                return { success: true, message: 'No cron jobs found' }
+            }
+            
+        } catch (e: any) {
+            return { success: false, message: 'Failed to remove cron jobs' }
+        }
+    }
+    
+    async removeConfig(): Promise<{success: boolean, message: string}> {
+        try {
+            const configPath = path.join(this.config.root, 'air.json')
+            if (fs.existsSync(configPath)) {
+                // Backup first
+                const backupPath = configPath + '.backup'
+                fs.copyFileSync(configPath, backupPath)
+                fs.unlinkSync(configPath)
+                return { success: true, message: 'Config removed (backup saved)' }
+            } else {
+                return { success: true, message: 'No config file found' }
+            }
+        } catch (e: any) {
+            return { success: false, message: 'Failed to remove config' }
+        }
+    }
+    
+    async removeSSL(): Promise<{success: boolean, message: string}> {
+        try {
+            let removed = 0
+            
+            // Remove local SSL directory
+            const sslDir = path.join(this.config.root, 'ssl')
+            if (fs.existsSync(sslDir)) {
+                fs.rmSync(sslDir, { recursive: true })
+                removed++
+            }
+            
+            // Remove user SSL directory
+            const userSSLDir = path.join(process.env.HOME || '', '.local', 'share', 'air', 'ssl')
+            if (fs.existsSync(userSSLDir)) {
+                fs.rmSync(userSSLDir, { recursive: true })
+                removed++
+            }
+            
+            if (removed > 0) {
+                return { success: true, message: 'SSL certificates removed' }
+            } else {
+                return { success: true, message: 'No SSL certificates found' }
+            }
+            
+        } catch (e: any) {
+            return { success: false, message: 'Failed to remove SSL' }
+        }
     }
 }
 
 // Run uninstaller
-const uninstaller = new Uninstaller()
-uninstaller.run().catch(err => {
-    console.error(colors.red + colors.bright + 'Uninstallation failed:' + colors.reset, err)
+const uninstaller = new AirUninstaller()
+uninstaller.run().catch(e => {
+    console.error('Uninstallation failed:', e.message)
     process.exit(1)
 })
