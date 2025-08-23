@@ -3,6 +3,7 @@
  */
 
 import { getpaths } from '../Path/index.js'
+import { IP_CONFIG, CONFIG_TEMPLATES } from '../constants.js'
 import type { AirConfig } from '../types/index.js'
 
 export interface DefaultOptions {
@@ -16,32 +17,12 @@ export function defaults(options: DefaultOptions = {}): AirConfig {
     const config: AirConfig = {
         root: paths.root || process.cwd(),
         bash: paths.bash || process.cwd() + '/script',
-        name: process.env.NAME || 'air',
-        env: 'development',
-        sync: undefined,
-        ip: {
-            timeout: 5000,
-            dnsTimeout: 3000,
-            userAgent: 'Air-GUN-Peer/2.0',
-            dns: [
-                { resolver: 'resolver1.opendns.com', hostname: 'myip.opendns.com' },
-                { resolver: '1.1.1.1', hostname: 'whoami.cloudflare' }
-            ],
-            http: [
-                { url: 'https://api.ipify.org', format: 'text' },
-                { url: 'https://icanhazip.com', format: 'text' }
-            ]
-        },
-        development: {
-            port: 8765,
-            domain: 'localhost',
-            peers: []
-        },
-        production: {
-            port: 8765,
-            domain: 'localhost',
-            peers: []
-        }
+        name: process.env.AIR_NAME || process.env.NAME || 'air',
+        env: (process.env.ENV || 'development') as 'development' | 'production',
+        sync: process.env.AIR_SYNC || undefined,
+        ip: IP_CONFIG,
+        development: CONFIG_TEMPLATES.development,
+        production: CONFIG_TEMPLATES.production
     }
     return config
 }

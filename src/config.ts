@@ -4,13 +4,13 @@ import fs from 'fs'
 import path from 'path'
 import { merge } from './lib/utils.js'
 import { getPaths, getConfigPath } from './paths.js'
+import { IP_CONFIG, CONFIG_TEMPLATES } from './constants.js'
 import type { AirConfig } from './types/index.js'
 
 interface ConfigOptions {
     rootArg?: string
     bashArg?: string
     configArg?: string
-    configFile?: string // Deprecated, use configArg
     syncUrl?: string | null
 }
 
@@ -33,11 +33,11 @@ class ConfigManager {
     private lastSync: number | null
     
     constructor(options: ConfigOptions = {}) {
-        const paths = getPaths(options.rootArg, options.bashArg, options.configArg || options.configFile)
+        const paths = getPaths(options.rootArg, options.bashArg, options.configArg)
         this.paths = {
             root: paths.root || process.cwd(),
             bash: paths.bash || path.join(process.cwd(), 'script'),
-            config: paths.config || getConfigPath(options.configArg || options.configFile, paths.root)
+            config: paths.config || getConfigPath(options.configArg, paths.root)
         }
         this.configFile = this.paths.config
         this.syncUrl = options.syncUrl || null
@@ -172,31 +172,11 @@ class ConfigManager {
             root: paths.root,
             bash: paths.bash,
             env: (process.env.ENV || 'development') as any,
-            name: process.env.NAME || 'air',
-            sync: undefined,
-            ip: {
-                timeout: 5000,
-                dnsTimeout: 3000,
-                userAgent: 'Air-GUN-Peer/2.0',
-                dns: [
-                    { resolver: 'resolver1.opendns.com', hostname: 'myip.opendns.com' },
-                    { resolver: '1.1.1.1', hostname: 'whoami.cloudflare' }
-                ],
-                http: [
-                    { url: 'https://api.ipify.org', format: 'text' },
-                    { url: 'https://icanhazip.com', format: 'text' }
-                ]
-            },
-            development: {
-                port: 8765,
-                domain: 'localhost',
-                peers: []
-            },
-            production: {
-                port: 443,
-                domain: '',
-                peers: []
-            }
+            name: process.env.AIR_NAME || process.env.NAME || 'air',
+            sync: process.env.AIR_SYNC || undefined,
+            ip: IP_CONFIG,
+            development: CONFIG_TEMPLATES.development,
+            production: CONFIG_TEMPLATES.production
         }
         return config
     }

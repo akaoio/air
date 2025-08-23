@@ -3,6 +3,7 @@
  * Provides consistent test data for Config and Manager testing
  */
 
+import { DEFAULTS, IP_CONFIG, CONFIG_TEMPLATES } from '../../src/constants.js'
 import type { AirConfig } from '../../src/types/index.js'
 
 export const configMocks = {
@@ -13,43 +14,20 @@ export const configMocks = {
             bash: '/bin/bash',
             name: 'test-peer',
             env: 'development' as const,
-            ip: {
-                timeout: 5000,
-                dnsTimeout: 3000,
-                userAgent: 'Air/2.0.0',
-                dns: [],
-                http: []
-            },
-            development: {
-                port: 8765,
-                domain: 'localhost',
-                peers: []
-            },
-            production: {
-                port: 8765,
-                domain: 'localhost',
-                peers: []
-            }
+            ip: IP_CONFIG,
+            development: CONFIG_TEMPLATES.development,
+            production: CONFIG_TEMPLATES.production
         } as AirConfig,
         
         production: {
             root: '/opt/air',
             bash: '/bin/bash',
             name: 'prod-peer',
-            env: 'production',
-            ip: {
-                timeout: 5000,
-                dnsTimeout: 3000,
-                userAgent: 'Air/2.0.0',
-                dns: [],
-                http: []
-            },
-            development: {
-                port: 8765,
-                domain: 'localhost',
-                peers: []
-            },
+            env: 'production' as const,
+            ip: IP_CONFIG,
+            development: CONFIG_TEMPLATES.development,
             production: {
+                ...CONFIG_TEMPLATES.production,
                 port: 443,
                 domain: 'example.com',
                 ssl: {

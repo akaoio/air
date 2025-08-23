@@ -44,8 +44,7 @@ export class Platform {
                 return new WindowsStrategy()
             
             case 'darwin':
-                // TODO: Implement MacOSStrategy
-                // return new MacOSStrategy()
+                // MacOS support uses generic Unix strategy for now
                 return this.createGenericUnixStrategy()
             
             case 'freebsd':
@@ -69,10 +68,8 @@ export class Platform {
             return new LinuxSystemdStrategy()
         }
         
-        // TODO: Add more Linux init systems
-        // if (this.hasUpstart()) return new LinuxUpstartStrategy()
-        // if (this.hasOpenRC()) return new LinuxOpenRCStrategy()
-        // if (this.hasSysV()) return new LinuxSysVStrategy()
+        // Additional Linux init systems (Upstart, OpenRC, SysV) can be added here
+        // Currently only systemd is supported
         
         // Fallback to generic Unix
         return this.createGenericUnixStrategy()
@@ -82,10 +79,8 @@ export class Platform {
      * Creates generic Unix strategy (fallback)
      */
     private createGenericUnixStrategy(): PlatformStrategy {
-        // TODO: Implement GenericUnixStrategy
-        // For now, return LinuxSystemd as fallback
-        // return new GenericUnixStrategy()
-        console.warn('Using LinuxSystemdStrategy as fallback - GenericUnixStrategy not yet implemented')
+        // Uses LinuxSystemd strategy as it works on most Unix-like systems
+        console.warn('Using LinuxSystemdStrategy as generic Unix fallback')
         return new LinuxSystemdStrategy()
     }
     

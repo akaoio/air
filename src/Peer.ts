@@ -17,6 +17,7 @@ import type {
 import { ConfigManager } from './config.js'
 import { ProcessManager } from './process.js'
 import { StatusReporter } from './status.js'
+import { DEFAULTS } from './constants.js'
 import network from './network.js'
 
 import http from 'http'
@@ -55,10 +56,10 @@ export class Peer implements IPeer {
     
     // Restart handling
     private restarts = {
-        max: 5,
+        max: DEFAULTS.RESTART_MAX_ATTEMPTS,
         count: 0,
-        baseDelay: 5000,
-        maxDelay: 60000
+        baseDelay: DEFAULTS.RESTART_BASE_DELAY,
+        maxDelay: DEFAULTS.RESTART_MAX_DELAY
     }
     
     // Grouped interfaces
@@ -367,7 +368,7 @@ export class Peer implements IPeer {
             this.restarts.baseDelay * Math.pow(2, this.restarts.count - 1),
             this.restarts.maxDelay
         )
-        const jitter = exponentialDelay * (Math.random() * 0.4 - 0.2) // ±20% jitter
+        const jitter = exponentialDelay * (Math.random() * DEFAULTS.RESTART_JITTER_PERCENT * 2 - DEFAULTS.RESTART_JITTER_PERCENT) // ±20% jitter
         const delay = Math.round(exponentialDelay + jitter)
         
         console.log(`Restarting in ${delay}ms (attempt ${this.restarts.count}/${this.restarts.max})...`)
