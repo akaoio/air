@@ -645,7 +645,7 @@ WantedBy=multi-user.target
         // Setup DDNS cron if GoDaddy is configured
         if (this.config[this.config.env]?.godaddy?.key) {
             console.log('\n📡 Setting up DDNS auto-update...')
-            const ddnsResult = cronManager.setupDDNS(this.config as any)
+            const ddnsResult = await cronManager.setupDDNS(this.config as any)
             if (ddnsResult.success) {
                 console.log(`✅ ${ddnsResult.message}`)
             } else {

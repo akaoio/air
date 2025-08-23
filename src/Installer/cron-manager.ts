@@ -117,7 +117,7 @@ export class CronManager {
     /**
      * Setup DDNS cron job
      */
-    setupDDNS(config: AirConfig): CronManagerResult {
+    async setupDDNS(config: AirConfig): Promise<CronManagerResult> {
         // Check if GoDaddy is configured
         const env = config.env
         const envConfig = config[env] as any
@@ -133,26 +133,23 @@ export class CronManager {
         // Clean old jobs first
         this.cleanOldJobs(config)
         
-        // Create DDNS script if it doesn't exist
-        const scriptPath = path.join(config.root, 'script', 'ddns.sh')
-        if (!fs.existsSync(scriptPath)) {
-            const scriptContent = `#!/bin/bash
-# Air DDNS Update Script
-
-export BUN_INSTALL="$HOME/.bun"
-export PATH="$BUN_INSTALL/bin:$PATH"
-
-cd ${config.root}
-bun run script/ddns.ts >> ${config.root}/logs/ddns.log 2>&1
-`
-            fs.writeFileSync(scriptPath, scriptContent)
-            fs.chmodSync(scriptPath, 0o755)
+        // Use smart DDNS runner to get the command
+        const { DDNSRunner } = await import('../DDNS/runner.js')
+        const runner = new DDNSRunner(config)
+        const cronCommand = runner.getCronCommand()
+        
+        // Check if command is valid
+        if (cronCommand.includes('error')) {
+            return {
+                success: false,
+                message: 'DDNS script not found. Please build first: npm run build:ddns'
+            }
         }
         
         // Add new cron job
         const current = this.getCurrentCrontab()
         const newJob = `${this.ddnsTag}
-*/5 * * * * ${scriptPath}
+*/5 * * * * ${cronCommand}
 `
         
         const newCron = current.trim() + '\n' + newJob
@@ -434,7 +431,7 @@ bun run script/ddns.ts >> ${config.root}/logs/ddns.log 2>&1
 /**
  * Export convenience functions
  */
-export function setupDDNSCron(config: AirConfig): CronManagerResult {
+export async function setupDDNSCron(config: AirConfig): Promise<CronManagerResult> {
     const manager = new CronManager()
     return manager.setupDDNS(config)
 }
