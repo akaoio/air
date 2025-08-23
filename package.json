@@ -28,8 +28,14 @@
     },
     "dependencies": {
         "@akaoio/gun": "^0.2020.1240",
-        "@akaoio/tui": "^1.0.4",
-        "node-fetch": "^3.3.2"
+        "ink": "^6.2.2",
+        "ink-big-text": "^2.0.0",
+        "ink-gradient": "^3.0.0",
+        "ink-select-input": "^6.2.0",
+        "ink-spinner": "^5.0.0",
+        "ink-text-input": "^6.0.0",
+        "node-fetch": "^3.3.2",
+        "react": "^19.1.1"
     },
     "scripts": {
         "start": "bun run src/main.ts || tsx src/main.ts",
@@ -53,7 +59,7 @@
         "typecheck": "tsc --noEmit",
         "format": "bunx prettier --write . || npx prettier --write .",
         "air:install": "node script/install.cjs",
-        "air:install:simple": "node script/install.cjs --no-tui",
+        "air:install:notui": "node script/install.cjs --non-interactive",
         "config": "bun script/config.ts || tsx script/config.ts || node script/config-compiled.js",
         "ddns": "bun script/ddns.ts || tsx script/ddns.ts || node script/ddns-compiled.js",
         "status": "bun script/status.ts || tsx script/status.ts || node script/status-compiled.js",
