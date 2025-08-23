@@ -1,11 +1,8 @@
-#!/usr/bin/env node
-
 import fs from 'fs'
 import path from 'path'
-import { fileURLToPath } from 'url'
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
+// Use process.cwd() as a reliable cross-platform base directory
+const __dirname = process.cwd()
 
 /**
  * Smart path detection for Air

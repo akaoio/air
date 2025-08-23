@@ -1,7 +1,6 @@
-#!/usr/bin/env bun
 /**
  * Peer class - TypeScript/Bun edition
- * Fuck JavaScript's type coercion and Node's slow ass
+ * Distributed P2P database system
  */
 
 import type { 

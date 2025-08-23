@@ -4,7 +4,6 @@
 
 import { expect, test, describe, afterAll } from "bun:test"
 import { Peer } from "../src/Peer"
-import type { PeerOptions } from "../src/types"
 import fs from "fs"
 import path from "path"
 
@@ -20,7 +19,26 @@ describe("Peer - Bun Native Tests", () => {
     test("create Peer instance", () => {
         const peer = new Peer({
             root: testDir,
-            skipPidCheck: true
+            bash: '/bin/bash',
+            env: 'development' as const,
+            name: 'test-peer',
+            ip: {
+                timeout: 5000,
+                dnsTimeout: 3000,
+                userAgent: 'Air/2.0.0',
+                dns: [],
+                http: []
+            },
+            development: {
+                port: 8765,
+                domain: 'localhost',
+                peers: []
+            },
+            production: {
+                port: 8765,
+                domain: 'localhost', 
+                peers: []
+            }
         })
         
         expect(peer).toBeDefined()
@@ -35,7 +53,26 @@ describe("Peer - Bun Native Tests", () => {
         
         const peer = new Peer({
             root: testDir,
-            skipPidCheck: true
+            bash: '/bin/bash',
+            env: 'development' as const,
+            name: 'test-peer',
+            ip: {
+                timeout: 5000,
+                dnsTimeout: 3000,
+                userAgent: 'Air/2.0.0',
+                dns: [],
+                http: []
+            },
+            development: {
+                port: 8765,
+                domain: 'localhost',
+                peers: []
+            },
+            production: {
+                port: 8765,
+                domain: 'localhost', 
+                peers: []
+            }
         })
         
         const config = peer.read()

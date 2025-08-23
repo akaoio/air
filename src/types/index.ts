@@ -5,7 +5,6 @@
 
 import type { Server as HTTPServer } from 'http'
 import type { Server as HTTPSServer } from 'https'
-import type GUN from '@akaoio/gun'
 
 // Runtime detector
 export type Runtime = 'bun' | 'node' | 'deno'

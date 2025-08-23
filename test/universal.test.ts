@@ -155,15 +155,20 @@ async function runTests() {
     // Test 7: Type safety
     await test("Type safety", () => {
         const peer = new Peer({
-            name: "type-test",
-            port: 8765,
-            env: "development",
             skipPidCheck: true
         })
         
         assert(peer.config, "Config should exist")
         assert(typeof peer.config.name === "string", "Name should be string")
-        assert(typeof peer.config.port === "number", "Port should be number")
+        assert(typeof peer.config.env === "string", "Environment should be string")
+        
+        // Check that config has required structure
+        assert(peer.config.ip, "IP config should exist")
+        assert(typeof peer.config.ip.timeout === "number", "IP timeout should be number")
+        assert(Array.isArray(peer.config.ip.dns), "DNS services should be array")
+        assert(Array.isArray(peer.config.ip.http), "HTTP services should be array")
+        assert(peer.config.ip.dns.length > 0, "Should have DNS services")
+        assert(peer.config.ip.http.length > 0, "Should have HTTP services")
     })
     
     // Test 8: Runtime detection

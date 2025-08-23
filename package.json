@@ -3,15 +3,28 @@
     "type": "module",
     "version": "2.0.0",
     "description": "Distributed graph database - TypeScript/Bun edition",
-    "main": "dist/index.js",
+    "main": "dist/index.cjs",
+    "module": "dist/index.js",
     "types": "dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js",
+            "require": "./dist/index.cjs"
+        }
+    },
     "engines": {
         "bun": ">=1.0.0",
         "node": ">=18.0.0"
     },
     "license": "MIT",
+    "files": [
+        "dist",
+        "README.md",
+        "LICENSE"
+    ],
     "bin": {
-        "air-install": "./script/install.js"
+        "air-install": "./script/install.cjs"
     },
     "dependencies": {
         "@akaoio/gun": "^0.2020.1240",
@@ -23,29 +36,41 @@
         "start:node": "tsx src/main.ts",
         "start:bun": "bun run src/main.ts",
         "dev": "bun --hot src/main.ts",
-        "build": "tsx build.ts",
+        "build": "tsup src/index.ts --format cjs,esm --dts --clean",
+        "build:watch": "tsup src/index.ts --format cjs,esm --dts --watch",
         "build:node": "tsc -p tsconfig.build.json",
         "build:bun": "bun build src/index.ts --outdir dist --target bun",
-        "build:prod": "tsx build.ts",
+        "build:prod": "tsup src/index.ts --format cjs,esm --dts --clean",
+        "build:legacy": "tsx build.ts",
         "test": "tsx test/universal.test.ts",
         "test:bun": "bun test/universal.test.ts",
         "test:node": "tsx test/universal.test.ts",
-        "test:all": "npm run test",
+        "test:build": "tsx test/build-formats.test.ts",
+        "test:coverage": "vitest run --coverage test/source-coverage.test.ts test/extended-coverage.test.ts",
+        "test:coverage:build": "vitest run --coverage test/coverage.test.ts",
+        "test:coverage:extended": "vitest run --coverage test/extended-coverage.test.ts",
+        "test:all": "npm run test && npm run test:build && npm run test:coverage",
         "typecheck": "tsc --noEmit",
         "format": "bunx prettier --write . || npx prettier --write .",
-        "air:install": "bun script/install.ts || tsx script/install.ts",
-        "config": "bun script/config.ts || tsx script/config.ts",
-        "ddns": "bun script/ddns.ts || tsx script/ddns.ts",
-        "status": "bun script/status.ts || tsx script/status.ts",
-        "logs": "bun script/logs.ts || tsx script/logs.ts",
-        "update": "bun script/update.ts || tsx script/update.ts",
+        "air:install": "node script/install.cjs",
+        "air:install:simple": "node script/install.cjs --no-tui",
+        "config": "bun script/config.ts || tsx script/config.ts || node script/config-compiled.js",
+        "ddns": "bun script/ddns.ts || tsx script/ddns.ts || node script/ddns-compiled.js",
+        "status": "bun script/status.ts || tsx script/status.ts || node script/status-compiled.js",
+        "logs": "bun script/logs.ts || tsx script/logs.ts || node script/logs-compiled.js",
+        "update": "node script/update.cjs",
         "uninstall": "bun script/uninstall.ts || tsx script/uninstall.ts"
     },
     "devDependencies": {
         "@types/bun": "^1.2.20",
+        "@types/jest": "^30.0.0",
         "@types/node": "^20.19.11",
+        "@vitest/coverage-v8": "^1.6.1",
         "bun-types": "^1.2.20",
+        "jest": "^30.0.5",
         "prettier": "^3.0.0",
+        "ts-jest": "^29.4.1",
+        "tsup": "^8.5.0",
         "tsx": "^4.20.4",
         "typescript": "^5.9.2",
         "vitest": "^1.6.1"

@@ -1,3 +1,7 @@
+export const sleep = (ms: number): Promise<void> => {
+    return new Promise(resolve => setTimeout(resolve, ms))
+}
+
 export const merge = (...args: any[]): any => {
     // handle null/undefined inputs
     if (args.some(e => e === null || e === undefined)) {
@@ -42,4 +46,9 @@ export const merge = (...args: any[]): any => {
     })
     
     return r
+}
+
+export default {
+    sleep,
+    merge
 }
