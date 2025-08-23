@@ -6,11 +6,20 @@ import type { AirConfig } from '../types/index.js'
 
 export function mergeenv(this: any, config: AirConfig): AirConfig {
     // Root-level environment variables - support both AIR_ prefix and no prefix
-    if (process.env.AIR_ROOT || process.env.ROOT) config.root = process.env.AIR_ROOT || process.env.ROOT
-    if (process.env.AIR_BASH || process.env.BASH) config.bash = process.env.AIR_BASH || process.env.BASH
-    if (process.env.AIR_ENV || process.env.ENV) config.env = (process.env.AIR_ENV || process.env.ENV) as any
-    if (process.env.AIR_NAME || process.env.NAME) config.name = process.env.AIR_NAME || process.env.NAME
-    if (process.env.AIR_SYNC || process.env.SYNC) config.sync = process.env.AIR_SYNC || process.env.SYNC
+    const rootVal = process.env.AIR_ROOT || process.env.ROOT
+    if (rootVal) config.root = rootVal
+    
+    const bashVal = process.env.AIR_BASH || process.env.BASH
+    if (bashVal) config.bash = bashVal
+    
+    const envVal = process.env.AIR_ENV || process.env.ENV
+    if (envVal) config.env = envVal as any
+    
+    const nameVal = process.env.AIR_NAME || process.env.NAME
+    if (nameVal) config.name = nameVal
+    
+    const syncVal = process.env.AIR_SYNC || process.env.SYNC
+    if (syncVal) config.sync = syncVal
     
     // Port and domain can be at root level or environment-specific
     if (process.env.AIR_PORT || process.env.PORT) {

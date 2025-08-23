@@ -312,7 +312,16 @@ Options:
             env: this.config.env as 'development' | 'production',
             root: this.config.root,
             bash: this.config.bash,
-            sync: ''
+            sync: '',
+            ip: {
+                timeout: 5000,
+                dnsTimeout: 2000,
+                userAgent: 'Air/2.0',
+                dns: [],
+                http: []
+            },
+            development: {},
+            production: {}
         }
         
         // Add environment-specific config
@@ -361,6 +370,14 @@ Options:
         
         console.log('\n🔒 SSL Setup\n' + '─'.repeat(40))
         
+        // First check and install SSL tools if needed
+        const { SSLToolsInstaller } = await import('../src/Installer/ssl-tools.js')
+        const sslTools = new SSLToolsInstaller()
+        
+        // Check current SSL tools status
+        const toolsStatus = await sslTools.check()
+        await sslTools.printStatus()
+        
         const sslDir = path.join(this.config.root, 'ssl')
         if (!fs.existsSync(sslDir)) {
             fs.mkdirSync(sslDir, { recursive: true })
@@ -370,17 +387,26 @@ Options:
         const keyPath = path.join(sslDir, 'key.pem')
         
         if (fs.existsSync(certPath) && fs.existsSync(keyPath)) {
-            console.log('✅ SSL certificates already exist')
+            console.log('\n✅ SSL certificates already exist')
             return
         }
         
         if (!this.args.nonInteractive) {
-            const sslMethod = await select('SSL Certificate Method', [
+            const sslMethods = [
                 'Self-signed (for testing)',
+                'Let\'s Encrypt (production)',
                 'Manual (I\'ll provide certificates)'
-            ])
+            ]
+            
+            const sslMethod = await select('SSL Certificate Method', sslMethods)
             
             if (sslMethod === 'Self-signed (for testing)') {
+                // Check if OpenSSL is available
+                if (!toolsStatus.openssl.installed) {
+                    console.log('⚠️  OpenSSL not found. Please install it first.')
+                    return
+                }
+                
                 try {
                     const domain = this.config[this.config.env].domain || 'localhost'
                     execSync(`openssl req -x509 -newkey rsa:4096 -keyout ${keyPath} -out ${certPath} -days 365 -nodes -subj "/CN=${domain}"`, {
@@ -390,10 +416,77 @@ Options:
                 } catch (err: any) {
                     console.log('⚠️  Failed to generate certificate:', err.message)
                 }
+            } else if (sslMethod === 'Let\'s Encrypt (production)') {
+                const domain = this.config[this.config.env].domain
+                if (!domain) {
+                    console.log('❌ Domain name required for Let\'s Encrypt')
+                    return
+                }
+                
+                // Check if we need to install SSL tools
+                if (!toolsStatus.certbot.installed && !toolsStatus.acmesh.installed) {
+                    const install = await confirm('No SSL tools found. Install recommended tool?', true)
+                    if (install) {
+                        const email = await prompt('Email for SSL notifications (optional)', '')
+                        const installed = await sslTools.installRecommended(email)
+                        if (installed) {
+                            console.log(`✅ Installed ${installed === 'acmesh' ? 'acme.sh' : 'Certbot'}`)
+                        } else {
+                            console.log('❌ Failed to install SSL tools')
+                            return
+                        }
+                    }
+                }
+                
+                // Setup certificate
+                const hasGoDaddy = this.config[this.config.env].godaddy?.key && this.config[this.config.env].godaddy?.secret
+                
+                if (hasGoDaddy) {
+                    console.log('\n🔑 Using GoDaddy DNS challenge (no ports required)...')
+                    const success = await sslTools.setupCertificate(domain, this.config[this.config.env])
+                    if (success) {
+                        console.log('✅ SSL certificate configured successfully')
+                        
+                        // Update paths for acme.sh certificates
+                        if (toolsStatus.acmesh.installed || toolsStatus.recommended === 'acmesh') {
+                            const acmeCertPath = path.join(os.homedir(), '.acme.sh', domain, 'fullchain.cer')
+                            const acmeKeyPath = path.join(os.homedir(), '.acme.sh', domain, `${domain}.key`)
+                            
+                            if (fs.existsSync(acmeCertPath) && fs.existsSync(acmeKeyPath)) {
+                                // Create symlinks
+                                fs.symlinkSync(acmeCertPath, certPath)
+                                fs.symlinkSync(acmeKeyPath, keyPath)
+                                console.log('✅ SSL certificates linked to Air directory')
+                            }
+                        }
+                    } else {
+                        console.log('⚠️  Certificate setup failed. Please try manual setup.')
+                    }
+                } else {
+                    console.log('\n📝 To use Let\'s Encrypt, you need to:')
+                    console.log('1. Configure GoDaddy API credentials for DNS challenge')
+                    console.log('2. Or run Air on port 80 (requires sudo)')
+                    console.log('3. Or use a reverse proxy')
+                    
+                    // Show instructions
+                    const tool = toolsStatus.recommended || 'certbot'
+                    const instructions = sslTools.getDNSChallengeInstructions(domain, tool)
+                    console.log('\nManual setup instructions:')
+                    console.log(instructions)
+                }
             } else {
                 console.log('📝 Please place your SSL certificates in:')
                 console.log(`   Certificate: ${certPath}`)
                 console.log(`   Private Key: ${keyPath}`)
+            }
+        } else {
+            // Non-interactive mode: check and install SSL tools if needed
+            if (!toolsStatus.certbot.installed && !toolsStatus.acmesh.installed) {
+                console.log('📦 Installing recommended SSL tool...')
+                const installed = await sslTools.installRecommended()
+                if (installed) {
+                    console.log(`✅ Installed ${installed === 'acmesh' ? 'acme.sh' : 'Certbot'}`)
+                }
             }
         }
     }
