@@ -178,7 +178,8 @@ export class WindowsStrategy implements PlatformStrategy {
     private async startDirect(name: string): Promise<StartResult> {
         try {
             const runtime = this.capabilities.hasBun ? 'bun.exe' : 'node.exe'
-            const configPath = path.join(process.cwd(), 'air.json')
+            const { getConfigPath } = await import('../../paths.js')
+            const configPath = getConfigPath()
             
             const config = JSON.parse(fs.readFileSync(configPath, 'utf8'))
             const execPath = path.join(config.root || process.cwd(), 'src', 'main.ts')

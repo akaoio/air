@@ -3,9 +3,9 @@
  */
 
 import fs from 'fs'
-import path from 'path'
 import { merge } from '../lib/utils.js'
 import { getpaths } from '../Path/index.js'
+import { getConfigPath } from '../paths.js'
 import { defaults } from './defaults.js'
 import { logger } from '../Logger/index.js'
 import type { AirConfig } from '../types/index.js'
@@ -24,7 +24,7 @@ export function read(this: any, options: ReadOptions = {}): AirConfig {
     }
     
     const paths = getpaths(options.rootArg, options.bashArg)
-    const configFile = this?.configFile || this?.options?.path || options.configFile || paths.config || path.join(process.cwd(), 'air.json')
+    const configFile = this?.configFile || this?.options?.path || options.configFile || paths.config || getConfigPath()
     
     try {
         if (!fs.existsSync(configFile)) {

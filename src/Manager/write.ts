@@ -6,6 +6,7 @@ import fs from 'fs'
 import { logger } from '../Logger/index.js'
 import path from 'path'
 import { getpaths } from '../Path/index.js'
+import { getConfigPath } from '../paths.js'
 import type { AirConfig } from '../types/index.js'
 
 export interface WriteOptions {
@@ -40,7 +41,7 @@ export function write(this: any, config: AirConfig, options: WriteOptions = {}):
     }
     
     const paths = getpaths(options.rootArg, options.bashArg)
-    const configFile = this?.configFile || this?.options?.path || options.configFile || paths.config || path.join(process.cwd(), 'air.json')
+    const configFile = this?.configFile || this?.options?.path || options.configFile || paths.config || getConfigPath()
     
     try {
         // Ensure directory exists

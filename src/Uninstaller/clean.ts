@@ -4,6 +4,7 @@
 
 import fs from 'fs'
 import path from 'path'
+import { getConfigPath } from '../paths.js'
 import type { AirConfig } from '../types/index.js'
 
 export interface CleanResult {
@@ -38,7 +39,7 @@ export function clean(config: AirConfig, options?: {
         
         // Clean config (optional)
         if (!opts.keepConfig) {
-            const configFile = path.join(config.root, 'air.json')
+            const configFile = getConfigPath(null, config.root)
             if (fs.existsSync(configFile)) {
                 // Backup first
                 const backupFile = configFile + '.backup'

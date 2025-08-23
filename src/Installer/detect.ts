@@ -4,10 +4,11 @@
 
 import fs from 'fs'
 import path from 'path'
+import { getConfigPath } from '../paths.js'
 import type { AirConfig } from '../types/index.js'
 
 export function detect(root: string): AirConfig | null {
-    const configPath = path.join(root, 'air.json')
+    const configPath = getConfigPath(null, root)
     
     if (fs.existsSync(configPath)) {
         try {

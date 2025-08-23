@@ -64,7 +64,11 @@ class AirStatus {
         return { running: false, message: 'No PID file found' };
     }
     checkPort() {
-        const port = this.config?.development?.port || this.config?.production?.port || 8765;
+        if (!this.config) {
+            return { port: 8765, inUse: false };
+        }
+        const env = this.config.env || 'development';
+        const port = this.config[env]?.port || 8765;
         try {
             if (process.platform === 'win32') {
                 const output = execSync(`netstat -ano | findstr :${port}`, { encoding: 'utf8' });

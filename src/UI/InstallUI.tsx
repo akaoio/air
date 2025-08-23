@@ -35,6 +35,7 @@ export const InstallUI: React.FC<Props> = ({ options = {} }) => {
     const [env, setEnv] = useState<'development' | 'production'>('development')
     const [port, setPort] = useState('8765')
     const [domain, setDomain] = useState('')
+    const [configPath, setConfigPath] = useState('air.json')
     const [enableSSL, setEnableSSL] = useState(false)
     const [enableDDNS, setEnableDDNS] = useState(false)
     const [godaddyKey, setGodaddyKey] = useState('')
@@ -42,9 +43,25 @@ export const InstallUI: React.FC<Props> = ({ options = {} }) => {
     const [godaddyDomain, setGodaddyDomain] = useState('')
     const [godaddyHost, setGodaddyHost] = useState('@')
     
+    // Auto-exit after success
+    useEffect(() => {
+        if (step === 'success') {
+            const timer = setTimeout(() => {
+                exit()
+            }, 5000) // Auto-exit after 5 seconds
+            
+            return () => clearTimeout(timer)
+        }
+    }, [step, exit])
+    
     // Handle keyboard input
     useInput((input, key) => {
         if (key.escape || (key.ctrl && input === 'c')) {
+            exit()
+        }
+        
+        // Exit on any key press in success screen
+        if (step === 'success') {
             exit()
         }
     })
@@ -69,9 +86,9 @@ export const InstallUI: React.FC<Props> = ({ options = {} }) => {
                 <Box marginTop={2}>
                     <SelectInput
                         items={[
-                            { label: '🚀 Quick Install (Development)', value: 'quick' },
-                            { label: '⚙️  Custom Install', value: 'custom' },
-                            { label: '📖 Check Existing Installation', value: 'check' },
+                            { label: '🚀 Quick Install', value: 'quick' },
+                            { label: '⚙️ Custom Install', value: 'custom' },
+                            { label: '📖 Check Existing', value: 'check' },
                             { label: '❌ Exit', value: 'exit' }
                         ]}
                         onSelect={(item) => {
@@ -83,7 +100,7 @@ export const InstallUI: React.FC<Props> = ({ options = {} }) => {
                             } else if (item.value === 'custom') {
                                 setStep('name')
                             } else if (item.value === 'check') {
-                                setStep('checking')
+                                setStep('check')
                             }
                         }}
                     />
@@ -102,8 +119,35 @@ export const InstallUI: React.FC<Props> = ({ options = {} }) => {
                     <TextInput
                         value={name}
                         onChange={setName}
+                        onSubmit={() => setStep('configpath')}
+                    />
+                </Box>
+                <Text color="gray" dimColor>
+                    Press Enter to continue, ESC to exit
+                </Text>
+            </Box>
+        )
+    }
+    
+    // Config path input
+    if (step === 'configpath') {
+        return (
+            <Box flexDirection="column" padding={1}>
+                <Text color="cyan" bold>Configuration File Location</Text>
+                <Box marginTop={1}>
+                    <Text>Config file path: </Text>
+                    <TextInput
+                        value={configPath}
+                        onChange={setConfigPath}
                         onSubmit={() => setStep('environment')}
                     />
+                </Box>
+                <Box marginTop={1} flexDirection="column">
+                    <Text color="yellow">💡 Examples:</Text>
+                    <Text color="gray">{`  • air.json (default - current directory)
+  • /etc/air/config.json (system-wide) 
+  • ~/.config/air/config.json (user config)
+  • ./config/production.json (project-specific)`}</Text>
                 </Box>
                 <Text color="gray" dimColor>
                     Press Enter to continue, ESC to exit
@@ -336,6 +380,12 @@ export const InstallUI: React.FC<Props> = ({ options = {} }) => {
                 {error && (
                     <Box marginTop={1}>
                         <Text color="red">❌ {error}</Text>
+                        <Text color="gray" dimColor>Press ESC to exit</Text>
+                    </Box>
+                )}
+                {!error && (
+                    <Box marginTop={1}>
+                        <Text color="gray" dimColor>Press Ctrl+C to cancel</Text>
                     </Box>
                 )}
             </Box>
@@ -356,7 +406,7 @@ export const InstallUI: React.FC<Props> = ({ options = {} }) => {
                 </Box>
                 
                 <Box marginTop={2}>
-                    <Text color="gray">Press any key to exit</Text>
+                    <Text color="gray">Press any key to exit (auto-exit in 5s)</Text>
                 </Box>
             </Box>
         )
@@ -422,6 +472,39 @@ export const InstallUI: React.FC<Props> = ({ options = {} }) => {
         } catch (err: any) {
             setError(err.message)
         }
+    }
+    
+    // Check existing config
+    if (step === 'check') {
+        return (
+            <Box flexDirection="column" padding={1}>
+                <Text color="cyan" bold>Existing Configuration</Text>
+                
+                <Box flexDirection="column" marginTop={1}>
+                    <Text>• Config file: {configPath}</Text>
+                    <Text>• Status: Found existing configuration</Text>
+                </Box>
+                
+                <Box marginTop={2}>
+                    <SelectInput
+                        items={[
+                            { label: '✏️ Edit Config', value: 'edit' },
+                            { label: '🔙 Back', value: 'back' },
+                            { label: '❌ Exit', value: 'exit' }
+                        ]}
+                        onSelect={(item) => {
+                            if (item.value === 'edit') {
+                                setStep('name')
+                            } else if (item.value === 'back') {
+                                setStep('welcome')
+                            } else {
+                                exit()
+                            }
+                        }}
+                    />
+                </Box>
+            </Box>
+        )
     }
     
     return null

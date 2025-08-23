@@ -90,6 +90,15 @@ export class Peer implements IPeer {
             epriv: process.argv[13]
         }
         
+        // Log CLI arguments if provided
+        const cliOverrides = Object.entries(cliArgs)
+            .filter(([_, value]) => value !== undefined)
+            .map(([key, value]) => `${key}=${value}`)
+        
+        if (cliOverrides.length > 0) {
+            console.log(`🚀 CLI arguments: ${cliOverrides.join(', ')}`)
+        }
+        
         // Merge options with CLI args
         const merged: PeerOptions = { ...options, ...cliArgs }
         

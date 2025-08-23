@@ -3,13 +3,14 @@
 import fs from 'fs'
 import path from 'path'
 import { merge } from './lib/utils.js'
-import { getPaths } from './paths.js'
+import { getPaths, getConfigPath } from './paths.js'
 import type { AirConfig } from './types/index.js'
 
 interface ConfigOptions {
     rootArg?: string
     bashArg?: string
-    configFile?: string
+    configArg?: string
+    configFile?: string // Deprecated, use configArg
     syncUrl?: string | null
 }
 
@@ -32,13 +33,13 @@ class ConfigManager {
     private lastSync: number | null
     
     constructor(options: ConfigOptions = {}) {
-        const paths = getPaths(options.rootArg, options.bashArg)
+        const paths = getPaths(options.rootArg, options.bashArg, options.configArg || options.configFile)
         this.paths = {
             root: paths.root || process.cwd(),
             bash: paths.bash || path.join(process.cwd(), 'script'),
-            config: paths.config || path.join(process.cwd(), 'air.json')
+            config: paths.config || getConfigPath(options.configArg || options.configFile, paths.root)
         }
-        this.configFile = options.configFile || this.paths.config
+        this.configFile = this.paths.config
         this.syncUrl = options.syncUrl || null
         this.cache = null
         this.lastSync = null
@@ -49,19 +50,34 @@ class ConfigManager {
      */
     read(): AirConfig {
         try {
+            console.log(`📁 Loading config from: ${this.configFile}`)
+            
             if (!fs.existsSync(this.configFile)) {
-                console.log(`Config file not found: ${this.configFile}`)
-                return this.getDefaultConfig()
+                console.log(`⚠️  Config file not found: ${this.configFile}`)
+                console.log(`📝 Using default configuration`)
+                const defaultConfig = this.getDefaultConfig()
+                console.log(`🔧 Config loaded: name=${defaultConfig.name}, env=${defaultConfig.env}`)
+                return defaultConfig
             }
             
             const content = fs.readFileSync(this.configFile, 'utf8')
             const config = JSON.parse(content) as AirConfig
+            console.log(`✅ Config file loaded successfully`)
             
             // Merge with defaults
-            this.cache = merge(this.getDefaultConfig(), config) as AirConfig
-            return this.cache
+            const defaultConfig = this.getDefaultConfig()
+            this.cache = merge(defaultConfig, config) as AirConfig
+            console.log(`🔄 Config merged with defaults`)
+            
+            // Apply environment variables
+            const finalConfig = this.mergeEnvVars(this.cache)
+            console.log(`🌍 Environment variables applied`)
+            console.log(`🔧 Final config: name=${finalConfig.name}, env=${finalConfig.env}, port=${finalConfig[finalConfig.env]?.port}`)
+            
+            return finalConfig
         } catch (error: any) {
-            console.error(`Error reading config from ${this.configFile}:`, error.message)
+            console.error(`❌ Error reading config from ${this.configFile}:`, error.message)
+            console.log(`📝 Falling back to default configuration`)
             return this.getDefaultConfig()
         }
     }
@@ -189,19 +205,42 @@ class ConfigManager {
      * Merge environment variables into config
      */
     mergeEnvVars(config: AirConfig): AirConfig {
+        const envOverrides: string[] = []
+        
         // Root-level environment variables
-        if (process.env.ROOT) config.root = process.env.ROOT
-        if (process.env.BASH) config.bash = process.env.BASH
-        if (process.env.ENV) config.env = process.env.ENV as any
-        if (process.env.NAME) config.name = process.env.NAME
-        if (process.env.SYNC) config.sync = process.env.SYNC
+        if (process.env.ROOT) {
+            config.root = process.env.ROOT
+            envOverrides.push(`ROOT=${process.env.ROOT}`)
+        }
+        if (process.env.BASH) {
+            config.bash = process.env.BASH
+            envOverrides.push(`BASH=${process.env.BASH}`)
+        }
+        if (process.env.ENV) {
+            config.env = process.env.ENV as any
+            envOverrides.push(`ENV=${process.env.ENV}`)
+        }
+        if (process.env.NAME) {
+            config.name = process.env.NAME
+            envOverrides.push(`NAME=${process.env.NAME}`)
+        }
+        if (process.env.SYNC) {
+            config.sync = process.env.SYNC
+            envOverrides.push(`SYNC=${process.env.SYNC}`)
+        }
         
         // Environment-specific variables
         const env = config.env
         const envConfig: any = config[env] || {}
         
-        if (process.env.PORT) envConfig.port = parseInt(process.env.PORT)
-        if (process.env.DOMAIN) envConfig.domain = process.env.DOMAIN
+        if (process.env.PORT) {
+            envConfig.port = parseInt(process.env.PORT)
+            envOverrides.push(`PORT=${process.env.PORT}`)
+        }
+        if (process.env.DOMAIN) {
+            envConfig.domain = process.env.DOMAIN
+            envOverrides.push(`DOMAIN=${process.env.DOMAIN}`)
+        }
         
         // SSL configuration
         if (process.env.SSL_KEY || process.env.SSL_CERT) {
@@ -209,6 +248,8 @@ class ConfigManager {
                 key: process.env.SSL_KEY || '',
                 cert: process.env.SSL_CERT || ''
             }
+            if (process.env.SSL_KEY) envOverrides.push(`SSL_KEY=${process.env.SSL_KEY}`)
+            if (process.env.SSL_CERT) envOverrides.push(`SSL_CERT=${process.env.SSL_CERT}`)
         }
         
         // SEA pair
@@ -219,14 +260,25 @@ class ConfigManager {
                 epub: process.env.EPUB || '',
                 epriv: process.env.EPRIV || ''
             }
+            envOverrides.push(`PUB=${process.env.PUB.substring(0, 10)}...`)
+            envOverrides.push(`PRIV=***hidden***`)
         }
         
         // Peers
         if (process.env.PEERS) {
             envConfig.peers = process.env.PEERS.split(',').map(s => s.trim())
+            envOverrides.push(`PEERS=${envConfig.peers.length} peers`)
         }
         
         config[env] = envConfig
+        
+        // Log environment overrides
+        if (envOverrides.length > 0) {
+            console.log(`🌍 Environment variables applied: ${envOverrides.join(', ')}`)
+        } else {
+            console.log(`🌍 No environment variables to apply`)
+        }
+        
         return config
     }
 
@@ -288,5 +340,5 @@ class ConfigManager {
     }
 }
 
-export { ConfigManager, ConfigOptions, AirConfig }
+export { ConfigManager, type ConfigOptions, type AirConfig }
 export default ConfigManager

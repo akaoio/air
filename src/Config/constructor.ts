@@ -2,8 +2,11 @@
  * Config constructor - Initialize Config manager instance
  */
 
+import { getConfigPath } from '../paths.js'
+
 export function constructor(this: any, configPath?: string) {
-    this.configFile = configPath || 'air.json'
-    this.configPath = configPath || 'air.json'
+    const resolvedPath = configPath || getConfigPath()
+    this.configFile = resolvedPath
+    this.configPath = resolvedPath
     this.currentConfig = null
 }

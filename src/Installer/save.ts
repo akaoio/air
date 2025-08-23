@@ -4,10 +4,11 @@
 
 import fs from 'fs'
 import path from 'path'
+import { getConfigPath } from '../paths.js'
 import type { AirConfig } from '../types/index.js'
 
 export function save(this: any, config: AirConfig): void {
-    const configPath = path.join(config.root, 'air.json')
+    const configPath = getConfigPath(null, config.root)
     
     // Ensure directory exists
     fs.mkdirSync(path.dirname(configPath), { recursive: true })

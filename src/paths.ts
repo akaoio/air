@@ -57,8 +57,16 @@ const detectPaths = () => {
     // Set bash directory
     paths.bash = path.join(paths.script, 'script')
     
-    // Set config path
-    paths.config = path.join(paths.root, 'air.json')
+    // Set config path - respect environment variable
+    if (process.env.AIR_CONFIG) {
+        paths.config = path.resolve(process.env.AIR_CONFIG)
+    } else if (process.env.AIR_CONFIG_PATH) {
+        paths.config = path.resolve(process.env.AIR_CONFIG_PATH)
+    } else {
+        // Default to air.json in root, but also check for custom name
+        const configName = process.env.AIR_CONFIG_NAME || 'air.json'
+        paths.config = path.join(paths.root, configName)
+    }
     
     return paths
 }
@@ -89,16 +97,32 @@ const getBashPath = (cliArg = null) => {
 }
 
 /**
+ * Get the correct config path
+ * Priority: CLI args > ENV > default location
+ */
+const getConfigPath = (cliArg = null, rootPath = null) => {
+    if (cliArg) return path.resolve(cliArg)
+    if (process.env.AIR_CONFIG) return path.resolve(process.env.AIR_CONFIG)
+    if (process.env.AIR_CONFIG_PATH) return path.resolve(process.env.AIR_CONFIG_PATH)
+    
+    // Default to air.json in root directory
+    const root = rootPath || getRootPath()
+    const configName = process.env.AIR_CONFIG_NAME || 'air.json'
+    return path.join(root, configName)
+}
+
+/**
  * Get full paths configuration
  */
-const getPaths = (rootArg = null, bashArg = null) => {
+const getPaths = (rootArg = null, bashArg = null, configArg = null) => {
     const detected = detectPaths()
+    const root = getRootPath(rootArg)
     
     return {
-        root: getRootPath(rootArg),
+        root: root,
         bash: getBashPath(bashArg),
-        config: path.join(getRootPath(rootArg), 'air.json'),
-        logs: path.join(getRootPath(rootArg), 'logs'),
+        config: getConfigPath(configArg, root),
+        logs: path.join(root, 'logs'),
         script: detected.script,
         isPackage: detected.isPackage,
         isDevelopment: detected.isDevelopment
@@ -109,6 +133,7 @@ export {
     detectPaths,
     getRootPath,
     getBashPath,
+    getConfigPath,
     getPaths
 }
 
@@ -116,5 +141,6 @@ export default {
     detectPaths,
     getRootPath,
     getBashPath,
+    getConfigPath,
     getPaths
 }

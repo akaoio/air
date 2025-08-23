@@ -4,9 +4,10 @@
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { getPaths } from '../src/paths'
+import { getPaths } from '../src/paths.js'
+import { ConfigManager } from '../src/config.js'
 import readline from 'readline'
-import type { AirConfig } from '../src/types'
+import type { AirConfig } from '../src/types/index.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const paths = getPaths()
@@ -359,9 +360,92 @@ class ConfigWizard {
     }
 }
 
-// Run the wizard
-const wizard = new ConfigWizard()
-wizard.run().catch(err => {
-    console.error(colors.red + 'Error:' + colors.reset, err)
-    process.exit(1)
-})
+// Parse CLI arguments
+const command = process.argv[2] || 'wizard'
+const configFile = process.argv.find(arg => arg.startsWith('--config='))?.split('=')[1]
+const verbose = process.argv.includes('--verbose') || process.argv.includes('-v')
+
+// Show help
+if (command === 'help' || command === '--help' || command === '-h') {
+    console.log(`
+🔧 Air Config Management CLI
+
+COMMANDS:
+  wizard                  Interactive configuration wizard (default)
+  show                    Show current configuration with precedence info
+  paths                   Show all config and PID file locations  
+  validate                Validate configuration
+  help                    Show this help
+
+OPTIONS:
+  --config=<path>         Specify config file path
+  --verbose, -v           Show detailed output
+
+EXAMPLES:
+  npm run config                               # Interactive wizard
+  npm run config show                         # Show current config
+  npm run config show --verbose               # Show with precedence info
+  npm run config paths                        # Show all file locations
+  npm run config --config=/etc/air.json show  # Use custom config path
+  
+CONFIG PRECEDENCE (highest to lowest):
+  1. 🚀 CLI arguments (node main.js arg1 arg2...)
+  2. 🌍 Environment variables (NAME=foo ENV=prod...)  
+  3. 📁 Config file (air.json or specified path)
+  4. 📝 Default values
+`)
+    process.exit(0)
+}
+
+// Create config manager
+const configManager = new ConfigManager({ configFile })
+
+// Handle commands
+switch (command) {
+    case 'show':
+        console.log(`🔍 Air Configuration (with precedence):\n`)
+        const config = configManager.read()
+        console.log(JSON.stringify(config, null, 2))
+        break
+        
+    case 'paths':
+        const cfg = configManager.read()
+        console.log(`📁 Air File Locations:\n`)
+        console.log(`Config:`)
+        console.log(`  📄 Config file: ${configManager['configFile'] || 'air.json'}`)
+        console.log(`  📝 Root path: ${cfg.root}`)
+        console.log(`  🔧 Bash path: ${cfg.bash}`)
+        console.log(``)
+        console.log(`PID Files:`)
+        console.log(`  🔒 PID file: ${cfg.root}/.${cfg.name}.pid`)
+        console.log(`  🏷️  Instance: ${cfg.name}`)
+        console.log(``)
+        console.log(`Runtime:`)
+        console.log(`  🌍 Environment: ${cfg.env}`)
+        console.log(`  🚪 Port: ${cfg[cfg.env]?.port || 'not set'}`)
+        console.log(`  🌐 Domain: ${cfg[cfg.env]?.domain || 'not set'}`)
+        break
+        
+    case 'validate':
+        const validation = configManager.validate()
+        if (validation.valid) {
+            console.log(`✅ Configuration is valid`)
+        } else {
+            console.error(`❌ Configuration validation failed:`)
+            validation.errors.forEach((error: string) => {
+                console.error(`  • ${error}`)
+            })
+            process.exit(1)
+        }
+        break
+        
+    case 'wizard':
+    default:
+        // Run the interactive wizard
+        const wizard = new ConfigWizard()
+        wizard.run().catch(err => {
+            console.error(colors.red + 'Error:' + colors.reset, err)
+            process.exit(1)
+        })
+        break
+}
