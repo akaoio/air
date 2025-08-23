@@ -428,22 +428,124 @@ WorkingDirectory=${this.config.root}
 ExecStart=/usr/bin/node ${this.config.root}/dist/main.js
 Restart=always
 RestartSec=10
+StandardOutput=journal
+StandardError=journal
+Environment="NODE_ENV=production"
 
 [Install]
 WantedBy=multi-user.target
 `;
             const servicePath = `/etc/systemd/system/${serviceName}`;
-            console.log(`\n📝 To install as systemd service, run:`);
-            console.log(`   sudo tee ${servicePath} << EOF`);
-            console.log(serviceContent);
-            console.log('EOF');
-            console.log(`   sudo systemctl daemon-reload`);
-            console.log(`   sudo systemctl enable ${serviceName}`);
-            console.log(`   sudo systemctl start ${serviceName}`);
+            // Check if we can use sudo
+            let canUseSudo = false;
+            try {
+                execSync('sudo -n true', { stdio: 'ignore' });
+                canUseSudo = true;
+            }
+            catch {
+                canUseSudo = false;
+            }
+            if (canUseSudo) {
+                try {
+                    console.log('📝 Creating systemd service...');
+                    // Create service file
+                    const tempFile = path.join(os.tmpdir(), `${serviceName}.tmp`);
+                    fs.writeFileSync(tempFile, serviceContent);
+                    execSync(`sudo mv ${tempFile} ${servicePath}`, { stdio: 'pipe' });
+                    // Set permissions
+                    execSync(`sudo chmod 644 ${servicePath}`, { stdio: 'pipe' });
+                    // Reload systemd
+                    console.log('🔄 Reloading systemd...');
+                    execSync('sudo systemctl daemon-reload', { stdio: 'pipe' });
+                    // Enable service
+                    console.log('✅ Enabling service...');
+                    execSync(`sudo systemctl enable ${serviceName}`, { stdio: 'pipe' });
+                    // Ask if should start now
+                    const startNow = await confirm('Start service now?', true);
+                    if (startNow) {
+                        execSync(`sudo systemctl start ${serviceName}`, { stdio: 'pipe' });
+                        console.log('✅ Service started successfully!');
+                        console.log(`\n📊 Check status: sudo systemctl status ${serviceName}`);
+                        console.log(`📜 View logs: sudo journalctl -u ${serviceName} -f`);
+                    }
+                    else {
+                        console.log(`\n▶️  Start later: sudo systemctl start ${serviceName}`);
+                    }
+                }
+                catch (err) {
+                    console.error('❌ Failed to create service:', err.message);
+                    console.log('\nManual setup commands:');
+                    console.log(`sudo tee ${servicePath} > /dev/null << 'EOF'`);
+                    console.log(serviceContent);
+                    console.log('EOF');
+                    console.log(`sudo systemctl daemon-reload`);
+                    console.log(`sudo systemctl enable ${serviceName}`);
+                    console.log(`sudo systemctl start ${serviceName}`);
+                }
+            }
+            else {
+                // No sudo access - try user service or provide instructions
+                const userServiceDir = path.join(os.homedir(), '.config/systemd/user');
+                if (fs.existsSync('/usr/bin/systemctl')) {
+                    console.log('🔒 No sudo access. Setting up user service instead...');
+                    try {
+                        // Create user systemd directory if needed
+                        if (!fs.existsSync(userServiceDir)) {
+                            fs.mkdirSync(userServiceDir, { recursive: true });
+                        }
+                        // Modify service for user mode
+                        const userServiceContent = serviceContent
+                            .replace('WantedBy=multi-user.target', 'WantedBy=default.target')
+                            .replace(`User=${os.userInfo().username}\n`, ''); // Remove User line for user services
+                        const userServicePath = path.join(userServiceDir, serviceName);
+                        fs.writeFileSync(userServicePath, userServiceContent);
+                        // Reload user systemd
+                        execSync('systemctl --user daemon-reload', { stdio: 'pipe' });
+                        // Enable user service
+                        execSync(`systemctl --user enable ${serviceName}`, { stdio: 'pipe' });
+                        console.log('✅ User service created successfully!');
+                        const startNow = await confirm('Start service now?', true);
+                        if (startNow) {
+                            execSync(`systemctl --user start ${serviceName}`, { stdio: 'pipe' });
+                            console.log('✅ Service started!');
+                            console.log(`\n📊 Check status: systemctl --user status ${serviceName}`);
+                            console.log(`📜 View logs: journalctl --user -u ${serviceName} -f`);
+                        }
+                        else {
+                            console.log(`\n▶️  Start later: systemctl --user start ${serviceName}`);
+                        }
+                        console.log('\n📝 Note: User services start when you log in');
+                        console.log('   To start at boot: loginctl enable-linger');
+                    }
+                    catch (err) {
+                        console.error('❌ Failed to create user service:', err.message);
+                        this.showAlternativeServiceOptions();
+                    }
+                }
+                else {
+                    this.showAlternativeServiceOptions();
+                }
+            }
         }
         else {
-            console.log('ℹ️  Manual service setup required for your platform');
+            this.showAlternativeServiceOptions();
         }
+    }
+    showAlternativeServiceOptions() {
+        console.log('\n📝 Alternative auto-start options:');
+        console.log('\n1. PM2 (recommended for non-systemd):');
+        console.log('   npm install -g pm2');
+        console.log(`   pm2 start ${this.config.root}/dist/main.js --name ${this.config.name}`);
+        console.log('   pm2 save');
+        console.log('   pm2 startup');
+        console.log('\n2. Cron job:');
+        console.log('   crontab -e');
+        console.log(`   @reboot cd ${this.config.root} && /usr/bin/node dist/main.js >> logs/air.log 2>&1`);
+        console.log('\n3. Docker:');
+        console.log(`   docker run -d --restart=always --name ${this.config.name} \\`);
+        console.log(`     -v ${this.config.root}:/app \\`);
+        console.log(`     -p ${this.config[this.config.env].port}:${this.config[this.config.env].port} \\`);
+        console.log('     node:18 node /app/dist/main.js');
     }
     async checkInstallation() {
         console.log('\n🔍 Checking Installation\n' + '─'.repeat(40));
