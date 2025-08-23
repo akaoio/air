@@ -140,6 +140,7 @@ Options:
             await this.configureInstance();
             await this.saveConfiguration();
             await this.setupSSL();
+            await this.setupCronJobs();
             await this.setupService();
             await this.finalReport();
         }
@@ -530,6 +531,52 @@ WantedBy=multi-user.target
         else {
             this.showAlternativeServiceOptions();
         }
+    }
+    async setupCronJobs() {
+        console.log('\n⏰ Cron Job Setup\n' + '─'.repeat(40));
+        const { CronManager } = await import('../dist/Installer/cron-manager.js');
+        const cronManager = new CronManager();
+        // Clean old jobs first
+        const cleanResult = cronManager.cleanOldJobs(this.config);
+        if (cleanResult.success && cleanResult.message.includes('Removed')) {
+            console.log(`🧹 ${cleanResult.message}`);
+        }
+        // Setup DDNS cron if GoDaddy is configured
+        if (this.config[this.config.env]?.godaddy?.key) {
+            console.log('\n📡 Setting up DDNS auto-update...');
+            const ddnsResult = cronManager.setupDDNS(this.config);
+            if (ddnsResult.success) {
+                console.log(`✅ ${ddnsResult.message}`);
+            }
+            else {
+                console.log(`⚠️  ${ddnsResult.message}`);
+            }
+        }
+        // Setup SSL renewal if certificates exist
+        if (this.config[this.config.env]?.ssl) {
+            const sslDir = path.join(this.config.root, 'ssl');
+            const certPath = path.join(sslDir, 'cert.pem');
+            if (fs.existsSync(certPath)) {
+                // Detect which SSL tool is being used
+                const { SSLToolsInstaller } = await import('../dist/Installer/ssl-tools.js');
+                const sslTools = new SSLToolsInstaller();
+                const toolsStatus = await sslTools.check();
+                if (toolsStatus.certbot.installed || toolsStatus.acmesh.installed) {
+                    const tool = toolsStatus.certbot.installed ? 'certbot' : 'acmesh';
+                    console.log(`\n🔐 Setting up SSL auto-renewal (${tool})...`);
+                    const sslResult = cronManager.setupSSLRenewal(this.config, tool);
+                    if (sslResult.success) {
+                        console.log(`✅ ${sslResult.message}`);
+                    }
+                    else {
+                        console.log(`⚠️  ${sslResult.message}`);
+                    }
+                }
+            }
+        }
+        // Show cron status
+        const status = cronManager.getStatus();
+        console.log('\n' + status);
     }
     showAlternativeServiceOptions() {
         console.log('\n📝 Alternative auto-start options:');
