@@ -60,12 +60,12 @@
         "format": "bunx prettier --write . || npx prettier --write .",
         "air:install": "node script/install.cjs",
         "air:install:notui": "node script/install.cjs --non-interactive",
-        "config": "bun script/config.ts || tsx script/config.ts || node script/config-compiled.js",
-        "ddns": "bun script/ddns.ts || tsx script/ddns.ts || node script/ddns-compiled.js",
-        "status": "bun script/status.ts || tsx script/status.ts || node script/status-compiled.js",
-        "logs": "bun script/logs.ts || tsx script/logs.ts || node script/logs-compiled.js",
+        "config": "bun script/compiled/config.js || node script/compiled/config.js",
+        "ddns": "bun script/compiled/ddns.js || node script/compiled/ddns.js",
+        "status": "bun script/compiled/status.js || node script/compiled/status.js",
+        "logs": "bun script/compiled/logs.js || node script/compiled/logs.js",
         "update": "node script/update.cjs",
-        "uninstall": "bun script/uninstall.ts || tsx script/uninstall.ts"
+        "uninstall": "node script/uninstall.cjs"
     },
     "devDependencies": {
         "@types/bun": "^1.2.20",
