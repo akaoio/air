@@ -1,0 +1,1 @@
+{"version":3,"file":"main.js","sourceRoot":"","sources":["../../src/main.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,EAAE,EAAE,MAAM,SAAS,CAAA;AAC5B,MAAM,IAAI,GAAG,KAAK,IAAI,EAAE;IACpB,MAAM,EAAE,CAAC,KAAK,EAAE,CAAA;AACpB,CAAC,CAAA;AACD,IAAI,EAAE,CAAA","sourcesContent":["import { db } from \"./db.js\"\nconst main = async () => {\n    await db.start()\n}\nmain()\n"]}

@@ -1,0 +1,60 @@
+# Common Issues and Solutions
+
+issues:
+  - category: "Import Errors"
+    problem: "Import errors in Node.js"
+    solutions:
+      - "Ensure all relative imports have .js extensions"
+      - "Check \"module\": \"NodeNext\" in tsconfig"
+    example: "import { something } from './file.js' // not './file'"
+
+  - category: "TypeScript Compilation"
+    problem: "TypeScript compilation fails"
+    solutions:
+      - "Use tsconfig.prod.json for production builds"
+      - "Cast problematic expressions to any if needed"
+    command: "npx tsc -p tsconfig.prod.json"
+
+  - category: "Module Resolution"
+    problem: "Module not found errors"
+    solutions:
+      - "Verify file exists in src/"
+      - "Check import path includes .js"
+      - "Ensure TypeScript compiled successfully"
+
+  - category: "PID Management"
+    problem: "PID file issues"
+    solutions:
+      - "Remove stale .air*.pid files"
+      - "Check process not already running"
+    command: "rm -f ~/.local/state/air/*.pid"
+
+development_workflow:
+  steps:
+    - step: "Make changes in src/"
+      action: "edit src/feature.ts"
+    - step: "Ensure imports use .js"
+      action: "import { something } from './other.js'"
+    - step: "Build"
+      action: "npm run build:prod"
+    - step: "Test"
+      action: "npm test"
+    - step: "Run"
+      action: "node dist/main.js"
+    - step: "Commit"
+      actions:
+        - "git add -A"
+        - "git commit -m 'feat: add new feature'"
+        - "git push"
+
+quick_commands:
+  - command: "npm start"
+    description: "Run with best available runtime"
+  - command: "npm run dev"
+    description: "Development with hot reload (Bun)"
+  - command: "npm run build:prod"
+    description: "Compile TypeScript to JavaScript"
+  - command: "npm test"
+    description: "Run test suite"
+  - command: "npm run format"
+    description: "Format code with Prettier"

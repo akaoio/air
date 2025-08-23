@@ -1,0 +1,111 @@
+# International Standards Compliance
+
+compliance_overview:
+  description: "Air is designed as a tầm cỡ quốc tế (international-scale) product that strictly adheres to global standards for configuration and file management."
+
+standards:
+  - name: "XDG Base Directory Specification"
+    url: "https://specifications.freedesktop.org/basedir-spec/latest/"
+    directories:
+      config: "$XDG_CONFIG_HOME or ~/.config - Configuration files"
+      data: "$XDG_DATA_HOME or ~/.local/share - Data files"
+      cache: "$XDG_CACHE_HOME or ~/.cache - Cache files"
+      state: "$XDG_STATE_HOME or ~/.local/state - State files (logs, PID files)"
+      runtime: "$XDG_RUNTIME_DIR or /run/user/{uid} - Runtime files (sockets, temp files)"
+
+  - name: "Filesystem Hierarchy Standard (FHS)"
+    description: "Compatible with FHS for proper Unix system integration"
+    paths:
+      system_config: "/etc/air/ (system-wide) or ~/.config/air/ (user)"
+      system_data: "/var/lib/air/ (system) or ~/.local/share/air/ (user)"
+      system_logs: "/var/log/air/ (system) or ~/.local/state/air/logs/ (user)"
+      system_runtime: "/run/air/ (system) or /run/user/{uid}/air/ (user)"
+
+  - name: "Windows Standards"
+    description: "Following Windows conventions"
+    paths:
+      config: "%APPDATA%\\air\\air.json"
+      data: "%LOCALAPPDATA%\\air\\"
+      cache: "%LOCALAPPDATA%\\air\\cache\\"
+      logs: "%LOCALAPPDATA%\\air\\logs\\"
+
+dual_mode_operation:
+  module_mode:
+    description: "When Air is used as an NPM package in a project"
+    setup:
+      - "cd my-project/"
+      - "npm install @akaoio/air"
+    characteristics:
+      - "Configuration: ./air.json (in project root)"
+      - "Data: ./.air/data/"
+      - "State: ./.air/state/ (PID files, logs)"
+      - "Cache: ./.air/cache/"
+      - "Isolated per project"
+      - "No global system impact"
+
+  super_peer_mode:
+    description: "When Air runs as a standalone service from its source directory"
+    setup:
+      - "cd air/"
+      - "npm run air:install"
+    characteristics:
+      - "Configuration: ~/.config/air/air.json (XDG compliant)"
+      - "Data: ~/.local/share/air/"
+      - "State: ~/.local/state/air/ (PID files, logs)"
+      - "Cache: ~/.cache/air/"
+      - "System-wide service capability"
+      - "Full XDG compliance"
+
+singleton_pattern:
+  description: "Air implements robust singleton pattern to prevent conflicts"
+  lock_files:
+    location: "Runtime directory (/run/user/{uid}/air/ or state directory)"
+    format: "{instance-name}.lock containing PID"
+    features:
+      - "Automatic cleanup on process exit"
+      - "Stale lock detection and recovery"
+  
+  pid_files:
+    location: "State directory (~/.local/state/air/)"
+    format: "{instance-name}.pid"
+    description: "Standard Unix daemon pattern"
+    usage: "Used by system monitoring tools"
+
+cross_platform_paths:
+  linux:
+    config: "~/.config/air"
+    data: "~/.local/share/air"
+    state: "~/.local/state/air"
+    cache: "~/.cache/air"
+    runtime: "/run/user/{uid}/air"
+  
+  macos:
+    config: "~/.config/air"
+    data: "~/.local/share/air"
+    state: "~/.local/state/air"
+    cache: "~/.cache/air"
+    runtime: "~/.local/state/air"
+  
+  windows:
+    config: "%APPDATA%\\air"
+    data: "%LOCALAPPDATA%\\air"
+    state: "%LOCALAPPDATA%\\air"
+    cache: "%LOCALAPPDATA%\\air\\cache"
+    runtime: "%LOCALAPPDATA%\\air"
+  
+  termux:
+    config: "~/.config/air"
+    data: "~/.local/share/air"
+    state: "~/.local/state/air"
+    cache: "~/.cache/air"
+    runtime: "$PREFIX/var/run/air"
+
+compliance_benefits:
+  - "🌍 International Standard: Follows XDG and FHS specifications"
+  - "🔒 System Integration: Compatible with system monitoring and management"
+  - "👥 Multi-user: Proper user isolation and permissions"
+  - "🔄 Migration: Seamless upgrade from legacy configurations"
+  - "🚀 Scalable: Support for both development and production deployment"
+  - "📊 Monitoring: Standard PID files and log locations"
+  - "🛡️ Security: Proper file permissions and singleton locking"
+  - "🌐 Cross-platform: Consistent behavior across operating systems"

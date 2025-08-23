@@ -1,0 +1,32 @@
+/**
+ * Get IPv6 address via HTTP
+ */
+import fetch from 'node-fetch';
+import { ipv6Services } from '../constants.js';
+import { validate } from '../validate.js';
+export async function http() {
+    for (const service of ipv6Services) {
+        try {
+            const response = await fetch(service, {
+                headers: { 'User-Agent': 'Air-GUN-Peer/1.0' }
+            });
+            const text = await response.text();
+            // Handle JSON responses
+            let ip = text.trim();
+            try {
+                const json = JSON.parse(text);
+                ip = json.ip || json.address || ip;
+            }
+            catch { }
+            if (validate(ip)) {
+                return ip;
+            }
+        }
+        catch {
+            continue;
+        }
+    }
+    return null;
+}
+export default http;
+//# sourceMappingURL=http.js.map

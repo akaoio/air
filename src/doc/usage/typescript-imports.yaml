@@ -1,0 +1,31 @@
+# TypeScript and ES Modules Critical Info
+critical_info: "This project uses TypeScript with ES modules for Node.js"
+
+import_rules:
+  rule: "All relative imports MUST have .js extensions even though source files are .ts"
+  
+  correct_example:
+    description: "CORRECT - even though the file is config.ts"
+    code: "import { ConfigManager } from './config.js'"
+  
+  wrong_example:
+    description: "WRONG - will fail in Node.js"
+    code: "import { ConfigManager } from './config'"
+
+why_it_works: "TypeScript understands that './config.js' refers to ./config.ts during compilation, and the output will actually be ./config.js"
+
+build_configs:
+  development:
+    file: "tsconfig.json"
+    description: "Strict configuration for development"
+  
+  production:
+    file: "tsconfig.prod.json"
+    description: "Permissive configuration for production builds with \"module\": \"NodeNext\""
+
+function_naming:
+  rule: "All functions must use single-word names"
+  examples:
+    single_word: ["read()", "write()", "sync()", "init()", "restart()"]
+    grouped_functions: ["ip.get()", "ip.validate()", "status.ddns()", "status.alive()"]
+    never_use: "camelCase, underscores, or hyphens in function names"

@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "outDir": "./script/compiled",
+    "rootDir": "./",
+    "module": "ES2022",
+    "target": "ES2022",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "noImplicitAny": false,
+    "resolveJsonModule": true,
+    "allowJs": true
+  },
+  "include": [
+    "script/*.ts"
+  ],
+  "exclude": [
+    "script/compiled",
+    "script/*.js"
+  ]
+}

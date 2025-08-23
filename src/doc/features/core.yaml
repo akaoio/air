@@ -1,0 +1,37 @@
+# Core Features
+features:
+  - icon: "🚀"
+    name: "Multi-runtime Support"
+    description: "Runs on Bun (native TypeScript) or Node.js (TypeScript via tsx or compiled JavaScript)"
+  
+  - icon: "🔐"
+    name: "Automatic SSL"
+    description: "Let's Encrypt integration with auto-renewal"
+  
+  - icon: "🌐"
+    name: "Dynamic DNS"
+    description: "GoDaddy DDNS support for dynamic IPs"
+  
+  - icon: "🔄"
+    name: "P2P Synchronization"
+    description: "Real-time data sync across peers"
+  
+  - icon: "🔑"
+    name: "SEA Cryptography"
+    description: "Built-in authentication and encryption"
+  
+  - icon: "📦"
+    name: "TypeScript First"
+    description: "Full type safety with modern TypeScript"
+  
+  - icon: "🔧"
+    name: "Zero Config"
+    description: "Works out of the box with sensible defaults"
+  
+  - icon: "🔄"
+    name: "Auto-restart"
+    description: "Resilient with exponential backoff"
+  
+  - icon: "🚦"
+    name: "PID Management"
+    description: "Prevents duplicate instances"

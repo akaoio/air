@@ -1,0 +1,1 @@
+{"version":3,"file":"db.js","sourceRoot":"","sources":["../../src/db.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,IAAI,EAAE,MAAM,WAAW,CAAA;AAEhC,MAAM,EAAE,GAAG,IAAI,IAAI,EAAE,CAAA;AAErB,OAAO,EAAE,EAAE,EAAE,CAAA;AACb,eAAe,EAAE,CAAA","sourcesContent":["import { Peer } from \"./Peer.js\"\n\nconst db = new Peer()\n\nexport { db }\nexport default db\n"]}

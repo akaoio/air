@@ -1,0 +1,17 @@
+# Project Overview
+description: "Air is a production-ready distributed database system built on [GUN](https://github.com/amark/gun), providing peer-to-peer synchronization, automatic SSL management, and dynamic DNS updates. Written in TypeScript for type safety and modern development experience."
+
+technology_stack:
+  - "GUN Database (P2P)"
+  - "TypeScript (ES Modules)" 
+  - "Bun Runtime (native TypeScript)"
+  - "Node.js (with tsx or compiled)"
+  - "Let's Encrypt SSL"
+  - "GoDaddy DDNS"
+  - "SEA Cryptography"
+
+architecture:
+  - "Class = Directory structure"
+  - "Single-word function naming"
+  - "XDG Base Directory compliant"
+  - "Multi-runtime support"

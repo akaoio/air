@@ -1,0 +1,33 @@
+# Quick Start Installation
+installation_steps:
+  - title: "Clone the repository"
+    commands:
+      - "git clone https://github.com/akaoio/air.git"
+      - "cd air"
+  
+  - title: "Install dependencies"
+    commands:
+      - "npm install"
+  
+  - title: "Run interactive installer (optional)"
+    commands:
+      - "bun script/install.ts"
+
+running_options:
+  - runtime: "Bun"
+    description: "fastest, native TypeScript"
+    command: "bun run src/main.ts"
+  
+  - runtime: "Node.js + TypeScript"
+    description: "TypeScript transpilation"
+    command: "npx tsx src/main.ts"
+  
+  - runtime: "Node.js (compiled)"
+    description: "JavaScript compiled"
+    commands:
+      - "npm run build:prod"
+      - "node dist/main.js"
+  
+  - runtime: "Development mode"
+    description: "hot reload on Bun"
+    command: "npm run dev"

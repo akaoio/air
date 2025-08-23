@@ -1,0 +1,6 @@
+# Air Project Title
+title: "Air - Distributed GUN Database System"
+subtitle: "Production-ready P2P database with SSL, DDNS & TypeScript"
+version: "2.0.0"
+status: "Production Ready"
+runtime: "Bun, Node.js (with or without TypeScript)"
