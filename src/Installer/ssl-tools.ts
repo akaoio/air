@@ -41,13 +41,19 @@ export class SSLToolsInstaller {
     }
     
     /**
-     * Check if sudo is available
+     * Check if sudo is available AND works without password
      */
     private checkSudo(): boolean {
         try {
+            // First check if sudo exists
             execSync('which sudo', { stdio: 'ignore' })
+            
+            // Then check if it works without password
+            // Using -n flag to prevent password prompt
+            execSync('sudo -n true', { stdio: 'ignore' })
             return true
         } catch {
+            // Either sudo doesn't exist or requires password
             return false
         }
     }
@@ -67,10 +73,14 @@ export class SSLToolsInstaller {
             result.recommended = 'acmesh'
         } else if (result.certbot.installed) {
             result.recommended = 'certbot'
-        } else if (!this.isRoot && !this.canSudo) {
-            result.recommended = 'acmesh' // Works without sudo
         } else {
-            result.recommended = 'certbot' // Standard choice
+            // For new installations, prefer acme.sh unless we have passwordless sudo
+            // acme.sh works for everyone, certbot only works with sudo
+            if (this.isRoot || this.canSudo) {
+                result.recommended = 'certbot' // Can use certbot with sudo
+            } else {
+                result.recommended = 'acmesh' // Must use acme.sh without sudo
+            }
         }
         
         return result
@@ -250,6 +260,13 @@ export class SSLToolsInstaller {
      * Install certbot
      */
     async installCertbot(): Promise<boolean> {
+        // Check if we can actually use sudo
+        if (!this.isRoot && !this.canSudo) {
+            console.log('⚠️  Certbot installation requires sudo access')
+            console.log('   Please install manually or use acme.sh instead')
+            return false
+        }
+        
         const command = this.getCertbotInstallCommand()
         
         console.log('📦 Installing Certbot...')
@@ -264,8 +281,14 @@ export class SSLToolsInstaller {
                 console.log(`✅ Certbot ${check.version} installed successfully`)
                 return true
             }
-        } catch (error) {
-            console.error('❌ Failed to install Certbot:', error)
+        } catch (error: any) {
+            if (error.message?.includes('sudo') || error.code === 1) {
+                console.log('❌ Sudo password required. Cannot install certbot automatically.')
+                console.log('   Please run: ' + command)
+                console.log('   Or use acme.sh which doesn\'t require sudo')
+            } else {
+                console.error('❌ Failed to install Certbot:', error.message)
+            }
         }
         
         return false
