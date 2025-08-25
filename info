@@ -1,0 +1,59 @@
+================================================================================
+AIR Log - undefined
+Started: 2025-08-24T05:19:30.145Z
+Process: 193577
+================================================================================
+[2025-08-24T05:19:30.146Z] File log message
+[2025-08-24T05:19:30.156Z] Should not write
+[2025-08-24T05:19:30.159Z] Will fail
+[2025-08-24T05:19:30.165Z] Message
+[2025-08-24T05:19:30.207Z] Permission test
+[2025-08-24T05:19:30.210Z] Invalid path test
+[2025-08-24T08:03:23.087Z] File log message
+[2025-08-24T08:03:23.116Z] Should not write
+[2025-08-24T08:03:23.125Z] Will fail
+[2025-08-24T08:03:23.133Z] Message
+[2025-08-24T08:03:23.195Z] Permission test
+[2025-08-24T08:03:23.201Z] Invalid path test
+[2025-08-24T08:09:15.897Z] File log message
+[2025-08-24T08:09:15.914Z] Should not write
+[2025-08-24T08:09:15.916Z] Will fail
+[2025-08-24T08:09:15.923Z] Message
+[2025-08-24T08:09:16.003Z] Permission test
+[2025-08-24T08:09:16.006Z] Invalid path test
+[2025-08-24T08:10:01.046Z] File log message
+[2025-08-24T08:10:01.058Z] Should not write
+[2025-08-24T08:10:01.061Z] Will fail
+[2025-08-24T08:10:01.067Z] Message
+[2025-08-24T08:10:01.112Z] Permission test
+[2025-08-24T08:10:01.115Z] Invalid path test
+[2025-08-24T08:10:45.552Z] File log message
+[2025-08-24T08:10:45.562Z] Should not write
+[2025-08-24T08:10:45.565Z] Will fail
+[2025-08-24T08:10:45.571Z] Message
+[2025-08-24T08:10:45.609Z] Permission test
+[2025-08-24T08:10:45.611Z] Invalid path test
+[2025-08-24T08:15:18.284Z] File log message
+[2025-08-24T08:15:18.293Z] Should not write
+[2025-08-24T08:15:18.295Z] Will fail
+[2025-08-24T08:15:18.302Z] Message
+[2025-08-24T08:15:18.338Z] Permission test
+[2025-08-24T08:15:18.341Z] Invalid path test
+[2025-08-24T08:17:38.605Z] File log message
+[2025-08-24T08:17:38.618Z] Should not write
+[2025-08-24T08:17:38.621Z] Will fail
+[2025-08-24T08:17:38.628Z] Message
+[2025-08-24T08:17:38.672Z] Permission test
+[2025-08-24T08:17:38.674Z] Invalid path test
+[2025-08-24T08:21:52.235Z] File log message
+[2025-08-24T08:21:52.244Z] Should not write
+[2025-08-24T08:21:52.247Z] Will fail
+[2025-08-24T08:21:52.254Z] Message
+[2025-08-24T08:21:52.293Z] Permission test
+[2025-08-24T08:21:52.296Z] Invalid path test
+[2025-08-24T08:24:43.037Z] File log message
+[2025-08-24T08:24:43.046Z] Should not write
+[2025-08-24T08:24:43.048Z] Will fail
+[2025-08-24T08:24:43.054Z] Message
+[2025-08-24T08:24:43.086Z] Permission test
+[2025-08-24T08:24:43.088Z] Invalid path test

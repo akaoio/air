@@ -2,7 +2,7 @@
  * Get network interfaces info
  */
 
-import os from 'os'
+import os from "os"
 
 export interface InterfaceInfo {
     name: string
@@ -16,9 +16,9 @@ export interface InterfaceInfo {
 export function interfaces(): InterfaceInfo[] {
     const interfaces = os.networkInterfaces()
     const result: InterfaceInfo[] = []
-    
+
     for (const [name, configs] of Object.entries(interfaces)) {
-        for (const config of (configs as any)) {
+        for (const config of configs as any) {
             if (!config.internal) {
                 result.push({
                     name,
@@ -31,7 +31,7 @@ export function interfaces(): InterfaceInfo[] {
             }
         }
     }
-    
+
     return result
 }
 

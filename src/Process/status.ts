@@ -3,9 +3,9 @@
  * Used by status script to safely check if process is running
  */
 
-import fs from 'fs'
-import { getpidfile, ProcessConfig } from './getpidfile.js'
-import { isrunning } from './isrunning.js'
+import fs from "fs"
+import { getpidfile, ProcessConfig } from "./getpidfile.js"
+import { isrunning } from "./isrunning.js"
 
 export interface ProcessStatus {
     pidFile: string
@@ -17,7 +17,7 @@ export interface ProcessStatus {
 
 export function status(config: ProcessConfig = {}): ProcessStatus {
     const pidFile = getpidfile(config)
-    
+
     const result: ProcessStatus = {
         pidFile,
         exists: false,
@@ -25,13 +25,13 @@ export function status(config: ProcessConfig = {}): ProcessStatus {
         pid: null,
         stale: false
     }
-    
+
     try {
         if (fs.existsSync(pidFile)) {
             result.exists = true
-            const pidContent = fs.readFileSync(pidFile, 'utf8').trim()
+            const pidContent = fs.readFileSync(pidFile, "utf8").trim()
             const pid = parseInt(pidContent)
-            
+
             if (!isNaN(pid)) {
                 result.pid = pid
                 result.running = isrunning(pid)
@@ -45,7 +45,7 @@ export function status(config: ProcessConfig = {}): ProcessStatus {
         // File system error, treat as not running
         result.exists = false
     }
-    
+
     return result
 }
 

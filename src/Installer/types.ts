@@ -2,13 +2,13 @@
  * Installer-specific types
  */
 
-import type { AirConfig, GoDaddyConfig } from '../types/index.js'
+import type { AirConfig, GoDaddyConfig } from "../types/index.js"
 
 export interface InstallOptions {
     name?: string
     env?: string
     root?: string
-    bash?: string  
+    bash?: string
     domain?: string
     port?: number
     sync?: string

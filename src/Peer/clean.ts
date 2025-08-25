@@ -2,11 +2,11 @@
  * Clean PID file
  */
 
-import { clean as cleanProcess } from '../Process/index.js'
+import { clean as cleanProcess } from "../Process/index.js"
 
 export function clean(options?: { name?: string; root?: string }): void {
     cleanProcess({
-        name: options?.name || process.env.NAME || 'air',
+        name: options?.name || process.env.NAME || "air",
         root: options?.root || process.env.ROOT || process.cwd()
     })
 }

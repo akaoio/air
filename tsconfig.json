@@ -1,65 +1,59 @@
 {
-  "compilerOptions": {
-    // Target modern runtime (Bun supports latest ES features)
-    "target": "ES2022",
-    "module": "ES2022",
-    "lib": ["ES2022"],
-    
-    // Module resolution
-    "moduleResolution": "node",
-    "allowImportingTsExtensions": false,
-    "resolveJsonModule": true,
-    "allowJs": false,
-    "noEmit": false,
-    
-    // Type checking
-    "strict": true,
-    "noImplicitAny": true,
-    "strictNullChecks": true,
-    "strictFunctionTypes": true,
-    "strictBindCallApply": true,
-    "strictPropertyInitialization": true,
-    "noImplicitThis": true,
-    "alwaysStrict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noImplicitReturns": true,
-    "noFallthroughCasesInSwitch": true,
-    "noUncheckedIndexedAccess": true,
-    
-    // Best practices
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "allowSyntheticDefaultImports": true,
-    
-    // Output
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "baseUrl": "./",
-    "paths": {
-      "@/*": ["src/*"],
-      "@lib/*": ["src/lib/*"]
+    "compilerOptions": {
+        // Target modern runtime (Bun supports latest ES features)
+        "target": "ES2022",
+        "module": "ES2022",
+        "lib": ["ES2022"],
+
+        // Module resolution
+        "moduleResolution": "node",
+        "allowImportingTsExtensions": false,
+        "resolveJsonModule": true,
+        "allowJs": false,
+        "noEmit": false,
+
+        // Type checking
+        "strict": true,
+        "noImplicitAny": true,
+        "strictNullChecks": true,
+        "strictFunctionTypes": true,
+        "strictBindCallApply": true,
+        "strictPropertyInitialization": true,
+        "noImplicitThis": true,
+        "alwaysStrict": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "noImplicitReturns": true,
+        "noFallthroughCasesInSwitch": true,
+        "noUncheckedIndexedAccess": true,
+
+        // Best practices
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "forceConsistentCasingInFileNames": true,
+        "allowSyntheticDefaultImports": true,
+
+        // Output
+        "outDir": "./dist",
+        "rootDir": "./src",
+        "baseUrl": "./",
+        "paths": {
+            "@/*": ["src/*"],
+            "@lib/*": ["src/lib/*"]
+        },
+
+        // Source maps for debugging
+        "sourceMap": true,
+        "inlineSources": true,
+
+        // Decorators (if needed)
+        "experimentalDecorators": true,
+        "emitDecoratorMetadata": true
     },
-    
-    // Source maps for debugging
-    "sourceMap": true,
-    "inlineSources": true,
-    
-    // Decorators (if needed)
-    "experimentalDecorators": true,
-    "emitDecoratorMetadata": true
-  },
-  "include": [
-    "src/**/*.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "tmp"
-  ],
-  "ts-node": {
-    "esm": true,
-    "experimentalSpecifierResolution": "node"
-  }
+    "include": ["src/**/*.ts"],
+    "exclude": ["node_modules", "dist", "tmp"],
+    "ts-node": {
+        "esm": true,
+        "experimentalSpecifierResolution": "node"
+    }
 }

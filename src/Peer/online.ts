@@ -2,8 +2,8 @@
  * Go online with GUN user
  */
 
-import type { AirConfig, EnvironmentConfig } from '../types/index.js'
-import { logger } from '../Logger/index.js'
+import type { AirConfig, EnvironmentConfig } from "../types/index.js"
+import { logger } from "../Logger/index.js"
 
 export interface OnlineResult {
     success: boolean
@@ -15,15 +15,15 @@ export async function online(config: AirConfig, gun: any): Promise<OnlineResult>
     if (!gun) {
         return {
             success: false,
-            error: 'GUN instance not initialized'
+            error: "GUN instance not initialized"
         }
     }
-    
+
     try {
         const user = gun.user()
         const env = config.env
         const envConfig = config[env] as EnvironmentConfig
-        
+
         // Check for existing pair
         if (envConfig?.pair?.pub && envConfig?.pair?.priv) {
             await new Promise((resolve, reject) => {
@@ -31,7 +31,7 @@ export async function online(config: AirConfig, gun: any): Promise<OnlineResult>
                     if (ack.err) {
                         reject(new Error(ack.err))
                     } else {
-                        logger.info('Authenticated with existing pair')
+                        logger.info("Authenticated with existing pair")
                         resolve(ack)
                     }
                 })
@@ -39,7 +39,7 @@ export async function online(config: AirConfig, gun: any): Promise<OnlineResult>
         } else {
             // Create new pair
             const pair = await gun.SEA.pair()
-            
+
             // Save pair to config
             if (!envConfig.pair) {
                 envConfig.pair = {
@@ -54,42 +54,41 @@ export async function online(config: AirConfig, gun: any): Promise<OnlineResult>
                 envConfig.pair.epub = pair.epub
                 envConfig.pair.epriv = pair.epriv
             }
-            
+
             // Create user
             await new Promise((resolve, reject) => {
                 user.create(pair, (ack: any) => {
-                    if (ack.err && ack.err !== 'User already created!') {
+                    if (ack.err && ack.err !== "User already created!") {
                         reject(new Error(ack.err))
                     } else {
-                        logger.info('User created')
+                        logger.info("User created")
                         resolve(ack)
                     }
                 })
             })
-            
+
             // Auth with new pair
             await new Promise((resolve, reject) => {
                 user.auth(pair, (ack: any) => {
                     if (ack.err) {
                         reject(new Error(ack.err))
                     } else {
-                        logger.info('Authenticated with new pair')
+                        logger.info("Authenticated with new pair")
                         resolve(ack)
                     }
                 })
             })
         }
-        
+
         // Set hub key if configured
         if (config.hub) {
-            user.get('hub').put(config.hub)
+            user.get("hub").put(config.hub)
         }
-        
+
         return {
             success: true,
             user
         }
-        
     } catch (error: any) {
         return {
             success: false,

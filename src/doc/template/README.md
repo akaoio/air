@@ -9,14 +9,15 @@
 ## Features
 
 {{#each features_core.features}}
-- {{icon}} **{{name}}**: {{description}}
-{{/each}}
+
+- {{icon}} **{{name}}**: {{description}} {{/each}}
 
 ## Quick Start
 
 ### Installation
 
 {{#each installation_quickstart.installation_steps}}
+
 #### {{title}}
 
 ```bash
@@ -24,11 +25,13 @@
 {{this}}
 {{/each}}
 ```
+
 {{/each}}
 
 ### Running Air
 
 {{#each installation_quickstart.running_options}}
+
 ```bash
 # {{runtime}} ({{description}})
 {{#if commands}}
@@ -39,6 +42,7 @@
 {{command}}
 {{/if}}
 ```
+
 {{/each}}
 
 ## TypeScript and ES Modules
@@ -49,16 +53,24 @@
 
 ```typescript
 // {{usage_typescript.import_rules.correct_example.description}}
-{{usage_typescript.import_rules.correct_example.code}}
+{
+    {
+        usage_typescript.import_rules.correct_example.code
+    }
+}
 
 // {{usage_typescript.import_rules.wrong_example.description}}
-{{usage_typescript.import_rules.wrong_example.code}}
+{
+    {
+        usage_typescript.import_rules.wrong_example.code
+    }
+}
 ```
 
 **Why this works**: {{usage_typescript.why_it_works}}
 
 ---
 
-*Generated with ❤️ by @akaoio/composer*
+_Generated with ❤️ by @akaoio/composer_
 
-*This documentation is automatically generated from atomic YAML files in `src/doc/` - modify the source atoms, not this file directly.*
+_This documentation is automatically generated from atomic YAML files in `src/doc/` - modify the source atoms, not this file directly._

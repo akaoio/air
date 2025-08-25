@@ -2,7 +2,7 @@
  * Stop all status reporting loops
  */
 
-import { state } from './state.js'
+import { state } from "./state.js"
 
 export function stop(): void {
     Object.values(state.timers).forEach(timer => {

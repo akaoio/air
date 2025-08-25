@@ -3,14 +3,14 @@
  * Strict typing to prevent JavaScript's bullshit
  */
 
-import type { Server as HTTPServer } from 'http'
-import type { Server as HTTPSServer } from 'https'
+import type { Server as HTTPServer } from "http"
+import type { Server as HTTPSServer } from "https"
 
 // Runtime detector
-export type Runtime = 'bun' | 'node' | 'deno'
+export type Runtime = "bun" | "node" | "deno"
 
 // Environment types
-export type Environment = 'development' | 'production' | 'test'
+export type Environment = "development" | "production" | "test"
 
 // Configuration types
 export interface SSLConfig {
@@ -32,7 +32,7 @@ export interface IPServiceDNS {
 
 export interface IPServiceHTTP {
     url: string
-    format: 'text' | 'json'
+    format: "text" | "json"
     field?: string
 }
 
@@ -137,7 +137,7 @@ export interface IPResult {
 }
 
 export interface DDNSResult {
-    type: 'A' | 'AAAA'
+    type: "A" | "AAAA"
     ip: string
     success: boolean
     status?: number
@@ -183,7 +183,7 @@ export interface IPeer {
     GUN: any
     sea: any
     config: AirConfig
-    
+
     // Core methods
     start(): Promise<IPeer>
     init(): Promise<void>
@@ -192,18 +192,18 @@ export interface IPeer {
     sync(): Promise<IPeer>
     restart(): Promise<void>
     stop(): Promise<void>
-    
+
     // Config methods
     read(): AirConfig
     write(config: AirConfig): boolean
-    
+
     // Delegated methods
     check(): boolean
     clean(): void
     cleanup(): void
     find(port: number): { pid: string; name: string } | null
     activate(hubKey: string): Promise<unknown>
-    
+
     // Grouped interfaces
     ip: {
         get(): Promise<IPResult>
@@ -219,22 +219,22 @@ export interface IPeer {
 // Runtime detection
 export function getRuntime(): Runtime {
     // @ts-ignore - Bun global
-    if (typeof Bun !== 'undefined') return 'bun'
+    if (typeof Bun !== "undefined") return "bun"
     // @ts-ignore - Deno global
-    if (typeof Deno !== 'undefined') return 'deno'
-    return 'node'
+    if (typeof Deno !== "undefined") return "deno"
+    return "node"
 }
 
 // Performance timer based on runtime
 export function getPerfTimer(): () => number {
     const runtime = getRuntime()
-    
-    if (runtime === 'bun') {
+
+    if (runtime === "bun") {
         // Bun has native performance.now()
         return () => performance.now()
-    } else if (runtime === 'node') {
+    } else if (runtime === "node") {
         // Node.js high-resolution time
-        const { performance } = require('perf_hooks')
+        const { performance } = require("perf_hooks")
         return () => performance.now()
     } else {
         // Fallback to Date

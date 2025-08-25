@@ -1,0 +1,13 @@
+features:
+  - name: "Distributed P2P Database"
+    description: "Built on GUN protocol with real-time synchronization"
+  - name: "Automatic SSL Management" 
+    description: "Let's Encrypt integration with certificate renewal"
+  - name: "Dynamic DNS Updates"
+    description: "GoDaddy DDNS support with automatic IP detection"
+  - name: "Multi-Runtime Support"
+    description: "Works with Bun (native TypeScript) and Node.js"
+  - name: "TypeScript Architecture"
+    description: "Class = Directory + Method-per-file pattern"
+  - name: "Battle-Tested"
+    description: "Real PTY testing with @akaoio/battle framework"

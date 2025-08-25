@@ -4,7 +4,7 @@
 
 export function isrunning(pid: number | string): boolean {
     try {
-        const numPid = typeof pid === 'string' ? parseInt(pid) : pid
+        const numPid = typeof pid === "string" ? parseInt(pid) : pid
         process.kill(numPid, 0)
         return true
     } catch {

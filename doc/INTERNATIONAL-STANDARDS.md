@@ -1,10 +1,6 @@
 # Air International Standards Compliance
 
-
-
 ## 🌍 Standards Implemented
-
-
 
 ## 🎯 Dual-Mode Operation
 
@@ -12,49 +8,45 @@ Air operates in two distinct modes based on usage context:
 
 ### Module Mode
 
-
 ```bash
 
 ```
 
 **Characteristics:**
 
-
-### Super-Peer Mode  
-
+### Super-Peer Mode
 
 ```bash
 
 ```
 
 **Characteristics:**
-
 
 ## 🔒 Singleton Pattern
 
-
-
 ### Lock Files
-- **Location**: 
-- **Format**: 
 
+- **Location**:
+- **Format**:
 
 ### PID Files
-- **Location**: 
-- **Format**: 
-- **Description**: 
-- **Usage**: 
+
+- **Location**:
+- **Format**:
+- **Description**:
+- **Usage**:
 
 ### Instance Management
+
 ```typescript
 // Check if Air is running
-const status = checkSingletonStatus('air')
+const status = checkSingletonStatus("air")
 if (status.isRunning) {
     console.log(`Air is running (PID: ${status.pid})`)
 }
 
 // Acquire exclusive lock
-const lock = acquireLock('air')
+const lock = acquireLock("air")
 if (lock.acquired) {
     // Air instance is now running exclusively
 }
@@ -65,12 +57,14 @@ if (lock.acquired) {
 Air automatically migrates from legacy configurations:
 
 ### Migration Process
+
 1. **Detection**: Check for `air.json` in current directory (super-peer mode)
 2. **Migration**: Copy to XDG-compliant location
 3. **Preservation**: Keep original with migration note
 4. **Cleanup**: Remove old PID files and state
 
 ### Example Migration
+
 ```
 BEFORE (Legacy):
 ./air.json                    # Configuration
@@ -87,21 +81,23 @@ AFTER (XDG Compliant):
 ## 📋 API Usage
 
 ### Configuration System
+
 ```typescript
-import { Config } from '@akaoio/air'
+import { Config } from "@akaoio/air"
 
 // Automatic mode detection and XDG compliance
 const config = new Config()
 const airConfig = config.loadXDG()
 
-console.log(airConfig._runtime.mode)          // 'module' or 'super-peer'
-console.log(airConfig._runtime.xdgCompliant)  // true
-console.log(airConfig._runtime.configPath)    // Actual config file path
+console.log(airConfig._runtime.mode) // 'module' or 'super-peer'
+console.log(airConfig._runtime.xdgCompliant) // true
+console.log(airConfig._runtime.configPath) // Actual config file path
 ```
 
 ### Path Detection
+
 ```typescript
-import { detectAirMode, getXDGDirectories } from '@akaoio/air'
+import { detectAirMode, getXDGDirectories } from "@akaoio/air"
 
 // Get current runtime mode
 const mode = detectAirMode()
@@ -114,23 +110,25 @@ console.log(`Air config: ${xdg.airConfig}`)
 ```
 
 ### Singleton Management
+
 ```typescript
-import { acquireLock, checkSingletonStatus } from '@akaoio/air'
+import { acquireLock, checkSingletonStatus } from "@akaoio/air"
 
 // Check before starting
-const status = checkSingletonStatus('my-air-instance')
+const status = checkSingletonStatus("my-air-instance")
 if (!status.canAcquire) {
     throw new Error(`Instance already running: PID ${status.pid}`)
 }
 
 // Acquire exclusive lock
-const lock = acquireLock('my-air-instance')
+const lock = acquireLock("my-air-instance")
 // Air instance now running exclusively
 ```
 
 ## 🛠 Directory Structure
 
 ### Super-Peer Mode (XDG Compliant)
+
 ```
 ~/.config/air/
 ├── air.json              # Main configuration
@@ -161,6 +159,7 @@ const lock = acquireLock('my-air-instance')
 ```
 
 ### Module Mode (Project-Local)
+
 ```
 my-project/
 ├── air.json             # Configuration
@@ -177,16 +176,14 @@ my-project/
 ## 🌐 Cross-Platform Compatibility
 
 | Platform | Config | Data | State | Cache | Runtime |
-|----------|--------|------|-------|-------|---------|
-
+| -------- | ------ | ---- | ----- | ----- | ------- |
 
 ## ✅ Compliance Benefits
-
-
 
 ## 🚀 Getting Started
 
 ### For Development (Module Mode)
+
 ```bash
 cd my-project
 npm install @akaoio/air
@@ -194,6 +191,7 @@ npx air install  # Creates ./air.json
 ```
 
 ### For Production (Super-Peer Mode)
+
 ```bash
 git clone https://github.com/akaoio/air
 cd air
@@ -202,6 +200,7 @@ npm run air:install  # Creates ~/.config/air/air.json
 ```
 
 ### Testing Compliance
+
 ```bash
 # Test the international standards implementation
 npx tsx script/test-xdg.ts
@@ -214,6 +213,6 @@ Air is now a truly international-scale product, compliant with global standards 
 
 ---
 
-*Generated with ❤️ by @akaoio/composer v*
+_Generated with ❤️ by @akaoio/composer v_
 
-*This documentation is automatically generated from atomic YAML files in `src/doc/` - modify the source atoms, not this file directly.*
+_This documentation is automatically generated from atomic YAML files in `src/doc/` - modify the source atoms, not this file directly._

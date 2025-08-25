@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from "fs"
+import path from "path"
 
 // Use process.cwd() as a reliable cross-platform base directory
 const __dirname = process.cwd()
@@ -14,7 +14,7 @@ const __dirname = process.cwd()
 const detectPaths = () => {
     const paths = {
         // Script location (where Air code lives)
-        script: path.resolve(__dirname, '..'),
+        script: path.resolve(__dirname, ".."),
         // Project root (where air.json should be)
         root: null,
         // Bash/script directory
@@ -26,21 +26,21 @@ const detectPaths = () => {
         // Whether in development mode
         isDevelopment: false
     }
-    
+
     // Check if we're in node_modules (npm package)
     const scriptPath = paths.script
-    if (scriptPath.includes('node_modules')) {
+    if (scriptPath.includes("node_modules")) {
         paths.isPackage = true
         // Go up from node_modules/air to project root
         const parts = scriptPath.split(path.sep)
-        const nodeModulesIndex = parts.lastIndexOf('node_modules')
+        const nodeModulesIndex = parts.lastIndexOf("node_modules")
         paths.root = parts.slice(0, nodeModulesIndex).join(path.sep)
     } else {
         // Running standalone or in development
         // Check if air.json exists in current directory
-        const cwdConfig = path.join(process.cwd(), 'air.json')
-        const scriptConfig = path.join(scriptPath, 'air.json')
-        
+        const cwdConfig = path.join(process.cwd(), "air.json")
+        const scriptConfig = path.join(scriptPath, "air.json")
+
         if (fs.existsSync(cwdConfig)) {
             // User is in a project with air.json
             paths.root = process.cwd()
@@ -53,10 +53,10 @@ const detectPaths = () => {
             paths.root = process.cwd()
         }
     }
-    
+
     // Set bash directory
-    paths.bash = path.join(paths.script, 'script')
-    
+    paths.bash = path.join(paths.script, "script")
+
     // Set config path - respect environment variable
     if (process.env.AIR_CONFIG) {
         paths.config = path.resolve(process.env.AIR_CONFIG)
@@ -64,10 +64,10 @@ const detectPaths = () => {
         paths.config = path.resolve(process.env.AIR_CONFIG_PATH)
     } else {
         // Default to air.json in root, but also check for custom name
-        const configName = process.env.AIR_CONFIG_NAME || 'air.json'
+        const configName = process.env.AIR_CONFIG_NAME || "air.json"
         paths.config = path.join(paths.root, configName)
     }
-    
+
     return paths
 }
 
@@ -79,7 +79,7 @@ const getRootPath = (cliArg = null) => {
     if (cliArg) return path.resolve(cliArg)
     if (process.env.AIR_ROOT) return path.resolve(process.env.AIR_ROOT)
     if (process.env.ROOT) return path.resolve(process.env.ROOT)
-    
+
     const detected = detectPaths()
     return detected.root
 }
@@ -91,7 +91,7 @@ const getBashPath = (cliArg = null) => {
     if (cliArg) return path.resolve(cliArg)
     if (process.env.AIR_BASH) return path.resolve(process.env.AIR_BASH)
     if (process.env.BASH) return path.resolve(process.env.BASH)
-    
+
     const detected = detectPaths()
     return detected.bash
 }
@@ -104,10 +104,10 @@ const getConfigPath = (cliArg = null, rootPath = null) => {
     if (cliArg) return path.resolve(cliArg)
     if (process.env.AIR_CONFIG) return path.resolve(process.env.AIR_CONFIG)
     if (process.env.AIR_CONFIG_PATH) return path.resolve(process.env.AIR_CONFIG_PATH)
-    
+
     // Default to air.json in root directory
     const root = rootPath || getRootPath()
-    const configName = process.env.AIR_CONFIG_NAME || 'air.json'
+    const configName = process.env.AIR_CONFIG_NAME || "air.json"
     return path.join(root, configName)
 }
 
@@ -117,25 +117,19 @@ const getConfigPath = (cliArg = null, rootPath = null) => {
 const getPaths = (rootArg = null, bashArg = null, configArg = null) => {
     const detected = detectPaths()
     const root = getRootPath(rootArg)
-    
+
     return {
         root: root,
         bash: getBashPath(bashArg),
         config: getConfigPath(configArg, root),
-        logs: path.join(root, 'logs'),
+        logs: path.join(root, "logs"),
         script: detected.script,
         isPackage: detected.isPackage,
         isDevelopment: detected.isDevelopment
     }
 }
 
-export {
-    detectPaths,
-    getRootPath,
-    getBashPath,
-    getConfigPath,
-    getPaths
-}
+export { detectPaths, getRootPath, getBashPath, getConfigPath, getPaths }
 
 export default {
     detectPaths,

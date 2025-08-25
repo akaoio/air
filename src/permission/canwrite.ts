@@ -2,7 +2,7 @@
  * Check if we have write permission to a path
  */
 
-import fs from 'fs'
+import fs from "fs"
 
 export function canwrite(filepath: string): boolean {
     try {

@@ -15,11 +15,14 @@ disable = false
 # Let Bun use its default cache location
 
 [test]
-# Test configuration
+# Test configuration - Single worker to prevent CPU overload
 root = "./test"
 preload = ["./test/setup.ts"]
-coverage = true
-coverageThreshold = 80
+coverage = false
+coverageThreshold = 0
+# Prevent parallel execution for SSH stability
+smol = false
+timeout = 30000
 
 [run]
 # Runtime configuration

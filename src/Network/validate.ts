@@ -2,15 +2,15 @@
  * Validate IP address (IPv4 or IPv6)
  */
 
-import net from 'net'
+import net from "net"
 
 export function validate(ip: any): boolean {
-    if (!ip || typeof ip !== 'string') return false
-    
+    if (!ip || typeof ip !== "string") return false
+
     // Check IPv4
     if (net.isIPv4(ip)) {
         // Exclude private and reserved ranges
-        const parts = ip.split('.').map(Number)
+        const parts = ip.split(".").map(Number)
         const first = parts[0] || 0
         const second = parts[1] || 0
         if (first === 10) return false // 10.0.0.0/8
@@ -22,19 +22,19 @@ export function validate(ip: any): boolean {
         if (first >= 224) return false // 224.0.0.0/4 (multicast) and 240.0.0.0/4 (reserved)
         return true
     }
-    
+
     // Check IPv6
     if (net.isIPv6(ip)) {
         // Exclude private and reserved ranges
         const lower = ip.toLowerCase()
-        if (lower.startsWith('fe80:')) return false // Link-local
-        if (lower.startsWith('fc00:') || lower.startsWith('fd00:')) return false // Unique local
-        if (lower === '::1') return false // Loopback
-        if (lower === '::') return false // Unspecified
-        if (lower.startsWith('ff')) return false // Multicast
+        if (lower.startsWith("fe80:")) return false // Link-local
+        if (lower.startsWith("fc00:") || lower.startsWith("fd00:")) return false // Unique local
+        if (lower === "::1") return false // Loopback
+        if (lower === "::") return false // Unspecified
+        if (lower.startsWith("ff")) return false // Multicast
         return true
     }
-    
+
     return false
 }
 

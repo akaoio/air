@@ -2,9 +2,9 @@
  * Stop peer gracefully
  */
 
-import type { AirConfig } from '../types/index.js'
-import { logger } from '../Logger/index.js'
-import { clean as cleanProcess } from '../Process/clean.js'
+import type { AirConfig } from "../types/index.js"
+import { logger } from "../Logger/index.js"
+import { clean as cleanProcess } from "../Process/clean.js"
 
 export interface StopResult {
     success: boolean
@@ -12,17 +12,17 @@ export interface StopResult {
 }
 
 export async function stop(config: AirConfig, server?: any): Promise<StopResult> {
-    logger.info('Stopping Air...')
-    
+    logger.info("Stopping Air...")
+
     try {
         // Stop server if provided
         if (server) {
-            await new Promise<void>((resolve) => {
+            await new Promise<void>(resolve => {
                 server.close(() => {
-                    logger.info('Server stopped')
+                    logger.info("Server stopped")
                     resolve()
                 })
-                
+
                 // Force close after 5 seconds
                 setTimeout(() => {
                     if (server) {
@@ -32,14 +32,13 @@ export async function stop(config: AirConfig, server?: any): Promise<StopResult>
                 }, 5000)
             })
         }
-        
+
         // Clean PID file
         cleanProcess(config)
-        
-        logger.info('Air stopped')
-        
+
+        logger.info("Air stopped")
+
         return { success: true }
-        
     } catch (error: any) {
         return {
             success: false,

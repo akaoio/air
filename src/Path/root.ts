@@ -2,8 +2,8 @@
  * Get root directory from air.json or auto-detect
  */
 
-import path from 'path'
-import { state } from './state.js'
+import path from "path"
+import { state } from "./state.js"
 
 export function root(): string {
     // Check environment variable first

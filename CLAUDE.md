@@ -2,8 +2,7 @@
 
 > **Last Updated**: December 2024  
 > **Version**: 2.0.0  
-> **Language**: TypeScript
-> **Status**: Production Ready
+> **Language**: TypeScript **Status**: Production Ready
 
 ## Project Overview
 
@@ -16,23 +15,25 @@ Air is a production-ready distributed database system built on GUN, providing pe
 **IMPORTANT**: This project uses TypeScript with ES modules for Node.js. When working with imports:
 
 1. **All relative imports MUST have `.js` extensions** even though source files are `.ts`:
-   ```typescript
-   // CORRECT - even though the file is config.ts
-   import { ConfigManager } from './config.js'
-   
-   // WRONG - will fail in Node.js
-   import { ConfigManager } from './config'
-   ```
+
+    ```typescript
+    // CORRECT - even though the file is config.ts
+    import { ConfigManager } from "./config.js"
+
+    // WRONG - will fail in Node.js
+    import { ConfigManager } from "./config"
+    ```
 
 2. **Why this works**: TypeScript understands that `'./config.js'` refers to `./config.ts` during compilation, and the output will actually be `./config.js`
 
 3. **Build configurations**:
-   - `tsconfig.json` - Strict configuration for development
-   - `tsconfig.prod.json` - Permissive configuration for production builds with `"module": "NodeNext"`
+    - `tsconfig.json` - Strict configuration for development
+    - `tsconfig.prod.json` - Permissive configuration for production builds with `"module": "NodeNext"`
 
 ### Runtime Support
 
 Air supports three runtime environments:
+
 1. **Bun**: Native TypeScript execution (fastest)
 2. **Node.js with TypeScript**: Using tsx for development
 3. **Node.js without TypeScript**: Compiled JavaScript in `dist/` directory
@@ -40,6 +41,7 @@ Air supports three runtime environments:
 ### Function Naming Convention
 
 **STRICT RULE**: All functions must use single-word names. Related functions are grouped using dot notation:
+
 - Single-word functions: `read()`, `write()`, `sync()`, `init()`, `restart()`
 - Grouped functions: `ip.get()`, `ip.validate()`, `status.ddns()`, `status.alive()`
 - **NEVER** use camelCase, underscores, or hyphens in function names
@@ -90,7 +92,7 @@ export class Peer implements IPeer {
     async run()        // GUN initialization
     async online()     // User authentication
     async sync()       // Config synchronization
-    
+
     // IP methods (dot notation grouping)
     ip = {
         get: async () => IPResult
@@ -98,7 +100,7 @@ export class Peer implements IPeer {
         dns: async () => string | null
         http: async () => string | null
     }
-    
+
     // Status methods (dot notation grouping)
     status = {
         ddns: async () => void
@@ -181,8 +183,8 @@ interface EnvironmentConfig {
     godaddy?: GoDaddyConfig
 }
 
-type Environment = 'production' | 'development'
-type Runtime = 'bun' | 'node' | 'deno'
+type Environment = "production" | "development"
+type Runtime = "bun" | "node" | "deno"
 ```
 
 ## Building and Compilation
@@ -214,18 +216,19 @@ node dist/main.js
 ### Build Configuration Details
 
 **tsconfig.prod.json** (for production builds):
+
 ```json
 {
-  "compilerOptions": {
-    "target": "ES2020",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "strict": false,
-    "noImplicitAny": false,
-    "skipLibCheck": true
-  }
+    "compilerOptions": {
+        "target": "ES2020",
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
+        "outDir": "./dist",
+        "rootDir": "./src",
+        "strict": false,
+        "noImplicitAny": false,
+        "skipLibCheck": true
+    }
 }
 ```
 
@@ -240,6 +243,7 @@ npm run test:integration  # Integration tests
 ```
 
 Test coverage includes:
+
 - Configuration precedence
 - IP detection methods
 - Restart logic
@@ -260,6 +264,7 @@ Test coverage includes:
 ### Fixing TypeScript Errors
 
 If you encounter compilation errors:
+
 1. Use `npx tsc -p tsconfig.prod.json` for permissive build
 2. Cast problematic expressions with `as any` if needed
 3. Ensure all relative imports have `.js` extensions
@@ -294,6 +299,7 @@ DEBUG=* node dist/main.js
 ### Configuration Merging
 
 Precedence (highest to lowest):
+
 1. Command-line arguments
 2. Environment variables
 3. Configuration file (air.json)
@@ -318,18 +324,18 @@ Precedence (highest to lowest):
 ### Key Migration Decisions
 
 1. **Why `.js` extensions in TypeScript?**
-   - Node.js ES modules require file extensions
-   - TypeScript's `"module": "NodeNext"` expects this pattern
-   - Avoids post-processing scripts (no monkey patches)
+    - Node.js ES modules require file extensions
+    - TypeScript's `"module": "NodeNext"` expects this pattern
+    - Avoids post-processing scripts (no monkey patches)
 
 2. **Why two tsconfig files?**
-   - `tsconfig.json`: Strict for development and IDE support
-   - `tsconfig.prod.json`: Permissive for building runnable code
+    - `tsconfig.json`: Strict for development and IDE support
+    - `tsconfig.prod.json`: Permissive for building runnable code
 
 3. **Why keep tests in JavaScript?**
-   - Simpler test runner
-   - No compilation needed for tests
-   - Tests verify compiled output works
+    - Simpler test runner
+    - No compilation needed for tests
+    - Tests verify compiled output works
 
 ## Best Practices
 
@@ -361,21 +367,21 @@ Precedence (highest to lowest):
 ### Common Issues and Solutions
 
 1. **Import errors in Node.js**
-   - Ensure all relative imports have `.js` extensions
-   - Check `"module": "NodeNext"` in tsconfig
+    - Ensure all relative imports have `.js` extensions
+    - Check `"module": "NodeNext"` in tsconfig
 
 2. **TypeScript compilation fails**
-   - Use `tsconfig.prod.json` for production builds
-   - Cast problematic expressions to `any` if needed
+    - Use `tsconfig.prod.json` for production builds
+    - Cast problematic expressions to `any` if needed
 
 3. **Module not found errors**
-   - Verify file exists in `src/`
-   - Check import path includes `.js`
-   - Ensure TypeScript compiled successfully
+    - Verify file exists in `src/`
+    - Check import path includes `.js`
+    - Ensure TypeScript compiled successfully
 
 4. **PID file issues**
-   - Remove stale `.air*.pid` files
-   - Check process not already running
+    - Remove stale `.air*.pid` files
+    - Check process not already running
 
 ## Development Workflow
 
@@ -416,6 +422,7 @@ npm run format     # Format code with Prettier
 ## Important Notes
 
 ### File Management
+
 - **Source files**: TypeScript in `src/`
 - **Compiled output**: JavaScript in `dist/`
 - **Temporary files**: MUST use `tmp/` directory
@@ -423,11 +430,13 @@ npm run format     # Format code with Prettier
 - **Tests**: JavaScript in `test/`
 
 ### Git Workflow
+
 - `.gitignore` includes `dist/` and `tmp/`
 - Commit source files, not compiled output
 - Always push after fixing features
 
 ### Performance Considerations
+
 - Bun: ~500ms startup, native TypeScript
 - Node.js + tsx: ~800ms startup, TypeScript transpilation
 - Node.js compiled: ~800ms startup, no transpilation overhead
@@ -435,19 +444,17 @@ npm run format     # Format code with Prettier
 ## Current Status (December 2024)
 
 ### Completed
-✅ Full TypeScript migration
-✅ ES module configuration with .js extensions
-✅ Multi-runtime support (Bun, Node+TS, Node compiled)
-✅ Production build configuration
-✅ Type definitions for all components
-✅ No monkey patches or workarounds
+
+✅ Full TypeScript migration ✅ ES module configuration with .js extensions ✅ Multi-runtime support (Bun, Node+TS, Node compiled) ✅ Production build configuration ✅ Type definitions for all components ✅ No monkey patches or workarounds
 
 ### Known Limitations
+
 - Some files excluded from strict build (syspaths.ts, permissions.ts)
 - GUN types use `any` due to complex dynamic API
 - Test files remain in JavaScript
 
 ### Future Improvements
+
 - Stricter TypeScript configuration
 - Better GUN type definitions
 - TypeScript test migration
@@ -456,6 +463,7 @@ npm run format     # Format code with Prettier
 ---
 
 **For AI Assistants**: When working on this codebase, always remember:
+
 1. Use `.js` extensions in all relative imports
 2. Follow single-word or dot notation naming
 3. Test with `npm run build:prod` before committing

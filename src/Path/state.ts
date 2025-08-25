@@ -2,9 +2,9 @@
  * Global state for system paths
  */
 
-import os from 'os'
-import fs from 'fs'
-import path from 'path'
+import os from "os"
+import fs from "fs"
+import path from "path"
 
 export interface PathState {
     platform: NodeJS.Platform
@@ -26,14 +26,11 @@ export const state: PathState = {
 // Load air.json configuration on init
 function loadAirConfig() {
     try {
-        const locations = [
-            path.join(process.cwd(), 'air.json'),
-            process.env.AIR_CONFIG
-        ].filter(Boolean)
-        
+        const locations = [path.join(process.cwd(), "air.json"), process.env.AIR_CONFIG].filter(Boolean)
+
         for (const loc of locations) {
             if (loc && fs.existsSync(loc)) {
-                state.airConfig = JSON.parse(fs.readFileSync(loc, 'utf8'))
+                state.airConfig = JSON.parse(fs.readFileSync(loc, "utf8"))
                 break
             }
         }

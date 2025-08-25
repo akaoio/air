@@ -2,9 +2,9 @@
  * Validate configuration
  */
 
-import fs from 'fs'
-import { read } from './read.js'
-import type { AirConfig } from '../types/index.js'
+import fs from "fs"
+import { read } from "./read.js"
+import type { AirConfig } from "../types/index.js"
 
 export interface ValidateOptions {
     rootArg?: string
@@ -21,16 +21,16 @@ export interface ValidationResult {
 export function validate(options: ValidateOptions = {}): ValidationResult {
     const errors: string[] = []
     const config = options.config || read(options)
-    
+
     // Check required fields
     if (!config.env) {
-        errors.push('Environment not specified')
+        errors.push("Environment not specified")
     }
-    
+
     if (!config.name) {
-        errors.push('Name not specified')
+        errors.push("Name not specified")
     }
-    
+
     // Check environment config exists
     const envConfig: any = config[config.env]
     if (!envConfig) {
@@ -38,11 +38,11 @@ export function validate(options: ValidateOptions = {}): ValidationResult {
     } else {
         // Check port
         if (!envConfig.port || envConfig.port < 1 || envConfig.port > 65535) {
-            errors.push('Invalid port number')
+            errors.push("Invalid port number")
         }
-        
+
         // Check SSL if production
-        if (config.env === 'production' && envConfig.ssl) {
+        if (config.env === "production" && envConfig.ssl) {
             if (!fs.existsSync(envConfig.ssl.key)) {
                 errors.push(`SSL key file not found: ${envConfig.ssl.key}`)
             }
@@ -51,7 +51,7 @@ export function validate(options: ValidateOptions = {}): ValidationResult {
             }
         }
     }
-    
+
     return {
         valid: errors.length === 0,
         errors

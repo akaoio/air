@@ -2,8 +2,7 @@
 
 > **Last Updated**: December 2024  
 > **Version**: {{info_title.version}}  
-> **Language**: TypeScript
-> **Status**: {{info_title.status}}
+> **Language**: TypeScript **Status**: {{info_title.status}}
 
 ## Project Overview
 
@@ -16,30 +15,37 @@
 **{{usage_typescript.critical_info}}**. When working with imports:
 
 1. **{{usage_typescript.import_rules.rule}}**:
-   ```typescript
-   // {{usage_typescript.import_rules.correct_example.description}}
-   {{usage_typescript.import_rules.correct_example.code}}
-   
-   // {{usage_typescript.import_rules.wrong_example.description}}
-   {{usage_typescript.import_rules.wrong_example.code}}
-   ```
+
+    ```typescript
+    // {{usage_typescript.import_rules.correct_example.description}}
+    {
+        {
+            usage_typescript.import_rules.correct_example.code
+        }
+    }
+
+    // {{usage_typescript.import_rules.wrong_example.description}}
+    {
+        {
+            usage_typescript.import_rules.wrong_example.code
+        }
+    }
+    ```
 
 2. **Why this works**: {{usage_typescript.why_it_works}}
 
 3. **Build configurations**:
-   - `{{usage_typescript.build_configs.development.file}}` - {{usage_typescript.build_configs.development.description}}
-   - `{{usage_typescript.build_configs.production.file}}` - {{usage_typescript.build_configs.production.description}}
+    - `{{usage_typescript.build_configs.development.file}}` - {{usage_typescript.build_configs.development.description}}
+    - `{{usage_typescript.build_configs.production.file}}` - {{usage_typescript.build_configs.production.description}}
 
 ### Runtime Support
 
-Air supports three runtime environments:
-{{#each installation_quickstart.running_options}}
-{{@index}}. **{{runtime}}**: {{description}}
-{{/each}}
+Air supports three runtime environments: {{#each installation_quickstart.running_options}} {{@index}}. **{{runtime}}**: {{description}} {{/each}}
 
 ### Function Naming Convention
 
 **STRICT RULE**: {{usage_typescript.function_naming.rule}}. Related functions are grouped using dot notation:
+
 - Single-word functions: {{#each usage_typescript.function_naming.examples.single_word}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}
 - Grouped functions: {{#each usage_typescript.function_naming.examples.grouped_functions}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}
 - **NEVER** use {{usage_typescript.function_naming.examples.never_use}}
@@ -49,6 +55,7 @@ Air supports three runtime environments:
 ### Core Classes and Their Responsibilities
 
 {{#each api_classes.classes}}
+
 #### {{name}} Class ({{file}})
 
 {{description}}:
@@ -61,7 +68,7 @@ export class {{name}} {
     async {{name}}      // {{description}}
 {{/each}}
 {{/if}}
-    
+
 {{#if methods.ip_methods}}
     // IP methods (dot notation grouping)
     ip = {
@@ -70,7 +77,7 @@ export class {{name}} {
 {{/each}}
     }
 {{/if}}
-    
+
 {{#if methods.status_methods}}
     // Status methods (dot notation grouping)
     status = {
@@ -95,27 +102,25 @@ export class {{name}} {
 ### Quick Commands
 
 {{#each troubleshooting_common.quick_commands}}
-- `{{command}}` - {{description}}
-{{/each}}
+
+- `{{command}}` - {{description}} {{/each}}
 
 ## Troubleshooting Guide
 
 ### Common Issues and Solutions
 
-{{#each troubleshooting_common.issues}}
-{{@index}}. **{{problem}}**
-{{#each solutions}}
-   - {{this}}
-{{/each}}
+{{#each troubleshooting_common.issues}} {{@index}}. **{{problem}}** {{#each solutions}}
 
-{{#if example}}
-   Example: `{{example}}`
-{{/if}}
+- {{this}} {{/each}}
+
+{{#if example}} Example: `{{example}}` {{/if}}
 
 {{#if command}}
-   ```bash
-   {{command}}
-   ```
+
+```bash
+{{command}}
+```
+
 {{/if}}
 
 {{/each}}
@@ -134,6 +139,7 @@ export class {{name}} {
 ---
 
 **For AI Assistants**: When working on this codebase, always remember:
+
 1. Use `.js` extensions in all relative imports
 2. Follow single-word or dot notation naming
 3. Test with `npm run build:prod` before committing
@@ -142,6 +148,6 @@ export class {{name}} {
 
 ---
 
-*Generated with ❤️ by @akaoio/composer*
+_Generated with ❤️ by @akaoio/composer_
 
-*This documentation is automatically generated from atomic YAML files in `src/doc/` - modify the source atoms, not this file directly.*
+_This documentation is automatically generated from atomic YAML files in `src/doc/` - modify the source atoms, not this file directly._

@@ -2,7 +2,7 @@
  * Check if we can execute a file
  */
 
-import fs from 'fs'
+import fs from "fs"
 
 export function canexecute(filepath: string): boolean {
     try {

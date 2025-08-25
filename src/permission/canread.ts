@@ -2,7 +2,7 @@
  * Check if we have read permission to a path
  */
 
-import fs from 'fs'
+import fs from "fs"
 
 export function canread(filepath: string): boolean {
     try {

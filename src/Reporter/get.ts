@@ -2,7 +2,7 @@
  * Get current status
  */
 
-import { state } from './state.js'
+import { state } from "./state.js"
 
 export interface StatusInfo {
     alive: any

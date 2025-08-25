@@ -2,7 +2,7 @@
  * Reporter constructor - Initialize status reporter instance
  */
 
-import type { StatusState } from './state.js'
+import type { StatusState } from "./state.js"
 
 export interface ReporterOptions {
     interval?: number

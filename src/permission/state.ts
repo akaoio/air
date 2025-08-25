@@ -2,7 +2,7 @@
  * Global state for permissions
  */
 
-import os from 'os'
+import os from "os"
 
 export interface PermissionState {
     isRoot: boolean

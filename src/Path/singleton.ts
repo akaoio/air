@@ -4,8 +4,8 @@
  * Follows Unix best practices for PID and lock file management
  */
 
-import fs from 'fs'
-import { detectAirMode, ensureDirectories, getLockFilePath, getPIDFilePath } from './xdg.js'
+import fs from "fs"
+import { detectAirMode, ensureDirectories, getLockFilePath, getPIDFilePath } from "./xdg.js"
 
 export interface SingletonLock {
     lockPath: string
@@ -29,35 +29,35 @@ export interface SingletonStatus {
  * Acquire singleton lock for Air instance
  * This ensures only one Air instance runs per configuration
  */
-export function acquireLock(instanceName: string = 'air'): SingletonLock {
+export function acquireLock(instanceName: string = "air"): SingletonLock {
     const config = detectAirMode()
     ensureDirectories(config)
-    
+
     const lockPath = getLockFilePath(config, instanceName)
     const pidPath = getPIDFilePath(config, instanceName)
     const currentPid = process.pid
-    
+
     try {
         // Check if lock file exists and process is still running
         if (fs.existsSync(lockPath)) {
-            const lockContent = fs.readFileSync(lockPath, 'utf8').trim()
+            const lockContent = fs.readFileSync(lockPath, "utf8").trim()
             const existingPid = parseInt(lockContent)
-            
+
             if (!isNaN(existingPid) && isProcessRunning(existingPid)) {
                 throw new Error(`Another Air instance is already running (PID: ${existingPid})`)
             }
-            
+
             // Stale lock file - remove it
             fs.unlinkSync(lockPath)
             if (fs.existsSync(pidPath)) {
                 fs.unlinkSync(pidPath)
             }
         }
-        
+
         // Create lock file with current PID
         fs.writeFileSync(lockPath, String(currentPid), { mode: 0o644 })
         fs.writeFileSync(pidPath, String(currentPid), { mode: 0o644 })
-        
+
         // Set up cleanup on process exit
         const cleanup = () => {
             try {
@@ -67,17 +67,17 @@ export function acquireLock(instanceName: string = 'air'): SingletonLock {
                 // Ignore cleanup errors
             }
         }
-        
-        process.on('exit', cleanup)
-        process.on('SIGINT', () => {
+
+        process.on("exit", cleanup)
+        process.on("SIGINT", () => {
             cleanup()
             process.exit(0)
         })
-        process.on('SIGTERM', () => {
+        process.on("SIGTERM", () => {
             cleanup()
             process.exit(0)
         })
-        
+
         return {
             lockPath,
             pidPath,
@@ -85,7 +85,6 @@ export function acquireLock(instanceName: string = 'air'): SingletonLock {
             instanceName,
             pid: currentPid
         }
-        
     } catch (error: any) {
         return {
             lockPath,
@@ -102,7 +101,7 @@ export function acquireLock(instanceName: string = 'air'): SingletonLock {
  */
 export function releaseLock(lock: SingletonLock): boolean {
     if (!lock.acquired) return true
-    
+
     try {
         if (fs.existsSync(lock.lockPath)) {
             fs.unlinkSync(lock.lockPath)
@@ -120,11 +119,11 @@ export function releaseLock(lock: SingletonLock): boolean {
 /**
  * Check singleton status without acquiring lock
  */
-export function checkSingletonStatus(instanceName: string = 'air'): SingletonStatus {
+export function checkSingletonStatus(instanceName: string = "air"): SingletonStatus {
     const config = detectAirMode()
     const lockPath = getLockFilePath(config, instanceName)
     const pidPath = getPIDFilePath(config, instanceName)
-    
+
     // Check if lock file exists
     if (!fs.existsSync(lockPath)) {
         return {
@@ -135,11 +134,11 @@ export function checkSingletonStatus(instanceName: string = 'air'): SingletonSta
             canAcquire: true
         }
     }
-    
+
     try {
-        const lockContent = fs.readFileSync(lockPath, 'utf8').trim()
+        const lockContent = fs.readFileSync(lockPath, "utf8").trim()
         const pid = parseInt(lockContent)
-        
+
         if (isNaN(pid)) {
             return {
                 isRunning: false,
@@ -147,12 +146,12 @@ export function checkSingletonStatus(instanceName: string = 'air'): SingletonSta
                 lockPath,
                 pidPath,
                 canAcquire: true,
-                conflictReason: 'Invalid PID in lock file'
+                conflictReason: "Invalid PID in lock file"
             }
         }
-        
+
         const processRunning = isProcessRunning(pid)
-        
+
         return {
             isRunning: processRunning,
             pid: processRunning ? pid : undefined,
@@ -160,9 +159,8 @@ export function checkSingletonStatus(instanceName: string = 'air'): SingletonSta
             lockPath,
             pidPath,
             canAcquire: !processRunning,
-            conflictReason: processRunning ? `Process ${pid} is running` : 'Stale lock file'
+            conflictReason: processRunning ? `Process ${pid} is running` : "Stale lock file"
         }
-        
     } catch (error: any) {
         return {
             isRunning: false,
@@ -179,56 +177,58 @@ export function checkSingletonStatus(instanceName: string = 'air'): SingletonSta
  * Force release singleton lock (kill running process if necessary)
  * Use with caution!
  */
-export function forceReleaseLock(instanceName: string = 'air', killProcess: boolean = false): {
-    success: boolean,
-    message: string,
+export function forceReleaseLock(
+    instanceName: string = "air",
+    killProcess: boolean = false
+): {
+    success: boolean
+    message: string
     killedPid?: number
 } {
     const status = checkSingletonStatus(instanceName)
-    
+
     if (!status.isRunning) {
         // Just clean up stale files
         try {
             if (fs.existsSync(status.lockPath)) fs.unlinkSync(status.lockPath)
             if (fs.existsSync(status.pidPath)) fs.unlinkSync(status.pidPath)
-            return { success: true, message: 'Cleaned up stale lock files' }
+            return { success: true, message: "Cleaned up stale lock files" }
         } catch (error: any) {
             return { success: false, message: `Failed to clean up: ${error.message}` }
         }
     }
-    
+
     if (!killProcess) {
         return {
             success: false,
             message: `Process ${status.pid} is running. Use killProcess=true to force terminate.`
         }
     }
-    
+
     // Kill the running process
     try {
         if (status.pid) {
-            process.kill(status.pid, 'SIGTERM')
-            
+            process.kill(status.pid, "SIGTERM")
+
             // Wait a bit for graceful shutdown
             setTimeout(() => {
                 if (isProcessRunning(status.pid!)) {
-                    process.kill(status.pid!, 'SIGKILL')
+                    process.kill(status.pid!, "SIGKILL")
                 }
             }, 5000)
-            
+
             // Clean up files
             if (fs.existsSync(status.lockPath)) fs.unlinkSync(status.lockPath)
             if (fs.existsSync(status.pidPath)) fs.unlinkSync(status.pidPath)
-            
+
             return {
                 success: true,
                 message: `Terminated process ${status.pid} and cleaned up lock`,
                 killedPid: status.pid
             }
         }
-        
-        return { success: false, message: 'No PID to kill' }
-        
+
+        return { success: false, message: "No PID to kill" }
     } catch (error: any) {
         return { success: false, message: `Failed to kill process: ${error.message}` }
     }
@@ -244,7 +244,7 @@ function isProcessRunning(pid: number): boolean {
         return true
     } catch (error: any) {
         // ESRCH means process doesn't exist
-        return error.code !== 'ESRCH'
+        return error.code !== "ESRCH"
     }
 }
 
@@ -252,30 +252,30 @@ function isProcessRunning(pid: number): boolean {
  * Get all Air instances currently running
  */
 export function getAllRunningInstances(): Array<{
-    instanceName: string,
-    pid: number,
-    lockPath: string,
-    mode: 'module' | 'super-peer'
+    instanceName: string
+    pid: number
+    lockPath: string
+    mode: "module" | "super-peer"
 }> {
     const config = detectAirMode()
     const instances: Array<{
-        instanceName: string,
-        pid: number,
-        lockPath: string,
-        mode: 'module' | 'super-peer'
+        instanceName: string
+        pid: number
+        lockPath: string
+        mode: "module" | "super-peer"
     }> = []
-    
+
     try {
         const lockDir = config.runtimePath || config.statePath
         if (!fs.existsSync(lockDir)) return instances
-        
+
         const files = fs.readdirSync(lockDir)
-        const lockFiles = files.filter(f => f.endsWith('.lock'))
-        
+        const lockFiles = files.filter(f => f.endsWith(".lock"))
+
         for (const lockFile of lockFiles) {
-            const instanceName = lockFile.replace('.lock', '')
+            const instanceName = lockFile.replace(".lock", "")
             const status = checkSingletonStatus(instanceName)
-            
+
             if (status.isRunning && status.pid) {
                 instances.push({
                     instanceName,
@@ -285,11 +285,10 @@ export function getAllRunningInstances(): Array<{
                 })
             }
         }
-        
     } catch (error) {
         // Ignore errors in discovery
     }
-    
+
     return instances
 }
 

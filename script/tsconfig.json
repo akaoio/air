@@ -1,24 +1,17 @@
 {
-  "extends": "../tsconfig.json",
-  "compilerOptions": {
-    "rootDir": "..",
-    "outDir": "./dist",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "target": "ES2020",
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "strict": false,
-    "noImplicitAny": false,
-    "skipLibCheck": true
-  },
-  "include": [
-    "*.ts",
-    "../src/types/*.ts",
-    "../src/paths.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist"
-  ]
+    "extends": "../tsconfig.json",
+    "compilerOptions": {
+        "rootDir": "..",
+        "outDir": "./dist",
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
+        "target": "ES2020",
+        "esModuleInterop": true,
+        "allowSyntheticDefaultImports": true,
+        "strict": false,
+        "noImplicitAny": false,
+        "skipLibCheck": true
+    },
+    "include": ["*.ts", "../src/types/*.ts", "../src/paths.ts"],
+    "exclude": ["node_modules", "dist"]
 }

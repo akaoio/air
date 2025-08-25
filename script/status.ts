@@ -1,52 +1,89 @@
 #!/usr/bin/env bun
 // fallback: #!/usr/bin/env tsx
 
-import fs from 'fs'
-import path from 'path'
-import { execSync } from 'child_process'
-import { fileURLToPath } from 'url'
-import { getPaths } from '../src/paths.js'
-import type { AirConfig } from '../src/types/index.js'
-import { TUI, isWindows, isMac, isTermux, hasSystemd } from '@akaoio/tui'
+import fs from "fs"
+import path from "path"
+import { execSync } from "child_process"
+import { fileURLToPath } from "url"
+import { getPaths } from "../src/paths.js"
+import type { AirConfig } from "../src/types/index.js"
+// Simple console UI instead of external dependency
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 class AirStatus {
     private config: any
-    private ui: TUI
     private paths: any
-    
+
     constructor() {
         this.paths = getPaths()
-        this.ui = new TUI({ title: 'Air System Status' })
         this.config = this.loadConfig()
     }
-    
+
+    getHeader() {
+        const colors = {
+            cyan: "\x1b[36m",
+            reset: "\x1b[0m",
+            bright: "\x1b[1m"
+        }
+
+        const logo = `${colors.cyan}    ___     ____  ____  ${colors.reset}
+${colors.cyan}   /   |   /  _/ / __ \\ ${colors.reset}
+${colors.cyan}  / /| |   / /  / /_/ / ${colors.reset}
+${colors.cyan} / ___ | _/ /  / _, _/  ${colors.reset}
+${colors.cyan}/_/  |_|/___/ /_/ |_|   ${colors.reset}
+
+${colors.bright}air v2.0.0 (${typeof Bun !== "undefined" ? "BUN" : "NODE"})${colors.reset}`
+
+        return logo
+    }
+
+    createSection(title: string, items: Array<{ label: string; value: string; status?: string }>) {
+        const colors = {
+            magenta: "\x1b[35m",
+            gray: "\x1b[90m",
+            green: "\x1b[32m",
+            red: "\x1b[31m",
+            yellow: "\x1b[33m",
+            reset: "\x1b[0m"
+        }
+
+        let output = `\n${colors.magenta}═══ ${title} ═══${colors.reset}\n`
+
+        for (const item of items) {
+            const statusColor = item.status === "active" ? colors.green : item.status === "inactive" ? colors.red : item.status === "warning" ? colors.yellow : colors.reset
+
+            output += `  ${colors.gray}${item.label}:${colors.reset} ${statusColor}${item.value}${colors.reset}\n`
+        }
+
+        return output
+    }
+
     loadConfig() {
-        const configPath = path.join(this.paths.root, 'air.json')
+        const configPath = path.join(this.paths.root, "air.json")
         if (fs.existsSync(configPath)) {
             try {
-                return JSON.parse(fs.readFileSync(configPath, 'utf8'))
+                return JSON.parse(fs.readFileSync(configPath, "utf8"))
             } catch {
                 return null
             }
         }
         return null
     }
-    
-    checkProcess(): { running: boolean, pid?: number, message: string } {
+
+    checkProcess(): { running: boolean; pid?: number; message: string } {
         if (!this.config) {
-            return { running: false, message: 'Configuration not found' }
+            return { running: false, message: "Configuration not found" }
         }
-        
-        const name = this.config.name || 'air'
-        
+
+        const name = this.config.name || "air"
+
         // Check PID file
         const pidFile = path.join(this.paths.root, `.${name}.pid`)
         if (fs.existsSync(pidFile)) {
             try {
-                const pid = parseInt(fs.readFileSync(pidFile, 'utf8').trim())
-                
+                const pid = parseInt(fs.readFileSync(pidFile, "utf8").trim())
+
                 // Verify process is actually running
                 try {
                     process.kill(pid, 0) // Signal 0 tests if process exists
@@ -56,86 +93,67 @@ class AirStatus {
                     return { running: false, message: `Stale PID file found (PID: ${pid})` }
                 }
             } catch {
-                return { running: false, message: 'Invalid PID file' }
+                return { running: false, message: "Invalid PID file" }
             }
         }
-        
+
         // No PID file found
-        return { running: false, message: 'No PID file found' }
+        return { running: false, message: "No PID file found" }
     }
-    
-    checkService(): { installed: boolean, running: boolean, message: string } {
+
+    checkService(): { installed: boolean; running: boolean; message: string } {
         if (!this.config) {
-            return { installed: false, running: false, message: 'Not configured' }
+            return { installed: false, running: false, message: "Not configured" }
         }
-        
-        const name = this.config.name || 'air'
+
+        const name = this.config.name || "air"
         const serviceName = `air-${name}`
-        
+
         // Check platform-specific services
         if (isWindows()) {
             // Check Windows startup folder
-            const startupPath = path.join(
-                process.env.APPDATA || '',
-                '..',
-                'Roaming',
-                'Microsoft',
-                'Windows',
-                'Start Menu',
-                'Programs',
-                'Startup'
-            )
+            const startupPath = path.join(process.env.APPDATA || "", "..", "Roaming", "Microsoft", "Windows", "Start Menu", "Programs", "Startup")
             const batchFile = path.join(startupPath, `${serviceName}.bat`)
             if (fs.existsSync(batchFile)) {
-                return { installed: true, running: false, message: 'Windows startup configured' }
+                return { installed: true, running: false, message: "Windows startup configured" }
             }
         } else if (isMac()) {
             // Check launchd
-            const plistFile = path.join(
-                process.env.HOME || '',
-                'Library',
-                'LaunchAgents',
-                `com.air.${name}.plist`
-            )
+            const plistFile = path.join(process.env.HOME || "", "Library", "LaunchAgents", `com.air.${name}.plist`)
             if (fs.existsSync(plistFile)) {
                 try {
-                    const status = execSync(`launchctl list | grep "com.air.${name}"`, { encoding: 'utf8' })
-                    return { installed: true, running: true, message: 'launchd service active' }
+                    const status = execSync(`launchctl list | grep "com.air.${name}"`, { encoding: "utf8" })
+                    return { installed: true, running: true, message: "launchd service active" }
                 } catch {
-                    return { installed: true, running: false, message: 'launchd service installed' }
+                    return { installed: true, running: false, message: "launchd service installed" }
                 }
             }
         } else if (isTermux()) {
             // Check Termux services
-            const serviceDir = path.join(
-                process.env.PREFIX || '/data/data/com.termux/files/usr',
-                'var',
-                'service',
-                serviceName
-            )
+            const serviceDir = path.join(process.env.PREFIX || "/data/data/com.termux/files/usr", "var", "service", serviceName)
             if (fs.existsSync(serviceDir)) {
                 try {
-                    execSync(`sv status ${serviceName}`, { stdio: 'ignore' })
-                    return { installed: true, running: true, message: 'Termux service running' }
+                    execSync(`sv status ${serviceName}`, { stdio: "ignore" })
+                    return { installed: true, running: true, message: "Termux service running" }
                 } catch {
-                    return { installed: true, running: false, message: 'Termux service stopped' }
+                    return { installed: true, running: false, message: "Termux service stopped" }
                 }
             }
         } else if (hasSystemd()) {
             // Check systemd (user service first)
             try {
-                const status = execSync(`systemctl --user is-active ${serviceName}`, { encoding: 'utf8' }).trim()
-                if (status === 'active') {
-                    return { installed: true, running: true, message: 'User systemd service active' }
+                const status = execSync(`systemctl --user is-active ${serviceName}`, { encoding: "utf8" }).trim()
+                if (status === "active") {
+                    return { installed: true, running: true, message: "User systemd service active" }
                 } else {
                     return { installed: true, running: false, message: `User systemd service ${status}` }
                 }
             } catch {
                 // Try system service
                 try {
-                    const status = execSync(`systemctl is-active ${serviceName} 2>/dev/null`, { encoding: 'utf8' }).trim()
-                    if (status === 'active') {
-                        return { installed: true, running: true, message: 'System service active' }
+                    const status = execSync(`systemctl is-active ${serviceName} 2>/dev/null`, { encoding: "utf8" }).trim()
+                    if (status === "active") {
+                        return { installed: true, running: true, message: "System service active" }
                     } else {
                         return { installed: true, running: false, message: `System service ${status}` }
                     }
@@ -144,33 +162,33 @@ class AirStatus {
                 }
             }
         }
-        
+
         // Check cron
         try {
-            const crontab = execSync('crontab -l 2>/dev/null', { encoding: 'utf8' })
+            const crontab = execSync("crontab -l 2>/dev/null", { encoding: "utf8" })
             if (crontab.includes(this.paths.root) || crontab.includes(name)) {
-                return { installed: true, running: false, message: 'Cron job configured' }
+                return { installed: true, running: false, message: "Cron job configured" }
             }
         } catch {
             // No crontab
         }
-        
-        return { installed: false, running: false, message: 'No service installed' }
+
+        return { installed: false, running: false, message: "No service installed" }
     }
-    
-    checkPort(): { port: number, inUse: boolean, processInfo?: string } {
+
+    checkPort(): { port: number; inUse: boolean; processInfo?: string } {
         if (!this.config) {
             return { port: 8765, inUse: false }
         }
-        
-        const env = this.config.env || 'development'
+
+        const env = this.config.env || "development"
         const port = this.config[env]?.port || 8765
-        
+
         try {
             if (isWindows()) {
                 // Windows: use netstat
-                const output = execSync(`netstat -ano | findstr :${port}`, { encoding: 'utf8' })
-                const lines = output.trim().split('\n')
+                const output = execSync(`netstat -ano | findstr :${port}`, { encoding: "utf8" })
+                const lines = output.trim().split("\n")
                 if (lines.length > 0 && lines[0]) {
                     const parts = lines[0].trim().split(/\s+/)
                     const pid = parts[parts.length - 1]
@@ -178,8 +196,8 @@ class AirStatus {
                 }
             } else {
                 // Unix-like: use lsof
-                const output = execSync(`lsof -i:${port} 2>/dev/null`, { encoding: 'utf8' })
-                const lines = output.trim().split('\n')
+                const output = execSync(`lsof -i:${port} 2>/dev/null`, { encoding: "utf8" })
+                const lines = output.trim().split("\n")
                 if (lines.length > 1) {
                     const parts = lines[1].trim().split(/\s+/)
                     return { port, inUse: true, processInfo: `${parts[0]} (PID ${parts[1]})` }
@@ -188,36 +206,36 @@ class AirStatus {
         } catch {
             // Port is not in use
         }
-        
+
         return { port, inUse: false }
     }
-    
-    getSSLStatus(): { configured: boolean, valid?: boolean, expiry?: string } {
+
+    getSSLStatus(): { configured: boolean; valid?: boolean; expiry?: string } {
         if (!this.config) {
             return { configured: false }
         }
-        
-        const env = this.config.env || 'development'
+
+        const env = this.config.env || "development"
         const ssl = this.config[env]?.ssl
-        
+
         if (!ssl || !ssl.cert || !ssl.key) {
             return { configured: false }
         }
-        
+
         // Check if certificate files exist
         if (!fs.existsSync(ssl.cert) || !fs.existsSync(ssl.key)) {
             return { configured: true, valid: false }
         }
-        
+
         // Check certificate validity and expiry
         try {
-            const certInfo = execSync(`openssl x509 -enddate -noout -in "${ssl.cert}"`, { encoding: 'utf8' })
+            const certInfo = execSync(`openssl x509 -enddate -noout -in "${ssl.cert}"`, { encoding: "utf8" })
             const expiryMatch = certInfo.match(/notAfter=(.+)/)
-            
+
             if (expiryMatch) {
                 const expiryDate = new Date(expiryMatch[1])
                 const daysUntilExpiry = Math.floor((expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
-                
+
                 return {
                     configured: true,
                     valid: daysUntilExpiry > 0,
@@ -227,123 +245,119 @@ class AirStatus {
         } catch {
             // Could not check certificate
         }
-        
+
         return { configured: true, valid: true }
     }
-    
+
     async run() {
-        this.ui.clear()
-        console.log(this.ui.createHeader())
-        
+        // Clear and show header
+        console.clear()
+        console.log(this.getHeader())
+
         if (!this.config) {
-            this.ui.showError('Air is not configured', 'Run install.ts to set up Air')
-            this.ui.close()
+            console.error("❌ Air is not configured")
+            console.log("Run 'npm run install' to set up Air")
+            // Done
             return
         }
-        
+
         const items = []
-        
+
         // Configuration info
-        const env = this.config.env || 'development'
-        items.push({ label: 'Name', value: this.config.name || 'air', status: 'info' })
-        items.push({ label: 'Environment', value: env, status: 'info' })
-        items.push({ label: 'Root', value: this.config.root || this.paths.root, status: 'info' })
-        
-        const configSection = this.ui.createStatusSection('Configuration', items)
+        const env = this.config.env || "development"
+        items.push({ label: "Name", value: this.config.name || "air", status: "info" })
+        items.push({ label: "Environment", value: env, status: "info" })
+        items.push({ label: "Root", value: this.config.root || this.paths.root, status: "info" })
+
+        const configSection = this.createSection("Configuration", items)
         console.log(configSection)
-        
+
         // Process status
         const processItems = []
         const processStatus = this.checkProcess()
         processItems.push({
-            label: 'Process',
+            label: "Process",
             value: processStatus.message,
-            status: processStatus.running ? 'success' : 'warning'
+            status: processStatus.running ? "success" : "warning"
         })
-        
+
         // Service status
         const serviceStatus = this.checkService()
         processItems.push({
-            label: 'Service',
+            label: "Service",
             value: serviceStatus.message,
-            status: serviceStatus.installed ? 
-                (serviceStatus.running ? 'success' : 'warning') : 'info'
+            status: serviceStatus.installed ? (serviceStatus.running ? "success" : "warning") : "info"
         })
-        
+
         // Port status
         const portStatus = this.checkPort()
         processItems.push({
             label: `Port ${portStatus.port}`,
-            value: portStatus.inUse ? 
-                `In use${portStatus.processInfo ? ' by ' + portStatus.processInfo : ''}` : 
-                'Available',
-            status: portStatus.inUse ? 
-                (processStatus.running ? 'success' : 'warning') : 'info'
+            value: portStatus.inUse ? `In use${portStatus.processInfo ? " by " + portStatus.processInfo : ""}` : "Available",
+            status: portStatus.inUse ? (processStatus.running ? "success" : "warning") : "info"
         })
-        
-        const processSection = this.ui.createStatusSection('Runtime Status', processItems)
+
+        const processSection = this.createSection("Runtime Status", processItems)
         console.log(processSection)
-        
+
         // Network configuration
         const networkItems = []
-        const domain = this.config[env]?.domain || 'localhost'
+        const domain = this.config[env]?.domain || "localhost"
         const port = this.config[env]?.port || 8765
-        
-        networkItems.push({ label: 'Domain', value: domain, status: 'info' })
-        networkItems.push({ label: 'Port', value: String(port), status: 'info' })
-        
+
+        networkItems.push({ label: "Domain", value: domain, status: "info" })
+        networkItems.push({ label: "Port", value: String(port), status: "info" })
+
         // SSL status
         const sslStatus = this.getSSLStatus()
         if (sslStatus.configured) {
-            let sslValue = 'Configured'
+            let sslValue = "Configured"
             if (sslStatus.valid !== undefined) {
-                sslValue = sslStatus.valid ? 
-                    `Valid (expires in ${sslStatus.expiry})` : 
-                    'Invalid or missing'
+                sslValue = sslStatus.valid ? `Valid (expires in ${sslStatus.expiry})` : "Invalid or missing"
             }
             networkItems.push({
-                label: 'SSL',
+                label: "SSL",
                 value: sslValue,
-                status: sslStatus.valid === false ? 'error' : 'success'
+                status: sslStatus.valid === false ? "error" : "success"
             })
         } else {
-            networkItems.push({ label: 'SSL', value: 'Not configured', status: 'info' })
+            networkItems.push({ label: "SSL", value: "Not configured", status: "info" })
         }
-        
+
         // DDNS status
         const ddns = this.config[env]?.godaddy
         if (ddns) {
-            networkItems.push({ 
-                label: 'DDNS', 
-                value: `GoDaddy (${ddns.host}.${ddns.domain})`, 
-                status: 'success' 
+            networkItems.push({
+                label: "DDNS",
+                value: `GoDaddy (${ddns.host}.${ddns.domain})`,
+                status: "success"
             })
         } else {
-            networkItems.push({ label: 'DDNS', value: 'Not configured', status: 'info' })
+            networkItems.push({ label: "DDNS", value: "Not configured", status: "info" })
         }
-        
+
         // Peers
         const peers = this.config[env]?.peers || []
-        networkItems.push({ 
-            label: 'Peers', 
-            value: peers.length > 0 ? `${peers.length} configured` : 'None', 
-            status: 'info' 
+        networkItems.push({
+            label: "Peers",
+            value: peers.length > 0 ? `${peers.length} configured` : "None",
+            status: "info"
         })
-        
-        const networkSection = this.ui.createStatusSection('Network Configuration', networkItems)
+
+        const networkSection = this.createSection("Network Configuration", networkItems)
         console.log(networkSection)
-        
+
         // Overall status
-        console.log('\n' + '═'.repeat(60))
-        
+        console.log("\n" + "═".repeat(60))
+
         if (processStatus.running) {
-            this.ui.showSuccess(`Air is running (PID: ${processStatus.pid})`)
-            console.log(`\nAccess URL: ${sslStatus.configured ? 'https' : 'http'}://${domain}:${port}`)
+            console.log(`\n✅ Air is running (PID: ${processStatus.pid})`)
+            console.log(`\nAccess URL: ${sslStatus.configured ? "https" : "http"}://${domain}:${port}`)
         } else if (serviceStatus.installed) {
-            this.ui.showWarning('Air is not running but service is installed')
-            console.log('\nTo start Air:')
+            console.log("\n⚠️  Air is not running but service is installed")
+            console.log("\nTo start Air:")
             if (isWindows()) {
-                console.log('  Restart your computer or run the startup batch file')
+                console.log("  Restart your computer or run the startup batch file")
             } else if (isMac()) {
                 console.log(`  launchctl start com.air.${this.config.name}`)
             } else if (isTermux()) {
@@ -351,23 +365,23 @@ class AirStatus {
             } else if (hasSystemd()) {
                 console.log(`  systemctl --user start air-${this.config.name}`)
             } else {
-                console.log(`  ${typeof Bun !== 'undefined' ? 'bun' : 'node'} ${this.paths.root}/src/main.ts`)
+                console.log(`  ${typeof Bun !== "undefined" ? "bun" : "node"} ${this.paths.root}/src/main.ts`)
             }
         } else {
-            this.ui.showInfo('Air is not running')
-            console.log('\nTo start Air:')
-            console.log(`  ${typeof Bun !== 'undefined' ? 'bun' : 'node'} ${this.paths.root}/src/main.ts`)
+            console.log("\nℹ️  Air is not running")
+            console.log("\nTo start Air:")
+            console.log(`  ${typeof Bun !== "undefined" ? "bun" : "node"} ${this.paths.root}/src/main.ts`)
         }
-        
-        console.log('\n' + '═'.repeat(60))
-        
-        this.ui.close()
+
+        console.log("\n" + "═".repeat(60))
+
+        // Done
     }
 }
 
 // Run status check
 const status = new AirStatus()
 status.run().catch(err => {
-    console.error('Status check failed:', err)
+    console.error("Status check failed:", err)
     process.exit(1)
 })

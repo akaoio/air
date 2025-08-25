@@ -2,9 +2,9 @@
  * Get bash/scripts directory from air.json or auto-detect
  */
 
-import path from 'path'
-import { state } from './state.js'
-import { root } from './root.js'
+import path from "path"
+import { state } from "./state.js"
+import { root } from "./root.js"
 
 export function bash(): string {
     // Check environment variable first
@@ -15,7 +15,7 @@ export function bash(): string {
         return path.resolve(state.airConfig.bash)
     }
     // Default to script directory
-    return path.join(root(), 'script')
+    return path.join(root(), "script")
 }
 
 export default bash

@@ -1,0 +1,21 @@
+title: "@akaoio/air"
+description: "Distributed P2P database system with automatic SSL management and dynamic DNS - Built on GUN protocol with real-time synchronization"
+name: "@akaoio/air"
+usage: |
+  import { Peer } from '@akaoio/air'
+  
+  const peer = new Peer({
+    name: 'my-air-node',
+    env: 'development'
+  })
+  
+  await peer.start()
+features:
+  - "🔥 UPDATED: Distributed P2P Database built on GUN protocol"  
+  - "🔒 UPDATED: Automatic SSL management with Let's Encrypt"
+  - "🌐 UPDATED: Dynamic DNS updates with GoDaddy integration"
+  - "⚡ UPDATED: Multi-runtime support (Bun + Node.js)"
+  - "📁 UPDATED: TypeScript with Class = Directory pattern"
+  - "⚔️ UPDATED: Battle-tested with @akaoio/battle framework"
+  - "🏗️ UPDATED: Built with @akaoio/builder framework"
+  - "📝 UPDATED: Live documentation with @akaoio/composer"

@@ -2,9 +2,9 @@
  * Update packages (npm/bun)
  */
 
-import fs from 'fs'
-import path from 'path'
-import { execSync } from 'child_process'
+import fs from "fs"
+import path from "path"
+import { execSync } from "child_process"
 
 export interface PackagesResult {
     success: boolean
@@ -14,43 +14,42 @@ export interface PackagesResult {
 
 export function packages(root: string): PackagesResult {
     try {
-        const isBun = typeof (global as any).Bun !== 'undefined'
-        
+        const isBun = typeof (global as any).Bun !== "undefined"
+
         if (isBun) {
             // Update with Bun
-            execSync('bun update', { stdio: 'pipe', cwd: root })
-            
+            execSync("bun update", { stdio: "pipe", cwd: root })
+
             // Check if lockfile was modified
-            const lockfile = path.join(root, 'bun.lockb')
+            const lockfile = path.join(root, "bun.lockb")
             if (fs.existsSync(lockfile)) {
                 const stats = fs.statSync(lockfile)
                 const recentlyModified = Date.now() - stats.mtime.getTime() < 10000
-                
+
                 if (recentlyModified) {
-                    return { success: true, message: 'Packages updated (Bun)' }
+                    return { success: true, message: "Packages updated (Bun)" }
                 }
             }
-            
-            return { success: true, message: 'All packages up to date (Bun)' }
-            
+
+            return { success: true, message: "All packages up to date (Bun)" }
         } else {
             // Update with npm
-            const output = execSync('npm update', { encoding: 'utf8', cwd: root })
-            
+            const output = execSync("npm update", { encoding: "utf8", cwd: root })
+
             // Try audit fix
             try {
-                const auditOutput = execSync('npm audit fix', { encoding: 'utf8', cwd: root })
-                if (auditOutput.includes('fixed')) {
+                const auditOutput = execSync("npm audit fix", { encoding: "utf8", cwd: root })
+                if (auditOutput.includes("fixed")) {
                     return {
                         success: true,
-                        message: 'Packages updated & vulnerabilities fixed'
+                        message: "Packages updated & vulnerabilities fixed"
                     }
                 }
             } catch {
                 // Audit fix failed, not critical
             }
-            
-            if (output.includes('updated')) {
+
+            if (output.includes("updated")) {
                 const match = output.match(/(\d+) packages?/)
                 if (match) {
                     return {
@@ -58,16 +57,15 @@ export function packages(root: string): PackagesResult {
                         message: `${match[0]} updated`
                     }
                 }
-                return { success: true, message: 'Packages updated' }
+                return { success: true, message: "Packages updated" }
             }
-            
-            return { success: true, message: 'All packages up to date' }
+
+            return { success: true, message: "All packages up to date" }
         }
-        
     } catch (error: any) {
         return {
             success: false,
-            message: 'Package update failed',
+            message: "Package update failed",
             details: error.message
         }
     }

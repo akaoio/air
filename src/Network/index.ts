@@ -3,27 +3,27 @@
  * Each function is independent and can be imported individually
  */
 
-export { has } from './has.js'
-export { validate } from './validate.js'
-export { dns } from './dns.js'
-export { get } from './get.js'
-export { monitor } from './monitor.js'
-export { interfaces } from './interfaces.js'
-export { update } from './update.js'
+export { has } from "./has.js"
+export { validate } from "./validate.js"
+export { dns } from "./dns.js"
+export { get } from "./get.js"
+export { monitor } from "./monitor.js"
+export { interfaces } from "./interfaces.js"
+export { update } from "./update.js"
 
 // Export submodules
-export * as ipv4 from './ipv4/index.js'
-export * as ipv6 from './ipv6/index.js'
+export * as ipv4 from "./ipv4/index.js"
+export * as ipv6 from "./ipv6/index.js"
 
 // Export types
-export type { IPResult } from './get.js'
-export type { InterfaceInfo } from './interfaces.js'
-export type { UpdateResult } from './update.js'
+export type { IPResult } from "./get.js"
+export type { InterfaceInfo } from "./interfaces.js"
+export type { UpdateResult } from "./update.js"
 
 // Default export for backward compatibility
-import { get } from './get.js'
-import { validate } from './validate.js'
-import { update } from './update.js'
+import { get } from "./get.js"
+import { validate } from "./validate.js"
+import { update } from "./update.js"
 
 const network = {
     get,

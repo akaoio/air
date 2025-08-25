@@ -3,14 +3,14 @@
  * Defines interfaces for cross-platform operations
  */
 
-import type { AirConfig } from '../types/index.js'
+import type { AirConfig } from "../types/index.js"
 
 /**
  * Result of service creation operation
  */
 export interface ServiceResult {
     success: boolean
-    type?: 'systemd' | 'windows-service' | 'launchd' | 'init.d' | 'npm'
+    type?: "systemd" | "windows-service" | "launchd" | "init.d" | "npm"
     message?: string
     error?: string
 }
@@ -21,7 +21,7 @@ export interface ServiceResult {
 export interface StartResult {
     started: boolean
     pid?: number
-    method?: 'systemd' | 'windows-service' | 'launchd' | 'spawn' | 'npm'
+    method?: "systemd" | "windows-service" | "launchd" | "spawn" | "npm"
     error?: string
 }
 
@@ -64,6 +64,15 @@ export interface PlatformPaths {
 }
 
 /**
+ * Process information
+ */
+export interface ProcessInfo {
+    pid: string
+    name: string
+    port?: number
+}
+
+/**
  * Main strategy interface for platform operations
  */
 export interface PlatformStrategy {
@@ -71,18 +80,26 @@ export interface PlatformStrategy {
     createService(config: AirConfig): Promise<ServiceResult>
     startService(name: string): Promise<StartResult>
     stopService(name: string): Promise<boolean>
+    restartService(name: string): Promise<boolean>
     removeService(name: string): Promise<boolean>
-    getServiceStatus(name: string): Promise<'running' | 'stopped' | 'unknown'>
-    
+    getServiceStatus(name: string): Promise<"running" | "stopped" | "unknown">
+
+    // Process management (synchronous for backward compatibility)
+    findProcessByPort(port: number): ProcessInfo | null
+    findProcessByName(name: string): ProcessInfo | null
+    killProcess(pid: string | number): boolean
+    killProcessByPort(port: number): boolean
+    killProcessByName(name: string): boolean
+
     // SSL/TLS operations
     setupSSL(config: AirConfig): Promise<SSLResult>
-    
+
     // Path operations
     getPaths(): PlatformPaths
-    
+
     // Capability checking
     getCapabilities(): PlatformCapabilities
-    
+
     // Platform name for identification
     getName(): string
 }

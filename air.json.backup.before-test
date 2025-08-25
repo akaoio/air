@@ -1,0 +1,54 @@
+{
+  "root": "/home/x/Projects/air",
+  "bash": "/usr/bin/zsh",
+  "env": "production",
+  "name": "air",
+  "port": 443,
+  "domain": "air.akao.io",
+  "ip": {
+    "timeout": 5000,
+    "dnsTimeout": 2000,
+    "userAgent": "Air/2.0",
+    "dns": [
+      {
+        "hostname": "resolver1.opendns.com",
+        "resolver": "myip.opendns.com"
+      },
+      {
+        "hostname": "8.8.8.8",
+        "resolver": "o-o.myaddr.l.google.com"
+      }
+    ],
+    "http": [
+      {
+        "url": "https://icanhazip.com",
+        "format": "text"
+      },
+      {
+        "url": "https://api.ipify.org",
+        "format": "text"
+      }
+    ]
+  },
+  "development": {
+    "domain": "localhost",
+    "port": 8765,
+    "peers": []
+  },
+  "production": {
+    "domain": "air.akao.io",
+    "port": 8765,
+    "peers": [],
+    "ssl": {
+      "enabled": true,
+      "cert": "/home/x/Projects/air/ssl/cert.pem",
+      "key": "/home/x/Projects/air/ssl/key.pem"
+    },
+    "godaddy": {
+      "domain": "akao.io",
+      "host": "air",
+      "key": "3AmP8qxSrV_BQvFh2zzgykeVXTuEga27V",
+      "secret": "2kkQvSL43mxLVBi1qybPsB"
+    }
+  }
+}

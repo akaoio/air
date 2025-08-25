@@ -2,7 +2,7 @@
  * Find process using a specific port
  */
 
-import { find as findProcess } from '../Process/index.js'
+import { find as findProcess } from "../Process/index.js"
 
 export interface ProcessInfo {
     pid: string
