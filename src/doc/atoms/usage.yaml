@@ -1,0 +1,18 @@
+installation:
+  standalone: "sudo ./install.sh"
+  nodejs: |
+    import { db } from "air"
+    const main = async () => {
+        await db.start() // Start the db instance
+        const { GUN, gun, sea, user } = db
+    }
+    main()
+
+requirements:
+  domain: "Domain name configured to point to your server"
+  port_forwarding: "NAT/port forwarding setup for Let's Encrypt"
+  access_integration: "IP synchronization handled by Access layer (no GoDaddy configuration needed)"
+
+platforms:
+  - "Raspberry OS on Raspberry Pi 4"
+  - "Ubuntu 19.10 on Acer Nitro 5"

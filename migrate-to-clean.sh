@@ -1,19 +1,26 @@
-#!/bin/bash
-# Air Migration Script - From Old Chaos to Clean Architecture
-# This script migrates users from the old Air to the clean version
+#!/bin/sh
+# Air Migration Script - POSIX compliant following Access philosophy
+# From Old Chaos to Clean Architecture - Pure shell implementation
 
 set -e
 
 echo "================================================"
 echo "  Air Migration to Clean Architecture v2.0"
-echo "================================================"
+echo "================================================" 
 echo ""
 
-# Colors
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+# Colors (POSIX compliant color detection like Access)
+if [ "${FORCE_COLOR:-0}" = "1" ] || { [ -t 1 ] && [ "${NO_COLOR:-0}" != "1" ] && [ "${TERM:-}" != "dumb" ]; }; then
+    GREEN='\033[0;32m'
+    RED='\033[0;31m'
+    YELLOW='\033[1;33m'
+    NC='\033[0m' # No Color
+else
+    GREEN=''
+    RED=''
+    YELLOW=''
+    NC=''
+fi
 
 # Step 1: Stop all Air processes
 echo "⏹️  Stopping all Air processes..."

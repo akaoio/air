@@ -1,7 +1,8 @@
-#!/bin/bash
+#!/bin/sh
+# Air Uninstall Script - POSIX compliant following Access philosophy
 
 # Define vars
-who=$USER
+who=$(id -un)
 config="air.json"
 root=""
 bash=""
@@ -36,33 +37,69 @@ done
 
 [ -z $bash ] && bash="$(cd "$(dirname "$0")" && pwd)" # Root folder of Bash script files
 
-# Check if jq is installed? Install jq if jq doesn's exist.
-if ! command -v jq &> /dev/null
+# Check if jq is installed
+if ! command -v jq >/dev/null 2>&1
 then
-    sudo apt install jq
+    echo "Warning: jq is not installed. Some configuration parsing may fail."
+    echo "Consider installing jq manually for better configuration handling."
 fi
 
 # If config file exists, try to assign variables
 if [ -f $root/$config ]
 then
     name=`jq -r ".name" $root/$config`
-    [[ $name = "null" ]] && name=`jq -r ".name" $root/$config`
+    [ "$name" = "null" ] && name=$(jq -r ".name" "$root/$config")
 fi
 
 # READY
 
-# Uninstall
-sudo systemctl disable $name
-sudo systemctl stop $name
-sudo rm /etc/systemd/system/$name.service
-sudo systemctl daemon-reload
+# User-scope uninstall
+echo "Uninstalling Air P2P database (user-scope)..."
 
-# Remove old crontab commands if exists
-sudo crontab -u $USER -l | grep -v "$bash/" | crontab -u $USER -
+# Stop and disable user systemd service
+if [ -n "$name" ]; then
+    systemctl --user stop "$name" 2>/dev/null || echo "Note: Service $name was not running"
+    systemctl --user disable "$name" 2>/dev/null || echo "Note: Service $name was not enabled"
+fi
+
+# Remove user systemd service file
+user_service_file="$HOME/.config/systemd/user/$name.service"
+if [ -f "$user_service_file" ]; then
+    rm "$user_service_file"
+    echo "✓ Removed user systemd service: $user_service_file"
+fi
+
+systemctl --user daemon-reload 2>/dev/null || true
+
+# Remove user crontab entries
+crontab -l 2>/dev/null | grep -v "$bash/" | crontab - 2>/dev/null || echo "Note: No crontab entries to remove"
+
+# Clean up XDG directories (optional - ask user)
+echo ""
+printf "Remove Air configuration and data directories? [y/N]: "
+read cleanup_response
+case "$cleanup_response" in
+    [Yy]*)
+        rm -rf "$HOME/.config/air" 2>/dev/null || true
+        rm -rf "$HOME/.local/share/air" 2>/dev/null || true
+        rm -rf "$HOME/.local/state/air" 2>/dev/null || true
+        echo "✓ Removed Air configuration and data directories"
+        ;;
+    *)
+        echo "Configuration and data directories preserved in:"
+        echo "  ~/.config/air/"
+        echo "  ~/.local/share/air/"
+        echo "  ~/.local/state/air/"
+        ;;
+esac
 
 echo "
-====================
-  PEER UNINSTALLED
+====================================
+  AIR P2P DATABASE UNINSTALLED
   Peer: $name
-====================
+  User: $(id -un) (no sudo required)
+====================================
+
+Air has been cleanly removed from user scope.
+No system-wide changes were made.
 "

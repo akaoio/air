@@ -2,6 +2,9 @@ import { merge } from "./libs/utils.js"
 import http from "http"
 import https from "https"
 import fs from "fs"
+import os from "os"
+import { execSync } from "child_process"
+import net from "net"
 import { fileURLToPath } from "url"
 import path from "path"
 import fetch from "node-fetch"
@@ -39,7 +42,7 @@ export class Peer {
 
         this.readConfig()
 
-        this.env = this.config.env = this.config.env || process.env.ENV || process.argv[4] || "development"
+        this.env = this.config.env = this.config.env || process.env.NODE_ENV || process.env.ENV || process.argv[4] || "development"
 
         this.config.name = process.env.NAME || process.argv[5] || this.config.name || (this.env === "development" ? "localhost" : null)
 
@@ -78,12 +81,233 @@ export class Peer {
             this.options.cert = fs.existsSync(cert) ? fs.readFileSync(cert) : null
         }
 
-        this.init()
+        // Don't auto-init in constructor - wait for start() call
+        
+        // Singleton pattern - prevent multiple instances
+        this.setupSingleton()
 
         this.GUN = GUN
         this.sea = sea
         this.gun = {}
         this.user = {}
+    }
+
+    setupSingleton() {
+        // Use XDG-compliant paths for lock files (like Access)
+        const xdgRuntimeDir = process.env.XDG_RUNTIME_DIR || path.join(os.tmpdir(), `user-${process.getuid()}`)
+        const xdgStateDir = process.env.XDG_STATE_HOME || path.join(os.homedir(), '.local', 'state')
+        
+        // Create directories if they don't exist
+        try {
+            if (!fs.existsSync(xdgRuntimeDir)) fs.mkdirSync(xdgRuntimeDir, { recursive: true, mode: 0o700 })
+            if (!fs.existsSync(path.join(xdgStateDir, 'air'))) fs.mkdirSync(path.join(xdgStateDir, 'air'), { recursive: true })
+        } catch (error) {
+            console.warn('Warning: Could not create XDG directories:', error.message)
+        }
+
+        // System-wide lock file (same for all installations)
+        this.systemLockFile = path.join(xdgRuntimeDir, 'air-system.lock')
+        // Local lock file (per installation)
+        this.lockFile = path.join(xdgRuntimeDir, 'air.lock')
+        // PID file in XDG state directory (persistent)
+        this.pidFile = path.join(xdgStateDir, 'air', 'air.pid')
+        
+        process.on('exit', () => this.cleanup())
+        process.on('SIGINT', () => { this.cleanup(); process.exit(0) })
+        process.on('SIGTERM', () => { this.cleanup(); process.exit(0) })
+        process.on('uncaughtException', (err) => { 
+            console.error('Uncaught exception:', err)
+            this.cleanup()
+            process.exit(1)
+        })
+    }
+
+    checkSingleton() {
+        // System-wide Air instance detection - bulletproof singleton
+        this.enforceSystemWideSingleton()
+        
+        // Check system-wide lock file first
+        if (fs.existsSync(this.systemLockFile)) {
+            try {
+                const systemLockData = JSON.parse(fs.readFileSync(this.systemLockFile, 'utf8'))
+                const pid = systemLockData.pid
+                
+                // Check if process is actually running
+                try {
+                    process.kill(pid, 0) // Signal 0 just checks if process exists
+                    console.error(`Air is already running system-wide (PID: ${pid})`)
+                    console.error(`Installation: ${systemLockData.location || 'Unknown'}`)
+                    console.error(`Started: ${systemLockData.startTime || 'Unknown'}`)
+                    console.error(`Port: ${systemLockData.port || 'Unknown'}`)
+                    console.error('')
+                    console.error('Only ONE Air instance is allowed across the entire system.')
+                    console.error('To stop: pkill -f "node.*main.js" or ./air.sh stop')
+                    process.exit(1)
+                } catch (e) {
+                    // Process doesn't exist, remove stale system lock
+                    console.log('Removing stale system-wide lock file')
+                    fs.unlinkSync(this.systemLockFile)
+                }
+            } catch (e) {
+                // Invalid system lock file, remove it
+                console.log('Removing invalid system lock file')
+                fs.unlinkSync(this.systemLockFile)
+            }
+        }
+        
+        // Check local lock file
+        if (fs.existsSync(this.lockFile)) {
+            try {
+                const lockData = JSON.parse(fs.readFileSync(this.lockFile, 'utf8'))
+                const pid = lockData.pid
+                
+                // Check if process is actually running
+                try {
+                    process.kill(pid, 0) // Signal 0 just checks if process exists
+                    console.error(`Air is already running (PID: ${pid})`)
+                    console.error(`Location: ${lockData.location || 'Unknown'}`)
+                    console.error(`Started: ${lockData.startTime || 'Unknown'}`)
+                    console.error('Use "air stop" to stop the running instance or ./air.sh stop')
+                    process.exit(1)
+                } catch (e) {
+                    // Process doesn't exist, remove stale lock
+                    console.log('Removing stale lock file from local directory')
+                    fs.unlinkSync(this.lockFile)
+                }
+            } catch (e) {
+                // Invalid lock file, remove it
+                console.log('Removing invalid lock file')
+                fs.unlinkSync(this.lockFile)
+            }
+        }
+        
+        // Create comprehensive lock data
+        const lockData = {
+            pid: process.pid,
+            startTime: new Date().toISOString(),
+            port: this.config[this.env].port,
+            domain: this.config[this.env].domain,
+            location: this.config.root,
+            user: process.env.USER || process.env.USERNAME || 'unknown',
+            nodeVersion: process.version,
+            cwd: process.cwd()
+        }
+        
+        // Create both system-wide and local lock files
+        fs.writeFileSync(this.systemLockFile, JSON.stringify(lockData, null, 2))
+        fs.writeFileSync(this.lockFile, JSON.stringify(lockData, null, 2))
+        fs.writeFileSync(this.pidFile, process.pid.toString())
+        
+        console.log(`Air system-wide singleton lock created (PID: ${process.pid})`)
+        console.log(`Installation: ${lockData.location}`)
+        console.log(`Port: ${lockData.port}`)
+        console.log('')
+        console.log('Air is now the ONLY instance running system-wide.')
+    }
+
+    enforceSystemWideSingleton() {
+        // System-wide singleton enforcement across all possible installations
+        try {
+            // Method 1: Check for any node process running Air main.js (synchronous)
+            const foundPids = execSync('pgrep -f "node.*main.js" || true', { encoding: 'utf8' })
+            
+            if (foundPids.trim()) {
+                const pids = foundPids.trim().split('\n').filter(pid => 
+                    pid && parseInt(pid) !== process.pid // Don't count ourselves and filter empty
+                )
+                
+                if (pids.length > 0) {
+                    console.error(`Air is already running system-wide (PIDs: ${pids.join(', ')})`)
+                    console.error('Multiple Air instances detected across the system.')
+                    
+                    // Show info about running processes
+                    this.showRunningAirInfo(pids)
+                    process.exit(1)
+                }
+            }
+            
+            // Method 2: Check by looking for Air-specific patterns in process list
+            try {
+                const psOutput = execSync('ps aux | grep -E "(main\\.js|air)" | grep -v grep || true', { encoding: 'utf8' })
+                const airProcesses = psOutput.split('\n').filter(line => 
+                    line.includes('main.js') && !line.includes(process.pid.toString())
+                )
+                
+                if (airProcesses.length > 0) {
+                    console.error('Air processes detected:')
+                    airProcesses.forEach(proc => console.error(`  ${proc}`))
+                    console.error('')
+                    console.error('Only one Air instance allowed system-wide.')
+                    console.error('To stop all: pkill -f "node.*main.js" or use ./air.sh stop')
+                    process.exit(1)
+                }
+            } catch (e) {
+                // ps command failed, continue with other checks
+            }
+            
+        } catch (error) {
+            console.warn('Warning: Could not perform complete system-wide singleton check:', error.message)
+            console.log('Proceeding with local singleton check only')
+        }
+    }
+
+    showRunningAirInfo(pids) {
+        try {
+            if (Array.isArray(pids) && pids.length > 0) {
+                const pidList = pids.join(',')
+                const psOutput = execSync(`ps -p ${pidList} -o pid,ppid,time,cmd || true`, { encoding: 'utf8' })
+                console.error('Running Air processes:')
+                console.error(psOutput)
+            }
+        } catch (e) {
+            // ps command failed
+        }
+        
+        console.error('')
+        console.error('To stop all Air instances: pkill -f "node.*main.js"') 
+        console.error('Or use: ./air.sh stop (from any running installation)')
+        console.error('Or use: systemctl --user stop air (if installed as service)')
+    }
+
+    checkAirPorts() {
+        // Check if typical Air ports are in use
+        const airPorts = [8765, 8766, 8767, 8768, 8769, 8770]
+        const usedPorts = []
+        
+        airPorts.forEach(port => {
+            try {
+                const server = net.createServer()
+                
+                server.listen(port, () => {
+                    server.close()
+                })
+                
+                server.on('error', (err) => {
+                    if (err.code === 'EADDRINUSE') {
+                        usedPorts.push(port)
+                    }
+                })
+            } catch (e) {
+                // Port check failed, continue
+            }
+        })
+        
+        if (usedPorts.length > 0) {
+            console.warn(`Warning: Air-like services detected on ports: ${usedPorts.join(', ')}`)
+            console.warn('This may indicate running Air instances')
+        }
+    }
+
+    cleanup() {
+        // Remove all lock files on exit
+        try {
+            if (fs.existsSync(this.systemLockFile)) fs.unlinkSync(this.systemLockFile)
+            if (fs.existsSync(this.lockFile)) fs.unlinkSync(this.lockFile)
+            if (fs.existsSync(this.pidFile)) fs.unlinkSync(this.pidFile)
+            console.log('Air singleton locks cleaned up')
+        } catch (e) {
+            // Ignore cleanup errors
+        }
     }
 
     init() {
@@ -97,21 +321,25 @@ export class Peer {
             this.server = this.http
         }
 
-        // Add error handling
         this.server.on('error', (error) => {
             console.error('Server error:', error)
-            this.restart()
+            if (error.code === 'EADDRINUSE') {
+                console.error(`Port ${this.config[this.env].port} is already in use. Trying next port...`)
+                this.config[this.env].port += 1
+                this.writeConfig()
+                this.restart()
+            } else {
+                this.restart()
+            }
         })
 
-        // Add close handling
         this.server.on('close', () => {
-            console.log('Server closed. Attempting restart...')
-            this.restart()
+            console.log('Server closed gracefully')
         })
 
         try {
             this.server.listen(this.config[this.env].port)
-            this.restarts = 0 // Reset counter on successful start
+            this.restarts = 0
             console.log(`Server started successfully on port ${this.config[this.env].port}`)
         } catch (error) {
             console.error('Failed to start server:', error)
@@ -139,6 +367,12 @@ export class Peer {
     }
 
     async start(callback = () => {}) {
+        // Check singleton first
+        this.checkSingleton()
+        
+        // Initialize server
+        this.init()
+        
         await this.syncConfig()
         await this.run()
         await this.online()
@@ -310,18 +544,29 @@ export class Peer {
 
     updateDDNS(callback = () => {}) {
         return new Promise((resolve, reject) => {
-            if (!this.user.is) return reject()
+            if (!this.user.is) return resolve()
             const config = path.join(this.config.root, "ddns.json")
-            const content = fs.existsSync(config) ? fs.readFileSync(config) : null
-            const ddns = JSON.parse(content)
-
-            if (ddns && typeof ddns === "object" && Object.keys(ddns).length > 0) {
-                this.user.put(ddns, (response = {}) => {
-                    if (response.err) reject(response.err)
-                    else resolve(response)
-                })
+            
+            if (!fs.existsSync(config)) {
+                return resolve()
             }
-            resolve()
+            
+            try {
+                const content = fs.readFileSync(config, 'utf8')
+                const ddns = JSON.parse(content)
+
+                if (ddns && typeof ddns === "object" && Object.keys(ddns).length > 0) {
+                    this.user.put(ddns, (response = {}) => {
+                        if (response.err) reject(response.err)
+                        else resolve(response)
+                    })
+                } else {
+                    resolve()
+                }
+            } catch (error) {
+                console.error('DDNS config error:', error)
+                resolve()
+            }
         }).then(
             response => {
                 if (callback) callback(response)

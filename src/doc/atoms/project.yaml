@@ -1,0 +1,7 @@
+name: "@akaoio/air"
+description: "Tool to help you run GUN instances with ease"
+version: "0.1.0"
+author: "AKAO Team"
+repository: "https://github.com/akaoio/air"
+license: "MIT"
+tagline: "Distributed P2P database with IP synchronization"

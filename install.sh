@@ -1,7 +1,9 @@
-#!/bin/bash
+#!/bin/sh
+# Air Installation Script - POSIX compliant following Access philosophy
+# Pure shell implementation for eternal infrastructure
 
 # Define vars
-who=$USER
+who=$(id -un)
 config="air.json"
 root="" # Root folder of main.js
 bash="" # Root folder of Bash script files
@@ -9,7 +11,7 @@ env=""
 name=""
 port=""
 domain=""
-peers=()
+peers_list=""
 sync=""
 ssl=false
 ssl_key=""
@@ -48,7 +50,7 @@ do
         n) name=$OPTARG;;
         p) port=$OPTARG;;
         d) domain=$OPTARG;;
-        P) [[ $OPTARG =~ ^([a-zA-Z0-9]+,)*[a-zA-Z0-9]+$ ]] && IFS=',' read -r -a peers <<< "$(echo "$OPTARG" | tr -d '[:space:]')";;
+        P) peers_list="$OPTARG";;
         S) sync=$OPTARG;;
         s) ssl=true;;
         u) update=true;;
@@ -62,117 +64,139 @@ done
 # Config bash directory
 [ -z $bash ] && bash=$(cd `dirname $0` && pwd) # Root folder of Bash script files
 
-# Check if jq is installed? Install jq if jq doesn's exist.
-if ! command -v jq &> /dev/null
+# Check if jq is installed? Install jq if jq doesn't exist.
+if ! command -v jq >/dev/null 2>&1
 then
-    sudo apt install jq
+    echo "Warning: jq is not installed. Please install it manually:"
+    echo "  Ubuntu/Debian: apt install jq (or use package manager of your choice)"
+    echo "  Alpine: apk add jq"
+    echo "  macOS: brew install jq"
+    echo "Air will continue but JSON configuration may need manual editing."
 fi
 
 # If config file exists, try to assign variables
 if [ -f $root/$config ]
 then
     env=`jq -r ".env" $root/$config`
-    [[ -z $env || $env = "null" ]] && env=`jq -r ".env" $root/$config`
+    [ -z "$env" ] || [ "$env" = "null" ] && env=$(jq -r ".env" "$root/$config")
 
-    [[ -z $name || $name = "null" ]] && name=`jq -r ".name" $root/$config`
+    [ -z "$name" ] || [ "$name" = "null" ] && name=$(jq -r ".name" "$root/$config")
 
-    port=`jq -r ".port" $root/$config`
-    [[ -z $port || $port = "null" ]] && port=`jq -r ".$env.port" $root/$config`
+    port=$(jq -r ".port" "$root/$config")
+    [ -z "$port" ] || [ "$port" = "null" ] && port=$(jq -r ".$env.port" "$root/$config")
 
-    domain=`jq -r ".domain" $root/$config`
-    [[ -z $domain || $domain = "null" ]] && domain=`jq -r ".$env.domain" $root/$config`
+    domain=$(jq -r ".domain" "$root/$config")
+    [ -z "$domain" ] || [ "$domain" = "null" ] && domain=$(jq -r ".$env.domain" "$root/$config")
     
-    peers=($(jq -r ".peers[]" "$root/$config" 2>/dev/null || jq -r ".$env.peers[]" "$root/$config" 2>/dev/null || echo ""))
+    peers_list=$(jq -r ".peers[]" "$root/$config" 2>/dev/null | tr '\n' ',' | sed 's/,$//' || jq -r ".$env.peers[]" "$root/$config" 2>/dev/null | tr '\n' ',' | sed 's/,$//' || echo "")
     
-    [[ -z $sync || $sync = "null" ]] && sync=`jq -r ".sync" $root/$config`
+    [ -z "$sync" ] || [ "$sync" = "null" ] && sync=$(jq -r ".sync" "$root/$config")
 fi
 
 # CORE SETUP
 
 # Check if env exists
-while [ -z $env ] || [[ $env = "null" ]]
+while [ -z "$env" ] || [ "$env" = "null" ]
 do
-    read -p "Please enter environment (\"production\" or \"development\"): " env
-    if [ ! -z $env ] && [[ $env != "null" ]]
+    printf "Please enter environment (\"production\" or \"development\"): "
+    read env
+    if [ -n "$env" ] && [ "$env" != "null" ]
     then
         break
     fi
 done
-[ ! -z $env ] && echo "Environment: $env"
+[ -n "$env" ] && echo "Environment: $env"
 
 # Check if name exists
-while [ -z $name ] || [[ $name = "null" ]]
+while [ -z "$name" ] || [ "$name" = "null" ]
 do
-    read -p "Please enter peer name: " name
-    if [ ! -z $name ] && [[ $name != "null" ]]
+    printf "Please enter peer name: "
+    read name
+    if [ -n "$name" ] && [ "$name" != "null" ]
     then
         break
     fi
 done
-[ ! -z $name ] && echo "Peer name: $name"
+[ -n "$name" ] && echo "Peer name: $name"
 
 # Check if port exists
-while [ -z $port ] || [[ $port = "null" ]]
+while [ -z "$port" ] || [ "$port" = "null" ]
 do
-    read -p "Please enter port: " port
-    if [ ! -z $port ] && [[ $port != "null" ]]
+    printf "Please enter port: "
+    read port
+    if [ -n "$port" ] && [ "$port" != "null" ]
     then
         break
     else
         port=8765
     fi
 done
-[ ! -z $port ] && echo "Port: $port"
+[ -n "$port" ] && echo "Port: $port"
 
 # NETWORK SETUP
 
 # Check if domain exists
-while [ -z $domain ] || [[ $domain = "null" ]]
+while [ -z "$domain" ] || [ "$domain" = "null" ]
 do
-    read -p "Please enter domain: " domain
-    if [ ! -z $domain ] && [[ $domain != "null" ]]
+    printf "Please enter domain: "
+    read domain
+    if [ -n "$domain" ] && [ "$domain" != "null" ]
     then
         break
     fi
 done
-[ ! -z $domain ] && echo "Domain: $domain"
+[ -n "$domain" ] && echo "Domain: $domain"
 
 # Ask if user wants to add peers
 added=false
 while true
 do
-    [ $added = true ] && question="Do you want to add more external peer? [Y/n]" || question="Do you want to add external peers? [Y/n]"
-    read -p "$question" yn
+    if [ "$added" = "true" ]; then
+        question="Do you want to add more external peer? [Y/n]"
+    else
+        question="Do you want to add external peers? [Y/n]"
+    fi
+    printf "%s " "$question"
+    read yn
     case $yn in
         [Yy]*)
-            read -p "Please enter peer address: " peer
-            if [[ ! -z $peer && $peer != "null" && " ${peers[@]} " =~ " ${peer} " ]]
-            then
-                echo "Peer already exists!"
-            else
-                peers+=($peer)
-                added=true
+            printf "Please enter peer address: "
+            read peer
+            if [ -n "$peer" ] && [ "$peer" != "null" ]; then
+                # Check if peer already exists in list
+                case ",$peers_list," in
+                    *,"$peer",*) echo "Peer already exists!" ;;
+                    *) 
+                        if [ -z "$peers_list" ]; then
+                            peers_list="$peer"
+                        else
+                            peers_list="$peers_list,$peer"
+                        fi
+                        added=true 
+                        ;;
+                esac
             fi;;
         [Nn]*) break;;
-        *) echo $yes_or_no
+        *) echo "$yes_or_no"
     esac
 done
-[ ! -z $peers ] && echo "Peers: ${peers[@]}"
+[ -n "$peers_list" ] && echo "Peers: $peers_list"
 
 # Ask if user wants to sync network config
-if [[ -z $sync || $sync = "null" ]]
+if [ -z "$sync" ] || [ "$sync" = "null" ]
 then
     while true
     do
-        read -p "Do you want to sync network config? [Y/n]" yn
+        printf "Do you want to sync network config? [Y/n]"
+        read yn
         case $yn in
-            [Yy]*) read -p "Please enter network config URL: " sync; break;;
+            [Yy]*) printf "Please enter network config URL: "; read sync; break;;
             [Nn]*) break;;
-            *) echo $yes_or_no
+            *) echo "$yes_or_no"
         esac
     done
 fi
-[ ! -z $sync ] && echo "Sync network config: $sync"
+[ -n "$sync" ] && echo "Sync network config: $sync"
 
 # SECURITY/DNS SETUP
 
@@ -181,7 +205,8 @@ if [ $ssl = false ]
 then
     while true
     do
-        read -p "Do you want to install LetsEncrypt SSL Certificate? [Y/n]" yn
+        printf "Do you want to install LetsEncrypt SSL Certificate? [Y/n]"
+        read yn
         case $yn in
             [Yy]*) ssl=true; break;;
             [Nn]*) ssl=false; break;;
@@ -200,7 +225,8 @@ if [ $update = false ]
 then
     while true
     do
-        read -p "Do you want to automatically run system update? [Y/n]" yn
+        printf "Do you want to automatically run system update? [Y/n]"
+        read yn
         case $yn in
             [Yy]*) update=true; break;;
             [Nn]*) update=false; break;;
@@ -210,11 +236,12 @@ then
 fi
 
 # Ask if user wants to set custom node command instead of "npm start"
-read -p "Do you want to set custom node command instead of '$node_command'? [Y/n]" yn
+printf "Do you want to set custom node command instead of '%s'? [Y/n]" "$node_command"
+read yn
 case $yn in
-    [Yy]*) read -p "Please enter custom node command: " node_command;;
+    [Yy]*) printf "Please enter custom node command: "; read node_command;;
     [Nn]*) ;;
-    *) echo $yes_or_no
+    *) echo "$yes_or_no"
 esac
 
 # BEGIN INSTALLATION PROCESS
@@ -222,42 +249,68 @@ esac
 # Update/Upgrade
 if [ $update = true ]
 then
-    echo "Connecting to github"
-    update=true
-    sudo git config --global credential.helper store
-    sudo git pull
-    echo "Updating system"
-    sudo apt update
-    echo "Upgrading system"
-    sudo apt upgrade
-    echo "Installing required programs: nodejs npm certbot curl"
-    sudo apt install nodejs npm certbot curl
-    sudo npm install
-    # Remove old crontab commands if exists
-    sudo crontab -u $USER -l | grep -v "$bash/update.sh" | crontab -u $USER -
-    # Add new crontab commands
-    (sudo crontab -u $USER -l ; echo "0 0 * * * $bash/update.sh --root $root >> $root/$name.update.log 2>&1") | crontab -u $USER -
+    echo "Info: Auto-update requested. Running user-scope updates..."
+    
+    # Git operations (user-scope)
+    if [ -d ".git" ]; then
+        echo "Updating from git repository..."
+        git pull 2>/dev/null || echo "Warning: Git pull failed or not a git repository"
+    fi
+    
+    # NPM operations (user-scope)
+    if [ -f "package.json" ]; then
+        echo "Installing NPM dependencies..."
+        npm install || echo "Warning: npm install failed"
+    fi
+    
+    echo "Info: System package updates skipped (no sudo). Please update manually if needed:"
+    echo "  Required: nodejs npm curl"
+    echo "  Optional: jq certbot"
+    
+    # User crontab (no sudo needed)
+    if command -v crontab >/dev/null 2>&1; then
+        echo "Setting up user crontab..."
+        # Remove old crontab commands if exists
+        crontab -l 2>/dev/null | grep -v "$bash/update.sh" | crontab - 2>/dev/null || true
+        # Add new crontab commands  
+        (crontab -l 2>/dev/null; echo "0 0 * * * $bash/update.sh --root $root >> $root/$name.update.log 2>&1") | crontab - 2>/dev/null || echo "Warning: Could not setup crontab"
+    fi
 fi
 
-ssl_key="/etc/letsencrypt/live/$domain/privkey.pem"
-ssl_cert="/etc/letsencrypt/live/$domain/cert.pem"
-
-# Register Let'sEncrypt SSL Certificate
-if [ $ssl = true ]
-then
-    echo "Registering LetsEncrypt SSL Certificate"
-    ssl=true
-    # Stop peer service so that certbot can start on port 80
-    [[ -f /etc/systemd/system/$name.service ]] && sudo systemctl stop $name > /dev/null
-    sudo certbot certonly --standalone --preferred-challenges http -d $domain
-
-    # Check if SSL certificate exists
-    if [ ! -f $ssl_key ] && [ ! -f $ssl_cert ]
-    then
-        echo "LetsEncrypt SSL Certificate files not found!"
+# SSL Certificate paths - user-scope alternatives
+if [ $ssl = true ]; then
+    # Try user-scope SSL certificate locations first
+    user_ssl_dir="$HOME/.local/share/air/ssl"
+    mkdir -p "$user_ssl_dir"
+    
+    ssl_key="$user_ssl_dir/privkey.pem"
+    ssl_cert="$user_ssl_dir/cert.pem"
+    
+    echo "SSL certificate requested. User-scope SSL setup:"
+    echo "  Certificate directory: $user_ssl_dir"
+    echo "  Private key: $ssl_key" 
+    echo "  Certificate: $ssl_cert"
+    echo ""
+    echo "For SSL certificates, you have several options:"
+    echo "  1. Use a reverse proxy (nginx/apache) with system SSL certificates"
+    echo "  2. Use Let's Encrypt with acme.sh (user-scope): https://github.com/acmesh-official/acme.sh"
+    echo "  3. Purchase SSL certificates and place them in: $user_ssl_dir"
+    echo "  4. Use Cloudflare or similar service for SSL termination"
+    echo ""
+    echo "Note: Air will start without SSL if certificates are not found."
+    
+    # Check if user-provided certificates exist
+    if [ -f "$ssl_key" ] && [ -f "$ssl_cert" ]; then
+        echo "✓ User-scope SSL certificates found and will be used"
     else
-        echo "LetsEncrypt SSL Certificate files found!"
+        echo "⚠ No user-scope SSL certificates found. Air will run without SSL."
+        ssl=false
+        ssl_key=""
+        ssl_cert=""
     fi
+else
+    ssl_key=""
+    ssl_cert=""
 fi
 
 # Note: GoDaddy DDNS crontab removed - Access handles IP sync
@@ -271,18 +324,21 @@ then
     
     # Create JSON text for peers
     peers_json=""
-    peers_length=${#peers[@]}
-    if [ $peers_length -gt 0 ]
-    then
-        peers_json=",\"peers\": ["
-            for (( i=0; i<peers_length; i++ )) do
-                peers_json+="\"${peers[$i]}\""
-                if [ $i -lt $((test_length - 1)) ]
-                then
-                    peers_json+=", "
-                fi
-            done
-        peers_json+="]"
+    if [ -n "$peers_list" ]; then
+        peers_json=',\"peers\": ['
+        # Convert comma-separated list to JSON array format
+        first=true
+        IFS=','
+        for peer in $peers_list; do
+            if [ "$first" = "true" ]; then
+                peers_json="$peers_json\"$peer\""
+                first=false
+            else
+                peers_json="$peers_json, \"$peer\""
+            fi
+        done
+        IFS=' '  # Reset IFS
+        peers_json="$peers_json]"
     fi
     
     # Định nghĩa nội dung JSON trong biến json_content
@@ -309,37 +365,56 @@ then
 
 fi
 
-# Create Air service
-echo "Installing $name service"
-echo "[Unit]
-Description=Super Peer Service
+# Create user-scope systemd service
+user_systemd_dir="$HOME/.config/systemd/user"
+mkdir -p "$user_systemd_dir"
+
+echo "Installing $name user service..."
+cat > "$user_systemd_dir/$name.service" << EOF
+[Unit]
+Description=Air P2P Database Service
 After=network.target
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-User=$USER
 WorkingDirectory=$root
-StandardOutput=file:$root/$name.log
-StandardError=file:$root/$name.error.log
-ExecStart=sudo ROOT=$root BASH=$bash ENV=$env NAME=$name DOMAIN=$domain PORT=$port SSL_KEY=$ssl_key SSL_CERT=$ssl_cert $node_command
-Restart=on-failure
+Environment=ROOT=$root
+Environment=BASH=$bash
+Environment=ENV=$env
+Environment=NAME=$name
+Environment=DOMAIN=$domain
+Environment=PORT=$port
+Environment=SSL_KEY=$ssl_key
+Environment=SSL_CERT=$ssl_cert
+ExecStart=$node_command
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
 
 [Install]
-WantedBy=multi-user.target" > $bash/$name.service
+WantedBy=default.target
+EOF
 
-sudo cp $bash/$name.service /etc/systemd/system/$name.service
-sudo rm $bash/$name.service
+# Enable lingering so user services can run without being logged in
+if command -v loginctl >/dev/null 2>&1; then
+    loginctl enable-linger "$USER" 2>/dev/null || echo "Note: Could not enable lingering. Service will only run when logged in."
+fi
 
-# Start and enable service
-sudo systemctl daemon-reload
-sudo systemctl start $name
-sudo systemctl enable $name
+# Start and enable user service
+systemctl --user daemon-reload
+systemctl --user enable "$name" || echo "Warning: Could not enable $name service"
+systemctl --user start "$name" || echo "Warning: Could not start $name service"
+
+echo "✓ User systemd service created at: $user_systemd_dir/$name.service"
+echo "  To manage: systemctl --user [start|stop|restart|status] $name"
 
 # FINISH INSTALLATION
 echo "
 ====================================
-  PEER INSTALLED AND RUNNING
-  User:            $who
+  AIR P2P DATABASE INSTALLED
+  User:            $who (no sudo required)
   Peer name:       $name
   Root path:       $root
   Bash path:       $bash
@@ -347,5 +422,19 @@ echo "
   Port:            $port
   SSL:             $ssl
   IP Sync:         Handled by Access
+  Singleton:       Enforced via XDG locks
+  Service:         User systemd service
 ====================================
+
+User-scope installation complete!
+  Config:    ~/.config/air/config.json
+  Data:      ~/.local/share/air/
+  Service:   systemctl --user status $name
+  Logs:      journalctl --user -u $name -f
+
+Commands:
+  ./air.sh start     - Start Air
+  ./air.sh stop      - Stop Air  
+  ./air.sh status    - Check status
+  ./air.sh logs      - Follow logs
 "

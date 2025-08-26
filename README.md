@@ -1,36 +1,30 @@
-# What is Air
+# @akaoio/air
 
-Air is a tool to help you run GUN instances with ease. It was designed to run on Raspberry Pi computers at home. IP synchronization is now handled by the Access layer.
+> Distributed P2P database with IP synchronization
+
+Tool to help you run GUN instances with ease
 
 Air is in development and the "main" branch is the development branch.
 
-# Docs
+## Features
 
--   GUN: https://github.com/amark/gun
--   Air: not written yet.
 
-# Features
+- 🚀 **Automatic Startup**: Automatically runs on system startup for seamless operation
 
--   Automatically run on system startup.
--   Automatically install/renew Let'sEncrypt SSL certificate.
--   Automatically pull update from github.
--   Automatically join Air hub.
--   Automatically update heartbeat status to user space.
--   IP synchronization handled by Access layer.
+- 🔒 **SSL Certificate Management**: Automatically installs and renews Let's Encrypt SSL certificates
 
-# Install
+- 🔄 **GitHub Auto-Update**: Automatically pulls updates from GitHub repository
 
-## NAT/port forwarding
+- 🌐 **Air Hub Integration**: Automatically joins the Air hub network for distributed connectivity
 
-You might need one of the following things:
+- 💓 **Heartbeat Status**: Automatically updates heartbeat status to user space
 
--   A domain name configured to point to your server
--   Make sure you have setup NAT/port forwarding so that Let'sEncrypt bot can find you on the internet
--   IP synchronization is handled by the Access layer (no GoDaddy configuration needed)
+- 🔗 **Access Layer Integration**: IP synchronization handled by the Access layer
 
-Tested on: Raspberry OS on Raspberry Pi 4, Ubuntu 19.10 on Acer Nitro 5.
 
-## Standalone Super Peer.
+## Installation
+
+### Standalone Super Peer
 
 You can install Air as a standalone GUN peer. Just clone this repo.
 
@@ -38,7 +32,7 @@ You can install Air as a standalone GUN peer. Just clone this repo.
 sudo ./install.sh
 ```
 
-## NodeJS module
+### NodeJS module
 
 You can also use Air in your NodeJS projects.
 
@@ -49,4 +43,39 @@ const main = async () => {
     const { GUN, gun, sea, user } = db
 }
 main()
+
 ```
+
+## Requirements
+
+You might need one of the following things:
+
+
+- **domain**: Domain name configured to point to your server
+
+- **port_forwarding**: NAT/port forwarding setup for Let's Encrypt
+
+- **access_integration**: IP synchronization handled by Access layer (no GoDaddy configuration needed)
+
+
+## Tested Platforms
+
+
+- Raspberry OS on Raspberry Pi 4
+
+- Ubuntu 19.10 on Acer Nitro 5
+
+
+## Documentation
+
+- **GUN**: https://github.com/amark/gun
+- **Air**: Documentation coming soon
+
+## License
+
+MIT © AKAO Team
+
+---
+
+*Built with Air v0.1.0*
+*Documentation generated with @akaoio/composer*
