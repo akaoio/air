@@ -9,9 +9,7 @@ import { fileURLToPath } from "url"
 import path from "path"
 import fetch from "node-fetch"
 import GUN from "@akaoio/gun"
-import "@akaoio/gun/sea.js"
 import "@akaoio/gun/nts.js"
-const sea = GUN.SEA
 
 export class Peer {
     constructor(config = {}) {
@@ -89,15 +87,7 @@ export class Peer {
 
         const cert = process.env.SSL_CERT || this.config[this.env]?.ssl?.cert || (this.config[this.env]?.domain && this.env === "production" ? `/etc/letsencrypt/live/${this.config[this.env]?.domain}/cert.pem` : null)
 
-        this.config[this.env].pair = this.config[this.env]?.pair || {}
-
-        this.config[this.env].pair.pub = process.env.PUB || this.config[this.env]?.pair?.pub || null
-
-        this.config[this.env].pair.priv = process.env.PRIV || this.config[this.env]?.pair?.priv || null
-
-        this.config[this.env].pair.epub = process.env.EPUB || this.config[this.env]?.pair?.epub || null
-
-        this.config[this.env].pair.epriv = process.env.EPRIV || this.config[this.env]?.pair?.epriv || null
+        // No authentication needed with @akaoio/gun
 
         this.options = {}
 
@@ -112,9 +102,9 @@ export class Peer {
         this.setupSingleton()
 
         this.GUN = GUN
-        this.sea = sea
+        // No SEA needed with @akaoio/gun
         this.gun = {}
-        this.user = {}
+        // No user object needed with @akaoio/gun
     }
 
     setupSingleton() {
@@ -456,17 +446,8 @@ export class Peer {
                 web: this.server,
                 peers: this.config[this.env].peers
             })
-            this.user = this.gun.user()
-
-            if (!this.config[this.env]?.pair?.pub && !this.config[this.env]?.pair?.priv)
-                this.sea.pair((response = {}) => {
-                    if (response.err) reject(response.err)
-                    else if (response.pub && response.priv && response.epub && response.epriv) {
-                        this.config[this.env].pair = response
-                        resolve(response)
-                    }
-                })
-            else resolve(this.config[this.env].pair)
+            // No user authentication needed with @akaoio/gun
+            resolve(true)
 
             console.log(`Environment: ${this.env}\nHTTPS: ${this.https ? true : false}\nHTTP: ${this.http ? true : false}\nPort: ${this.config[this.env].port}`)
         }).then(
@@ -481,33 +462,25 @@ export class Peer {
 
     online(callback = () => {}) {
         return new Promise((resolve, reject) => {
-            if (this.user.is || !this.config[this.env].pair) return reject()
-            else if (this.config[this.env]?.pair?.pub && this.config[this.env]?.pair?.priv && this.config[this.env]?.pair?.epub && this.config[this.env]?.pair?.epriv) {
-                this.user.auth(this.config[this.env]?.pair, response => {
-                    if (response.err) return reject(response.err)
-                    else if (this.user.is) {
-                        console.log(`Authenticated!\nPublic key: ${this.user.is.pub}`)
-                        this.config[this.env].pair = this.user._.sea
-
-                        // put basic informations
-                        this.user.put(
-                            {
-                                since: GUN.state(),
-                                name: this.config.name || null,
-                                domain: this.config[this.env]?.domain || null,
-                                https: this.https ? true : false,
-                                http: this.http ? true : false,
-                                port: this.config[this.env]?.port || null,
-                                peers: JSON.stringify(this.config[this.env]?.peers) || null
-                            },
-                            (response = {}) => {
-                                if (response.err) reject(response.err)
-                                else resolve(response)
-                            }
-                        )
+            // Direct put without authentication - @akaoio/gun allows this
+            this.gun.get('air').get('nodes').get(this.config.name || 'localhost').put(
+                {
+                    since: GUN.state(),
+                    name: this.config.name || null,
+                    domain: this.config[this.env]?.domain || null,
+                    https: this.https ? true : false,
+                    http: this.http ? true : false,
+                    port: this.config[this.env]?.port || null,
+                    peers: JSON.stringify(this.config[this.env]?.peers) || null
+                },
+                (response = {}) => {
+                    if (response.err) reject(response.err)
+                    else {
+                        console.log(`Node registered: ${this.config.name || 'localhost'}`)
+                        resolve(response)
                     }
-                })
-            }
+                }
+            )
         })
             .then(
                 async response => {
@@ -526,39 +499,15 @@ export class Peer {
                 e => console.error(e)
             )
             .catch(e => {
-                if (this.user.is) this.user.leave()
+                console.error('Error in online:', e)
             })
     }
 
     activate(callback = () => {}) {
         return new Promise((resolve, reject) => {
-            if (!this.user.is) return reject()
-
-            const cert = this.config?.[this.env]?.system?.cert?.peer || this.config?.[this.env]?.system?.cert?.message || null
-
-            if (this.config[this.env]?.system?.cert?.message && cert) {
-                // link peer to system hub
-                const args = [
-                    {
-                        "#": `~${this.user.is.pub}`
-                    },
-                    (response = {}) => {
-                        if (response.err) reject(response.err)
-                        else resolve(response)
-                    },
-                    {
-                        opt: {
-                            cert
-                        }
-                    }
-                ]
-
-                this.gun
-                    .get(`~${this.config[this.env]?.system?.pub}`)
-                    .get("peer")
-                    .get(this.user.is.pub)
-                    .put(...args)
-            }
+            // No certification needed with @akaoio/gun
+            console.log('Node activated without authentication')
+            resolve(true)
         }).then(
             response => {
                 if (callback) callback(response)
@@ -570,7 +519,7 @@ export class Peer {
 
     updateDDNS(callback = () => {}) {
         return new Promise((resolve, reject) => {
-            if (!this.user.is) return resolve()
+            // Direct DDNS update without authentication
             const config = path.join(this.config.root, "ddns.json")
             
             if (!fs.existsSync(config)) {
@@ -582,7 +531,8 @@ export class Peer {
                 const ddns = JSON.parse(content)
 
                 if (ddns && typeof ddns === "object" && Object.keys(ddns).length > 0) {
-                    this.user.put(ddns, (response = {}) => {
+                    // Direct put without authentication - @akaoio/gun allows this
+                    this.gun.get('air').get('ddns').put(ddns, (response = {}) => {
                         if (response.err) reject(response.err)
                         else resolve(response)
                     })
@@ -605,12 +555,13 @@ export class Peer {
 
     updateIP(callback = () => {}) {
         return new Promise((resolve, reject) => {
-            if (!this.user.is) return reject()
+            // Direct IP update without authentication
             fetch("https://api.ipify.org?format=json")
                 .then(response => response.json())
                 .then(data => {
-                    if (data?.ip)
-                        this.user.put(
+                    if (data?.ip) {
+                        // Direct put without authentication - @akaoio/gun allows this
+                        this.gun.get('air').get('nodes').get(this.config.name || 'localhost').put(
                             {
                                 newIP: data?.ip,
                                 timestamp: GUN.state()
@@ -620,6 +571,7 @@ export class Peer {
                                 else resolve(response)
                             }
                         )
+                    }
                 })
                 .catch(e => reject(e))
         }).then(
@@ -634,8 +586,8 @@ export class Peer {
 
     alive(callback = () => {}) {
         return new Promise((resolve, reject) => {
-            if (!this.user.is) return reject()
-            this.user.put(
+            // Direct alive update without authentication
+            this.gun.get('air').get('nodes').get(this.config.name || 'localhost').put(
                 {
                     alive: GUN.state()
                 },
