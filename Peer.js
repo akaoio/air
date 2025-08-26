@@ -33,18 +33,43 @@ export class Peer {
 
         const cwd = fileURLToPath(path.dirname(import.meta.url))
 
-        this.config.root = this.config.root || process.env.ROOT || process.argv[2] || process.env.PWD || process.cwd() || cwd
+        // Do NOT use process.argv for root/bash - they conflict with --env arguments
+        this.config.root = this.config.root || process.env.ROOT || process.env.PWD || process.cwd() || cwd
 
-        this.config.bash = (this.config.bash || process.env.BASH || process.argv[3] || cwd).replace(/\/\s*$/, "")
+        this.config.bash = (this.config.bash || process.env.BASH || cwd).replace(/\/\s*$/, "")
 
-        // Path of the config file
-        this.config.path = path.join(this.config.root, "air.json")
+        // XDG-compliant configuration path
+        const XDG_CONFIG_HOME = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config')
+        const XDG_STATE_HOME = process.env.XDG_STATE_HOME || path.join(os.homedir(), '.local', 'state')
+        const XDG_DATA_HOME = process.env.XDG_DATA_HOME || path.join(os.homedir(), '.local', 'share')
+        
+        this.configDir = path.join(XDG_CONFIG_HOME, 'air')
+        this.stateDir = path.join(XDG_STATE_HOME, 'air')
+        this.dataDir = path.join(XDG_DATA_HOME, 'air')
+        
+        // Ensure directories exist
+        fs.mkdirSync(this.configDir, { recursive: true })
+        fs.mkdirSync(this.stateDir, { recursive: true })
+        fs.mkdirSync(this.dataDir, { recursive: true })
+        
+        // XDG paths
+        this.config.path = path.join(this.configDir, "config.json")
+        
+        // Migrate from legacy air.json if it exists and XDG config doesn't
+        const legacyPath = path.join(this.config.root, "air.json")
+        if (fs.existsSync(legacyPath) && !fs.existsSync(this.config.path)) {
+            fs.copyFileSync(legacyPath, this.config.path)
+            console.log(`✓ Migrated ${legacyPath} → ${this.config.path}`)
+        }
 
         this.readConfig()
 
-        this.env = this.config.env = this.config.env || process.env.NODE_ENV || process.env.ENV || process.argv[4] || "development"
+        // Parse --env argument properly instead of positional argv
+        const envArg = process.argv.find(arg => arg.startsWith('--env='))
+        const envValue = envArg ? envArg.split('=')[1] : null
+        this.env = this.config.env = this.config.env || process.env.NODE_ENV || process.env.ENV || envValue || "development"
 
-        this.config.name = process.env.NAME || process.argv[5] || this.config.name || (this.env === "development" ? "localhost" : null)
+        this.config.name = process.env.NAME || this.config.name || (this.env === "development" ? "localhost" : null)
 
         this.config.sync = this.config.sync || null
 
@@ -52,27 +77,27 @@ export class Peer {
 
         this.config[this.env].www = this.config[this.env]?.www || path.join(this.config.bash, "www")
 
-        this.config[this.env].domain = process.env.DOMAIN || process.argv[6] || this.config[this.env]?.domain || (this.env === "development" ? "localhost" : null)
+        this.config[this.env].domain = process.env.DOMAIN || this.config[this.env]?.domain || (this.env === "development" ? "localhost" : null)
 
-        this.config[this.env].port = process.env.PORT || process.argv[7] || this.config[this.env]?.port || 8765
+        this.config[this.env].port = process.env.PORT || this.config[this.env]?.port || 8765
 
         this.config[this.env].peers = this.config[this.env]?.peers || this.config.peers || []
 
         this.config[this.env].system = this.config[this.env]?.system || {}
 
-        const key = process.env.SSL_KEY || process.argv[8] || this.config[this.env]?.ssl?.key || (this.config[this.env]?.domain && this.env === "production" ? `/etc/letsencrypt/live/${this.config[this.env]?.domain}/privkey.pem` : null)
+        const key = process.env.SSL_KEY || this.config[this.env]?.ssl?.key || (this.config[this.env]?.domain && this.env === "production" ? `/etc/letsencrypt/live/${this.config[this.env]?.domain}/privkey.pem` : null)
 
-        const cert = process.env.SSL_CERT || process.argv[9] || this.config[this.env]?.ssl?.cert || (this.config[this.env]?.domain && this.env === "production" ? `/etc/letsencrypt/live/${this.config[this.env]?.domain}/cert.pem` : null)
+        const cert = process.env.SSL_CERT || this.config[this.env]?.ssl?.cert || (this.config[this.env]?.domain && this.env === "production" ? `/etc/letsencrypt/live/${this.config[this.env]?.domain}/cert.pem` : null)
 
         this.config[this.env].pair = this.config[this.env]?.pair || {}
 
-        this.config[this.env].pair.pub = process.env.PUB || process.argv[10] || this.config[this.env]?.pair?.pub || null
+        this.config[this.env].pair.pub = process.env.PUB || this.config[this.env]?.pair?.pub || null
 
-        this.config[this.env].pair.priv = process.env.PRIV || process.argv[11] || this.config[this.env]?.pair?.priv || null
+        this.config[this.env].pair.priv = process.env.PRIV || this.config[this.env]?.pair?.priv || null
 
-        this.config[this.env].pair.epub = process.env.EPUB || process.argv[12] || this.config[this.env]?.pair?.epub || null
+        this.config[this.env].pair.epub = process.env.EPUB || this.config[this.env]?.pair?.epub || null
 
-        this.config[this.env].pair.epriv = process.env.EPRIV || process.argv[13] || this.config[this.env]?.pair?.epriv || null
+        this.config[this.env].pair.epriv = process.env.EPRIV || this.config[this.env]?.pair?.epriv || null
 
         this.options = {}
 
@@ -209,7 +234,8 @@ export class Peer {
         // System-wide singleton enforcement across all possible installations
         try {
             // Method 1: Check for any node process running Air main.js (synchronous)
-            const foundPids = execSync('pgrep -f "node.*main.js" || true', { encoding: 'utf8' })
+            // Use more specific pattern to avoid matching bash shells
+            const foundPids = execSync('pgrep -f "^node .*main\\.js" || true', { encoding: 'utf8' })
             
             if (foundPids.trim()) {
                 const pids = foundPids.trim().split('\n').filter(pid => 
@@ -228,9 +254,9 @@ export class Peer {
             
             // Method 2: Check by looking for Air-specific patterns in process list
             try {
-                const psOutput = execSync('ps aux | grep -E "(main\\.js|air)" | grep -v grep || true', { encoding: 'utf8' })
+                const psOutput = execSync('ps aux | grep -E "node .*main\\.js" | grep -v grep | grep -v "/bin/.*sh" || true', { encoding: 'utf8' })
                 const airProcesses = psOutput.split('\n').filter(line => 
-                    line.includes('main.js') && !line.includes(process.pid.toString())
+                    line && line.includes('node') && line.includes('main.js') && !line.includes(process.pid.toString()) && !line.includes('/bin/')
                 )
                 
                 if (airProcesses.length > 0) {

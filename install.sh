@@ -1,376 +1,220 @@
 #!/bin/sh
-# Air Installation Script - POSIX compliant following Access philosophy
-# Pure shell implementation for eternal infrastructure
+# Air installation script - Following Access philosophy
+# Pure shell implementation with clean clone architecture
 
-# Define vars
-who=$(id -un)
-config="air.json"
-root="" # Root folder of main.js
-bash="" # Root folder of Bash script files
-env=""
-name=""
-port=""
-domain=""
-peers_list=""
-sync=""
-ssl=false
-ssl_key=""
-ssl_cert=""
-update=false
-node_command="npm start"
-yes_or_no="Please answer [Y]es or [N]o."
+set -e
 
-# Transform long options to short ones
-for arg in $@
-do
-    shift
-    case $arg in
-        --root)         set -- $@ -r;;
-        --bash)         set -- $@ -b;;
-        --env)          set -- $@ -e;;
-        --name)         set -- $@ -n;;
-        --port)         set -- $@ -p;;
-        --domain)       set -- $@ -d;;
-        --peers)        set -- $@ -P;;
-        --sync)         set -- $@ -S;;
-        --ssl)          set -- $@ -s;;
-        --update)       set -- $@ -u;;
-        --node_command) set -- $@ -c;;
-        *)              set -- $@ $arg
-    esac
-done
+# Configuration
+INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
+REPO_URL="${REPO_URL:-https://github.com/akaoio/air.git}"
+CLEAN_CLONE_DIR="$HOME/air"
+SCRIPT_NAME="air"
+VERSION="2.0.0"
 
-# Check flags
-while getopts "r:b:e:n:p:d:P:S:suc:" flag
-do
-    case $flag in
-        r) root=$OPTARG;;
-        b) bash=$OPTARG;;
-        e) env=$OPTARG;;
-        n) name=$OPTARG;;
-        p) port=$OPTARG;;
-        d) domain=$OPTARG;;
-        P) peers_list="$OPTARG";;
-        S) sync=$OPTARG;;
-        s) ssl=true;;
-        u) update=true;;
-        c) node_command=$OPTARG
-    esac
-done
-
-# Config root directory
-[ -z $root ] && root=`pwd` # Root folder of main.js
-
-# Config bash directory
-[ -z $bash ] && bash=$(cd `dirname $0` && pwd) # Root folder of Bash script files
-
-# Check if jq is installed? Install jq if jq doesn't exist.
-if ! command -v jq >/dev/null 2>&1
-then
-    echo "Warning: jq is not installed. Please install it manually:"
-    echo "  Ubuntu/Debian: apt install jq (or use package manager of your choice)"
-    echo "  Alpine: apk add jq"
-    echo "  macOS: brew install jq"
-    echo "Air will continue but JSON configuration may need manual editing."
-fi
-
-# If config file exists, try to assign variables
-if [ -f $root/$config ]
-then
-    env=`jq -r ".env" $root/$config`
-    [ -z "$env" ] || [ "$env" = "null" ] && env=$(jq -r ".env" "$root/$config")
-
-    [ -z "$name" ] || [ "$name" = "null" ] && name=$(jq -r ".name" "$root/$config")
-
-    port=$(jq -r ".port" "$root/$config")
-    [ -z "$port" ] || [ "$port" = "null" ] && port=$(jq -r ".$env.port" "$root/$config")
-
-    domain=$(jq -r ".domain" "$root/$config")
-    [ -z "$domain" ] || [ "$domain" = "null" ] && domain=$(jq -r ".$env.domain" "$root/$config")
-    
-    peers_list=$(jq -r ".peers[]" "$root/$config" 2>/dev/null | tr '\n' ',' | sed 's/,$//' || jq -r ".$env.peers[]" "$root/$config" 2>/dev/null | tr '\n' ',' | sed 's/,$//' || echo "")
-    
-    [ -z "$sync" ] || [ "$sync" = "null" ] && sync=$(jq -r ".sync" "$root/$config")
-fi
-
-# CORE SETUP
-
-# Check if env exists
-while [ -z "$env" ] || [ "$env" = "null" ]
-do
-    printf "Please enter environment (\"production\" or \"development\"): "
-    read env
-    if [ -n "$env" ] && [ "$env" != "null" ]
-    then
-        break
-    fi
-done
-[ -n "$env" ] && echo "Environment: $env"
-
-# Check if name exists
-while [ -z "$name" ] || [ "$name" = "null" ]
-do
-    printf "Please enter peer name: "
-    read name
-    if [ -n "$name" ] && [ "$name" != "null" ]
-    then
-        break
-    fi
-done
-[ -n "$name" ] && echo "Peer name: $name"
-
-# Check if port exists
-while [ -z "$port" ] || [ "$port" = "null" ]
-do
-    printf "Please enter port: "
-    read port
-    if [ -n "$port" ] && [ "$port" != "null" ]
-    then
-        break
-    else
-        port=8765
-    fi
-done
-[ -n "$port" ] && echo "Port: $port"
-
-# NETWORK SETUP
-
-# Check if domain exists
-while [ -z "$domain" ] || [ "$domain" = "null" ]
-do
-    printf "Please enter domain: "
-    read domain
-    if [ -n "$domain" ] && [ "$domain" != "null" ]
-    then
-        break
-    fi
-done
-[ -n "$domain" ] && echo "Domain: $domain"
-
-# Ask if user wants to add peers
-added=false
-while true
-do
-    if [ "$added" = "true" ]; then
-        question="Do you want to add more external peer? [Y/n]"
-    else
-        question="Do you want to add external peers? [Y/n]"
-    fi
-    printf "%s " "$question"
-    read yn
-    case $yn in
-        [Yy]*)
-            printf "Please enter peer address: "
-            read peer
-            if [ -n "$peer" ] && [ "$peer" != "null" ]; then
-                # Check if peer already exists in list
-                case ",$peers_list," in
-                    *,"$peer",*) echo "Peer already exists!" ;;
-                    *) 
-                        if [ -z "$peers_list" ]; then
-                            peers_list="$peer"
-                        else
-                            peers_list="$peers_list,$peer"
-                        fi
-                        added=true 
-                        ;;
-                esac
-            fi;;
-        [Nn]*) break;;
-        *) echo "$yes_or_no"
-    esac
-done
-[ -n "$peers_list" ] && echo "Peers: $peers_list"
-
-# Ask if user wants to sync network config
-if [ -z "$sync" ] || [ "$sync" = "null" ]
-then
-    while true
-    do
-        printf "Do you want to sync network config? [Y/n]"
-        read yn
-        case $yn in
-            [Yy]*) printf "Please enter network config URL: "; read sync; break;;
-            [Nn]*) break;;
-            *) echo "$yes_or_no"
-        esac
-    done
-fi
-[ -n "$sync" ] && echo "Sync network config: $sync"
-
-# SECURITY/DNS SETUP
-
-# Ask if user wants ssl
-if [ $ssl = false ]
-then
-    while true
-    do
-        printf "Do you want to install LetsEncrypt SSL Certificate? [Y/n]"
-        read yn
-        case $yn in
-            [Yy]*) ssl=true; break;;
-            [Nn]*) ssl=false; break;;
-            *) echo $yes_or_no
-        esac
-    done
-fi
-
-# Note: GoDaddy DDNS functionality has been removed
-# IP synchronization is now handled by Access
-
-# SYSTEM SETUP
-
-# Ask if user wants automatically run system update
-if [ $update = false ]
-then
-    while true
-    do
-        printf "Do you want to automatically run system update? [Y/n]"
-        read yn
-        case $yn in
-            [Yy]*) update=true; break;;
-            [Nn]*) update=false; break;;
-            *) echo $yes_or_no
-        esac
-    done
-fi
-
-# Ask if user wants to set custom node command instead of "npm start"
-printf "Do you want to set custom node command instead of '%s'? [Y/n]" "$node_command"
-read yn
-case $yn in
-    [Yy]*) printf "Please enter custom node command: "; read node_command;;
-    [Nn]*) ;;
-    *) echo "$yes_or_no"
-esac
-
-# BEGIN INSTALLATION PROCESS
-
-# Update/Upgrade
-if [ $update = true ]
-then
-    echo "Info: Auto-update requested. Running user-scope updates..."
-    
-    # Git operations (user-scope)
-    if [ -d ".git" ]; then
-        echo "Updating from git repository..."
-        git pull 2>/dev/null || echo "Warning: Git pull failed or not a git repository"
-    fi
-    
-    # NPM operations (user-scope)
-    if [ -f "package.json" ]; then
-        echo "Installing NPM dependencies..."
-        npm install || echo "Warning: npm install failed"
-    fi
-    
-    echo "Info: System package updates skipped (no sudo). Please update manually if needed:"
-    echo "  Required: nodejs npm curl"
-    echo "  Optional: jq certbot"
-    
-    # User crontab (no sudo needed)
-    if command -v crontab >/dev/null 2>&1; then
-        echo "Setting up user crontab..."
-        # Remove old crontab commands if exists
-        crontab -l 2>/dev/null | grep -v "$bash/update.sh" | crontab - 2>/dev/null || true
-        # Add new crontab commands  
-        (crontab -l 2>/dev/null; echo "0 0 * * * $bash/update.sh --root $root >> $root/$name.update.log 2>&1") | crontab - 2>/dev/null || echo "Warning: Could not setup crontab"
-    fi
-fi
-
-# SSL Certificate paths - user-scope alternatives
-if [ $ssl = true ]; then
-    # Try user-scope SSL certificate locations first
-    user_ssl_dir="$HOME/.local/share/air/ssl"
-    mkdir -p "$user_ssl_dir"
-    
-    ssl_key="$user_ssl_dir/privkey.pem"
-    ssl_cert="$user_ssl_dir/cert.pem"
-    
-    echo "SSL certificate requested. User-scope SSL setup:"
-    echo "  Certificate directory: $user_ssl_dir"
-    echo "  Private key: $ssl_key" 
-    echo "  Certificate: $ssl_cert"
-    echo ""
-    echo "For SSL certificates, you have several options:"
-    echo "  1. Use a reverse proxy (nginx/apache) with system SSL certificates"
-    echo "  2. Use Let's Encrypt with acme.sh (user-scope): https://github.com/acmesh-official/acme.sh"
-    echo "  3. Purchase SSL certificates and place them in: $user_ssl_dir"
-    echo "  4. Use Cloudflare or similar service for SSL termination"
-    echo ""
-    echo "Note: Air will start without SSL if certificates are not found."
-    
-    # Check if user-provided certificates exist
-    if [ -f "$ssl_key" ] && [ -f "$ssl_cert" ]; then
-        echo "✓ User-scope SSL certificates found and will be used"
-    else
-        echo "⚠ No user-scope SSL certificates found. Air will run without SSL."
-        ssl=false
-        ssl_key=""
-        ssl_cert=""
-    fi
+# Colors for output (if terminal supports it)
+if [ -t 1 ]; then
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[1;33m'
+    NC='\033[0m' # No Color
 else
-    ssl_key=""
-    ssl_cert=""
+    RED=''
+    GREEN=''
+    YELLOW=''
+    NC=''
 fi
 
-# Note: GoDaddy DDNS crontab removed - Access handles IP sync
+log() {
+    echo "${GREEN}[Air]${NC} $*"
+}
 
-# Create config file if no file exists
-if [ ! -f "$root/$config" ] && [ ! -z $domain ] && [ ! -z $port ]
-then
-    [ ! -z $sync ] && sync_json="\"sync\": \"$sync\"," || sync_json=""
-    [ -f $ssl_key ] && [ -f $ssl_cert ] && ssl_json=",\"ssl\": { \"key\": \"$ssl_key\", \"cert\": \"$ssl_cert\" }" || ssl_json=""
-    godaddy_json="" # GoDaddy configuration removed - Access handles IP sync
+warn() {
+    echo "${YELLOW}[Warning]${NC} $*"
+}
+
+error() {
+    echo "${RED}[Error]${NC} $*" >&2
+}
+
+# Display header
+show_header() {
+    echo "=================================================="
+    echo "  Air - P2P Database & Real-time Sync v${VERSION}"
+    echo "  Pure Node.js | XDG Compliant | Clean Clone Install"
+    echo "=================================================="
+    echo ""
+}
+
+# Check for required tools
+check_requirements() {
+    local missing=""
+    local missing_packages=""
     
-    # Create JSON text for peers
-    peers_json=""
-    if [ -n "$peers_list" ]; then
-        peers_json=',\"peers\": ['
-        # Convert comma-separated list to JSON array format
-        first=true
-        IFS=','
-        for peer in $peers_list; do
-            if [ "$first" = "true" ]; then
-                peers_json="$peers_json\"$peer\""
-                first=false
-            else
-                peers_json="$peers_json, \"$peer\""
-            fi
-        done
-        IFS=' '  # Reset IFS
-        peers_json="$peers_json]"
+    # Check for git (required for clean clone)
+    if ! command -v git >/dev/null 2>&1; then
+        missing="$missing git"
+        missing_packages="$missing_packages git"
     fi
     
-    # Định nghĩa nội dung JSON trong biến json_content
-    json_content="{
-        \"root\": \"$root\",
-        \"bash\": \"$bash\",
-        \"env\": \"$env\",
-        \"name\": \"$name\",
-        $sync_json
-        \"$env\": {
-            \"domain\": \"$domain\",
-            \"port\": $port
-            $ssl_json
-            $godaddy_json
-            $peers_json
-        }
-    }"
+    # Check for Node.js
+    if ! command -v node >/dev/null 2>&1; then
+        missing="$missing node"
+        missing_packages="$missing_packages nodejs"
+    fi
+    
+    # Check for npm
+    if ! command -v npm >/dev/null 2>&1; then
+        missing="$missing npm"
+        missing_packages="$missing_packages npm"
+    fi
+    
+    if [ -n "$missing" ]; then
+        error "Missing required tools:$missing"
+        error "Please install the following packages: $missing_packages"
+        log "On Ubuntu/Debian: sudo apt update && sudo apt install $missing_packages"
+        log "On RHEL/CentOS: sudo yum install $missing_packages"
+        log "On macOS: brew install node git"
+        exit 1
+    fi
+    
+    log "✓ All requirements satisfied"
+}
 
-    # Beautify JSON content using jq
-    beautified_json=$(echo -e "$json_content" | jq '.')
+# Create clean clone of Air repository
+create_clean_clone() {
+    log "Creating clean clone at $CLEAN_CLONE_DIR..."
+    
+    current_dir=$(pwd)
+    
+    # SMART UPDATE: If running from target directory, update in place instead of deleting
+    if [ "$current_dir" = "$CLEAN_CLONE_DIR" ]; then
+        log "Running from Air directory - updating in place with git..."
+        
+        # Check if this is a git repository
+        if [ -d ".git" ]; then
+            log "Updating existing Air repository..."
+            git fetch origin >/dev/null 2>&1 || {
+                warn "Failed to fetch updates, continuing with existing version"
+            }
+            
+            # Check if we're behind
+            LOCAL=$(git rev-parse HEAD 2>/dev/null)
+            REMOTE=$(git rev-parse origin/main 2>/dev/null || git rev-parse origin/master 2>/dev/null)
+            
+            if [ "$LOCAL" != "$REMOTE" ]; then
+                log "Updates available, pulling changes..."
+                git pull origin main >/dev/null 2>&1 || git pull origin master >/dev/null 2>&1 || {
+                    warn "Failed to pull updates, continuing with existing version"
+                }
+            else
+                log "Already up to date"
+            fi
+        else
+            error "Current directory is not a git repository"
+            exit 1
+        fi
+        
+        # Set clean clone dir to current directory for installation
+        CLEAN_CLONE_DIR="$current_dir"
+        return 0
+    fi
+    
+    # Normal clean clone for external installation
+    if [ -d "$CLEAN_CLONE_DIR" ]; then
+        log "Removing existing Air clone..."
+        rm -rf "$CLEAN_CLONE_DIR"
+    fi
+    
+    # Clone fresh repository
+    git clone "$REPO_URL" "$CLEAN_CLONE_DIR" || {
+        error "Failed to clone Air repository from $REPO_URL"
+        exit 1
+    }
+    
+    # Verify main.js exists in clean clone
+    if [ ! -f "$CLEAN_CLONE_DIR/main.js" ]; then
+        error "Clean clone missing main.js - repository structure may be incorrect"
+        exit 1
+    fi
+    
+    log "✓ Clean clone created successfully"
+}
 
-    # Ghi nội dung JSON vào tệp
-    echo "$beautified_json" > $root/$config
+# Install Air from clean clone
+install_air() {
+    log "Installing Air from clean clone..."
+    
+    # Change to clean clone directory
+    cd "$CLEAN_CLONE_DIR" || {
+        error "Failed to enter clean clone directory"
+        exit 1
+    }
+    
+    # Install npm dependencies
+    log "Installing npm dependencies..."
+    npm install --production >/dev/null 2>&1 || {
+        error "Failed to install npm dependencies"
+        exit 1
+    }
+    
+    # Create XDG-compliant config directory
+    mkdir -p "$HOME/.config/air"
+    mkdir -p "$HOME/.local/share/air"
+    mkdir -p "$HOME/.local/state/air"
+    
+    # Create air wrapper script
+    local wrapper_script="$INSTALL_DIR/$SCRIPT_NAME"
+    log "Creating Air wrapper script at $wrapper_script..."
+    
+    cat > /tmp/air-wrapper << 'EOF'
+#!/bin/sh
+# Air wrapper script - launches from clean clone with XDG paths
 
+CLEAN_CLONE_DIR="$HOME/air"
+XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+XDG_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
+XDG_STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}"
+
+export XDG_CONFIG_HOME XDG_DATA_HOME XDG_STATE_HOME
+
+# Ensure Air clean clone exists
+if [ ! -d "$CLEAN_CLONE_DIR" ]; then
+    echo "Error: Air not properly installed (missing $CLEAN_CLONE_DIR)"
+    echo "Please run the Air installer again"
+    exit 1
 fi
 
-# Create user-scope systemd service
-user_systemd_dir="$HOME/.config/systemd/user"
-mkdir -p "$user_systemd_dir"
+# Run Air from clean clone
+cd "$CLEAN_CLONE_DIR" || exit 1
+exec node main.js "$@"
+EOF
+    
+    # Install wrapper script
+    if [ -w "$INSTALL_DIR" ]; then
+        cp /tmp/air-wrapper "$wrapper_script"
+        chmod +x "$wrapper_script"
+    else
+        sudo cp /tmp/air-wrapper "$wrapper_script"
+        sudo chmod +x "$wrapper_script"
+    fi
+    
+    rm /tmp/air-wrapper
+    
+    log "✓ Air installed successfully with XDG compliance"
+    log "  Clean clone: $CLEAN_CLONE_DIR"
+    log "  Config: ~/.config/air/config.json"
+    log "  Data: ~/.local/share/air/"
+    log "  State: ~/.local/state/air/"
+}
 
-echo "Installing $name user service..."
-cat > "$user_systemd_dir/$name.service" << EOF
+# Setup systemd user service
+setup_systemd_service() {
+    log "Setting up systemd user service..."
+    
+    # Create user systemd directory
+    mkdir -p "$HOME/.config/systemd/user"
+    
+    cat > "$HOME/.config/systemd/user/air.service" << EOF
 [Unit]
 Description=Air P2P Database Service
 After=network.target
@@ -378,16 +222,12 @@ StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-WorkingDirectory=$root
-Environment=ROOT=$root
-Environment=BASH=$bash
-Environment=ENV=$env
-Environment=NAME=$name
-Environment=DOMAIN=$domain
-Environment=PORT=$port
-Environment=SSL_KEY=$ssl_key
-Environment=SSL_CERT=$ssl_cert
-ExecStart=$node_command
+WorkingDirectory=$CLEAN_CLONE_DIR
+Environment=XDG_CONFIG_HOME=$HOME/.config
+Environment=XDG_DATA_HOME=$HOME/.local/share
+Environment=XDG_STATE_HOME=$HOME/.local/state
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node main.js
 Restart=always
 RestartSec=5
 StandardOutput=journal
@@ -396,45 +236,189 @@ StandardError=journal
 [Install]
 WantedBy=default.target
 EOF
+    
+    # Enable lingering and start service
+    if command -v loginctl >/dev/null 2>&1; then
+        loginctl enable-linger "$USER" 2>/dev/null || true
+    fi
+    
+    systemctl --user daemon-reload
+    systemctl --user enable air >/dev/null 2>&1 || {
+        warn "Failed to enable Air service"
+    }
+    
+    log "✓ Systemd user service configured"
+    log "  Control with: systemctl --user [start|stop|restart|status] air"
+    log "  View logs: journalctl --user -u air -f"
+}
 
-# Enable lingering so user services can run without being logged in
-if command -v loginctl >/dev/null 2>&1; then
-    loginctl enable-linger "$USER" 2>/dev/null || echo "Note: Could not enable lingering. Service will only run when logged in."
+# Setup auto-update system
+setup_auto_update() {
+    log "Setting up auto-update system..."
+    
+    # Create update script
+    cat > "$HOME/.config/air/auto-update.sh" << 'EOF'
+#!/bin/sh
+# Air auto-update script - Uses ~/air clean clone and XDG config
+
+REPO_URL="https://github.com/akaoio/air.git"
+CLEAN_CLONE_DIR="$HOME/air"
+CONFIG_DIR="$HOME/.config/air"
+LOG_FILE="$CONFIG_DIR/auto-update.log"
+
+# Function to log with timestamp
+log_update() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOG_FILE"
+}
+
+# Function to update clean clone
+update_clean_clone() {
+    if [ -d "$CLEAN_CLONE_DIR" ]; then
+        cd "$CLEAN_CLONE_DIR" || {
+            log_update "ERROR: Cannot cd to $CLEAN_CLONE_DIR"
+            return 1
+        }
+        
+        # Check for updates
+        git fetch origin >/dev/null 2>&1 || {
+            log_update "ERROR: git fetch failed"
+            return 1
+        }
+        
+        LOCAL=$(git rev-parse HEAD)
+        REMOTE=$(git rev-parse origin/main 2>/dev/null || git rev-parse origin/master 2>/dev/null)
+        
+        if [ "$LOCAL" != "$REMOTE" ]; then
+            log_update "Updates available, pulling changes..."
+            git pull origin main >/dev/null 2>&1 || git pull origin master >/dev/null 2>&1 || {
+                log_update "ERROR: git pull failed"
+                return 1
+            }
+            
+            # Reinstall npm dependencies
+            npm install --production >/dev/null 2>&1 || {
+                log_update "ERROR: npm install failed"
+                return 1
+            }
+            
+            log_update "Air updated successfully"
+            return 0
+        else
+            log_update "No updates needed"
+            return 1
+        fi
+    else
+        # Clone if directory doesn't exist
+        log_update "Clean clone missing, creating $CLEAN_CLONE_DIR"
+        git clone "$REPO_URL" "$CLEAN_CLONE_DIR" >/dev/null 2>&1 || {
+            log_update "ERROR: git clone failed"
+            return 1
+        }
+        
+        cd "$CLEAN_CLONE_DIR" && npm install --production >/dev/null 2>&1
+        return 0
+    fi
+}
+
+# Update clean clone and restart service if needed
+if update_clean_clone; then
+    # Restart user service if it exists and is enabled
+    if systemctl --user is-enabled air >/dev/null 2>&1; then
+        systemctl --user restart air >/dev/null 2>&1 && \
+        log_update "Air service restarted successfully"
+    fi
 fi
+EOF
+    
+    chmod +x "$HOME/.config/air/auto-update.sh"
+    
+    # Add weekly auto-update cron job
+    local update_cron="0 3 * * 0 $HOME/.config/air/auto-update.sh >/dev/null 2>&1"
+    (crontab -l 2>/dev/null | grep -v "auto-update.sh"; echo "$update_cron") | crontab -
+    
+    log "✓ Auto-update enabled"
+    log "  Update script: ~/.config/air/auto-update.sh"
+    log "  Update log: ~/.config/air/auto-update.log"
+    log "  Schedule: Weekly (Sunday 3 AM)"
+}
 
-# Start and enable user service
-systemctl --user daemon-reload
-systemctl --user enable "$name" || echo "Warning: Could not enable $name service"
-systemctl --user start "$name" || echo "Warning: Could not start $name service"
+# Show final summary
+show_summary() {
+    echo ""
+    echo "=================================================="
+    echo "  Air Installation Complete!"
+    echo "=================================================="
+    echo ""
+    echo "📁 File Locations (XDG Base Directory Specification):"
+    echo "   Config:      ~/.config/air/config.json"
+    echo "   Data & Logs: ~/.local/share/air/"
+    echo "   State Files: ~/.local/state/air/"
+    echo "   Clean Clone: ~/air/ (used for runtime & updates)"
+    echo ""
+    echo "🚀 Quick Start:"
+    echo "   air --version              # Test installation"
+    echo "   systemctl --user start air # Start Air service"
+    echo "   systemctl --user status air # Check Air status"
+    echo ""
+    echo "📝 Service Management:"
+    echo "   systemctl --user [start|stop|restart|status] air"
+    echo "   journalctl --user -u air -f  # View logs"
+    echo ""
+    echo "🔧 Configuration:"
+    echo "   Edit: ~/.config/air/config.json"
+    echo "   Auto-update: ~/.config/air/auto-update.sh"
+    echo ""
+    echo "Air is now ready for P2P database operations!"
+    echo ""
+}
 
-echo "✓ User systemd service created at: $user_systemd_dir/$name.service"
-echo "  To manage: systemctl --user [start|stop|restart|status] $name"
+# Main installation flow
+main() {
+    show_header
+    
+    # Parse arguments
+    SETUP_SERVICE=true
+    SETUP_AUTO_UPDATE=true
+    
+    while [ $# -gt 0 ]; do
+        case $1 in
+            --no-service)
+                SETUP_SERVICE=false
+                ;;
+            --no-auto-update)
+                SETUP_AUTO_UPDATE=false
+                ;;
+            --help)
+                echo "Usage: $0 [options]"
+                echo ""
+                echo "Options:"
+                echo "  --no-service      Skip systemd service setup"
+                echo "  --no-auto-update  Skip auto-update configuration"
+                echo "  --help           Show this help"
+                exit 0
+                ;;
+            *)
+                warn "Unknown option: $1"
+                ;;
+        esac
+        shift
+    done
+    
+    # Installation steps
+    check_requirements
+    create_clean_clone
+    install_air
+    
+    if [ "$SETUP_SERVICE" = true ]; then
+        setup_systemd_service
+    fi
+    
+    if [ "$SETUP_AUTO_UPDATE" = true ]; then
+        setup_auto_update
+    fi
+    
+    show_summary
+}
 
-# FINISH INSTALLATION
-echo "
-====================================
-  AIR P2P DATABASE INSTALLED
-  User:            $who (no sudo required)
-  Peer name:       $name
-  Root path:       $root
-  Bash path:       $bash
-  Domain:          $domain
-  Port:            $port
-  SSL:             $ssl
-  IP Sync:         Handled by Access
-  Singleton:       Enforced via XDG locks
-  Service:         User systemd service
-====================================
-
-User-scope installation complete!
-  Config:    ~/.config/air/config.json
-  Data:      ~/.local/share/air/
-  Service:   systemctl --user status $name
-  Logs:      journalctl --user -u $name -f
-
-Commands:
-  ./air.sh start     - Start Air
-  ./air.sh stop      - Stop Air  
-  ./air.sh status    - Check status
-  ./air.sh logs      - Follow logs
-"
+# Run main installation
+main "$@"
