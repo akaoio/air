@@ -15,11 +15,6 @@ ssl=false
 ssl_key=""
 ssl_cert=""
 update=false
-godaddy_cron=false
-godaddy_key=""
-godaddy_secret=""
-godaddy_domain=""
-godaddy_host=""
 node_command="npm start"
 yes_or_no="Please answer [Y]es or [N]o."
 
@@ -38,14 +33,13 @@ do
         --sync)         set -- $@ -S;;
         --ssl)          set -- $@ -s;;
         --update)       set -- $@ -u;;
-        --godaddy_cron) set -- $@ -g;;
         --node_command) set -- $@ -c;;
         *)              set -- $@ $arg
     esac
 done
 
 # Check flags
-while getopts "r:b:e:n:p:d:P:S:sugc:" flag
+while getopts "r:b:e:n:p:d:P:S:suc:" flag
 do
     case $flag in
         r) root=$OPTARG;;
@@ -58,7 +52,6 @@ do
         S) sync=$OPTARG;;
         s) ssl=true;;
         u) update=true;;
-        g) godaddy_cron=true;;
         c) node_command=$OPTARG
     esac
 done
@@ -92,12 +85,6 @@ then
     peers=($(jq -r ".peers[]" "$root/$config" 2>/dev/null || jq -r ".$env.peers[]" "$root/$config" 2>/dev/null || echo ""))
     
     [[ -z $sync || $sync = "null" ]] && sync=`jq -r ".sync" $root/$config`
-
-    godaddy_key=`jq -r ".$env.godaddy.key" $root/$config`
-    [[ -z $godaddy_key || $godaddy_key = "null" ]] && godaddy_key=`jq -r ".$env.godaddy.key" $root/$config`
-
-    godaddy_secret=`jq -r ".$env.godaddy.secret" $root/$config`
-    [[ -z $godaddy_secret || $godaddy_secret = "null" ]] && godaddy_secret=`jq -r ".$env.godaddy.secret" $root/$config`
 fi
 
 # CORE SETUP
@@ -203,66 +190,8 @@ then
     done
 fi
 
-# Ask if user wants to automatically update Godaddy DNS A Record
-if [ $godaddy_cron = false ]
-then
-    while true
-    do
-        read -p "Do you want to automatically update Godaddy DNS A Record? [Y/n]" yn
-        case $yn in
-            [Yy]*) godaddy_cron=true; break;;
-            [Nn]*) godaddy_cron=false; break;;
-            *) echo $yes_or_no
-        esac
-    done
-fi
-
-# If user wants Godaddy DNS cronjob enabled, ask for Godaddy API Key/Secret
-if [ $godaddy_cron = true ] && [ ! -z $domain ]
-then
-    # Check if the domain is a primary domain or subdomain
-    count=`echo $domain | grep -o "\." | wc -l`
-    if [ $count = 1 ] && [ -z $godaddy_host ]
-    then
-        godaddy_domain=$domain
-        godaddy_host="@"
-    elif [ $count -gt 1 ] && [[ $domain =~ ^[a-zA-Z0-9\-]*\.[a-zA-Z0-9\-]*\.[a-zA-Z0-9\-]*(\.[a-zA-Z0-9\-]*)*$ ]]
-    then
-        while true
-        do
-            read -p "Is this domain $domain a subdomain? [Y/n]" yn
-            case $yn in
-                [Yy]*)
-                    godaddy_domain=`expr match $domain '^[a-zA-Z0-9\-]*\.\(.*\)$'`
-                    godaddy_host=`expr match $domain '^\([a-zA-Z0-9\-]*\)\..*'`
-                    break;;
-                [Nn]*)
-                    godaddy_domain=$domain
-                    godaddy_host="@"
-                    break;;
-                *) echo $yes_or_no
-            esac
-        done
-    fi
-
-    while [ -z $godaddy_key ] || [[ $godaddy_key = "null" ]]
-    do
-        read -p "Please enter Godaddy API Key: " godaddy_key
-        if [ ! -z $godaddy_key ] && [[ $godaddy_key != "null" ]]
-        then
-            break
-        fi
-    done
-
-    while [ -z $godaddy_secret ] || [[ $godaddy_secret = "null" ]]
-    do
-        read -p "Please enter Godaddy API Secret: " godaddy_secret
-        if [ ! -z $godaddy_secret ] && [[ $godaddy_secret != "null" ]]
-        then
-            break
-        fi
-    done
-fi
+# Note: GoDaddy DDNS functionality has been removed
+# IP synchronization is now handled by Access
 
 # SYSTEM SETUP
 
@@ -331,24 +260,14 @@ then
     fi
 fi
 
-# Install DDNS Crontab
-# Automatically map domain to public IP address
-if [ $godaddy_cron = true ] && [ ! -z $godaddy_domain ] && [ ! -z $godaddy_host ] && [ ! -z $godaddy_key ] && [ ! -z $godaddy_secret ]
-then
-    echo "Installing Crontab commands"
-    godaddy_cron=true
-    # Remove old crontab commands if exists
-    sudo crontab -u $USER -l | grep -v "$bash/ddns.sh" | crontab -u $USER -
-    # Add new crontab commands
-    (sudo crontab -u $USER -l ; echo "*/5 * * * * $bash/ddns.sh --root $root --domain $godaddy_domain --host $godaddy_host --key $godaddy_key --secret $godaddy_secret >> $root/$name.ddns.log 2>&1") | crontab -u $USER -
-fi
+# Note: GoDaddy DDNS crontab removed - Access handles IP sync
 
 # Create config file if no file exists
 if [ ! -f "$root/$config" ] && [ ! -z $domain ] && [ ! -z $port ]
 then
     [ ! -z $sync ] && sync_json="\"sync\": \"$sync\"," || sync_json=""
     [ -f $ssl_key ] && [ -f $ssl_cert ] && ssl_json=",\"ssl\": { \"key\": \"$ssl_key\", \"cert\": \"$ssl_cert\" }" || ssl_json=""
-    [ ! -z $godaddy_domain ] && [ ! -z $godaddy_host ] && [ ! -z $godaddy_key ] && [ ! -z $godaddy_secret ] && godaddy_json=",\"godaddy\": { \"domain\": \"$godaddy_domain\", \"host\": \"$godaddy_host\", \"key\": \"$godaddy_key\", \"secret\": \"$godaddy_secret\" }" || godaddy_json=""
+    godaddy_json="" # GoDaddy configuration removed - Access handles IP sync
     
     # Create JSON text for peers
     peers_json=""
@@ -427,6 +346,6 @@ echo "
   Domain:          $domain
   Port:            $port
   SSL:             $ssl
-  Godaddy cron:    $godaddy_cron
+  IP Sync:         Handled by Access
 ====================================
 "

@@ -1,6 +1,6 @@
 # What is Air
 
-Air is a tool to help you run GUN instances with ease. It was designed to run on Raspberry Pi computers at home, so it will magically sync your Public IP with GoDaddy DNS and you don't have to use any DDNS service.
+Air is a tool to help you run GUN instances with ease. It was designed to run on Raspberry Pi computers at home. IP synchronization is now handled by the Access layer.
 
 Air is in development and the "main" branch is the development branch.
 
@@ -12,11 +12,11 @@ Air is in development and the "main" branch is the development branch.
 # Features
 
 -   Automatically run on system startup.
--   Automatically update Godaddy DNS IP.
 -   Automatically install/renew Let'sEncrypt SSL certificate.
 -   Automatically pull update from github.
 -   Automatically join Air hub.
--   Automatically update IP, heartbeat status to user space.
+-   Automatically update heartbeat status to user space.
+-   IP synchronization handled by Access layer.
 
 # Install
 
@@ -24,8 +24,9 @@ Air is in development and the "main" branch is the development branch.
 
 You might need one of the following things:
 
--   Godaddy domain, API key, API secret: if you don't have static Public IP and want Air to automatically update Godaddy DNS IP for you.
--   Make sure you have setup NAT/port forwarding so that Let'sEncrypt bot can find you on the internet.
+-   A domain name configured to point to your server
+-   Make sure you have setup NAT/port forwarding so that Let'sEncrypt bot can find you on the internet
+-   IP synchronization is handled by the Access layer (no GoDaddy configuration needed)
 
 Tested on: Raspberry OS on Raspberry Pi 4, Ubuntu 19.10 on Acer Nitro 5.
 

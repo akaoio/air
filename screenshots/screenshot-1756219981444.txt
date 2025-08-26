@@ -1,0 +1,4 @@
+
+> @akaoio/air@2.0.0 typecheck:lenient
+> tsc -p tsconfig.lenient.json --noEmit
+
