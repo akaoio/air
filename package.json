@@ -1,7 +1,7 @@
 {
-    "name": "air",
+    "name": "@akaoio/air",
     "type": "module",
-    "version": "1.0.0",
+    "version": "2.0.1",
     "description": "Distributed graph database",
     "main": "index.js",
     "license": "MIT",
