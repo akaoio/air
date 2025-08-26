@@ -1,12 +1,12 @@
 {
     "name": "@akaoio/air",
     "type": "module",
-    "version": "2.0.1",
+    "version": "2.0.2",
     "description": "Distributed graph database",
     "main": "index.js",
     "license": "MIT",
     "dependencies": {
-        "gun": "github:akaoio/gun",
+        "@akaoio/gun": "^0.2020.1240",
         "node-fetch": "^3.0.0"
     },
     "scripts": {

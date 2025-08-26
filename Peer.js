@@ -8,9 +8,9 @@ import net from "net"
 import { fileURLToPath } from "url"
 import path from "path"
 import fetch from "node-fetch"
-import GUN from "gun"
-import "gun/sea.js"
-import "gun/nts.js"
+import GUN from "@akaoio/gun"
+import "@akaoio/gun/sea.js"
+import "@akaoio/gun/nts.js"
 const sea = GUN.SEA
 
 export class Peer {
