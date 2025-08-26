@@ -247,7 +247,12 @@ EOF
         warn "Failed to enable Air service"
     }
     
-    log "✓ Systemd user service configured"
+    # Start the service immediately after installation
+    systemctl --user start air >/dev/null 2>&1 || {
+        warn "Failed to start Air service - you may need to start it manually"
+    }
+    
+    log "✓ Systemd user service configured and started"
     log "  Control with: systemctl --user [start|stop|restart|status] air"
     log "  View logs: journalctl --user -u air -f"
 }
@@ -356,9 +361,9 @@ show_summary() {
     echo "   Clean Clone: ~/air/ (used for runtime & updates)"
     echo ""
     echo "🚀 Quick Start:"
-    echo "   air --version              # Test installation"
-    echo "   systemctl --user start air # Start Air service"
-    echo "   systemctl --user status air # Check Air status"
+    echo "   systemctl --user status air # Check Air status (already running)"
+    echo "   air --version              # Test CLI wrapper"
+    echo "   curl https://air.akao.io:8765/gun.js # Test HTTPS endpoint"
     echo ""
     echo "📝 Service Management:"
     echo "   systemctl --user [start|stop|restart|status] air"
