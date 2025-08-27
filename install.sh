@@ -52,6 +52,109 @@ manager_header() {
     echo ""
 }
 
+# Interactive setup prompts for user preferences
+interactive_setup() {
+    manager_log "Welcome to Air P2P Database installation!"
+    echo ""
+    
+    # Ask about automation method
+    echo "How would you like Air to run?"
+    echo "  1) Systemd service (recommended for servers)"
+    echo "  2) Cron job (recommended for personal use)"
+    echo "  3) Both (redundant automation - most reliable)"
+    echo "  4) Manual only (no automation)"
+    printf "Choice (1-4): "
+    read -r automation_choice
+    
+    case "$automation_choice" in
+        1) USE_SERVICE=true ;;
+        2) USE_CRON=true ;;
+        3) USE_SERVICE=true; USE_CRON=true ;;
+        4) ;;
+        *) manager_warn "Invalid choice, defaulting to cron"; USE_CRON=true ;;
+    esac
+    
+    # Ask about cron interval if using cron
+    if [ "$USE_CRON" = true ]; then
+        echo ""
+        printf "Monitoring interval in minutes? (default: 5): "
+        read -r interval_input
+        if [ -n "$interval_input" ] && [ "$interval_input" -gt 0 ] 2>/dev/null; then
+            CRON_INTERVAL="$interval_input"
+        fi
+    fi
+    
+    # Ask about P2P features
+    echo ""
+    printf "Enable P2P peer discovery? (Y/n): "
+    read -r p2p_choice
+    case "$p2p_choice" in
+        [nN]|[nN][oO]) USE_P2P_DISCOVERY=false ;;
+        *) USE_P2P_DISCOVERY=true ;;
+    esac
+    
+    # Ask about port
+    echo ""
+    printf "Air database port? (default: 8765): "
+    read -r port_input
+    if [ -n "$port_input" ] && [ "$port_input" -gt 0 ] 2>/dev/null; then
+        AIR_PORT="$port_input"
+    fi
+    
+    # Ask about network monitoring
+    echo ""
+    printf "Enable network monitoring? (Y/n): "
+    read -r monitor_choice
+    case "$monitor_choice" in
+        [nN]|[nN][oO]) USE_MONITORING=false ;;
+        *) USE_MONITORING=true ;;
+    esac
+    
+    # Ask about auto-updates
+    echo ""
+    printf "Enable weekly auto-updates? (y/N): "
+    read -r update_choice
+    case "$update_choice" in
+        [yY]|[yY][eE][sS]) USE_AUTO_UPDATE=true ;;
+        *) USE_AUTO_UPDATE=false ;;
+    esac
+    
+    echo ""
+    manager_log "Configuration complete!"
+    
+    # Show summary of choices
+    echo ""
+    echo "Installation Summary:"
+    if [ "$USE_SERVICE" = true ]; then
+        echo "  ✓ Systemd service will be created"
+    fi
+    if [ "$USE_CRON" = true ]; then
+        echo "  ✓ Cron job will run every $CRON_INTERVAL minutes"
+    fi
+    if [ "$USE_P2P_DISCOVERY" = true ]; then
+        echo "  ✓ P2P peer discovery will be enabled"
+    fi
+    echo "  ✓ Database port: $AIR_PORT"
+    if [ "$USE_MONITORING" = true ]; then
+        echo "  ✓ Network monitoring enabled"
+    fi
+    if [ "$USE_AUTO_UPDATE" = true ]; then
+        echo "  ✓ Weekly auto-updates enabled"
+    fi
+    if [ "$USE_SERVICE" = false ] && [ "$USE_CRON" = false ]; then
+        echo "  • Manual operation only (no automation)"
+    fi
+    echo ""
+    printf "Continue with installation? (Y/n): "
+    read -r confirm
+    case "$confirm" in
+        [nN]|[nN][oO]) 
+            manager_log "Installation cancelled by user"
+            exit 0
+            ;;
+    esac
+}
+
 # Main installation
 main() {
     manager_header
@@ -71,6 +174,12 @@ main() {
     CRON_INTERVAL=5
     AIR_PORT=8765
     SHOW_HELP=false
+    INTERACTIVE=true  # Default to interactive mode if no args
+    
+    # If any arguments provided, disable interactive mode
+    if [ $# -gt 0 ]; then
+        INTERACTIVE=false
+    fi
     
     for arg in "$@"; do
         case "$arg" in
@@ -100,6 +209,9 @@ main() {
                 USE_SERVICE=true
                 USE_CRON=true
                 ;;
+            --non-interactive)
+                INTERACTIVE=false
+                ;;
             --help|-h)
                 SHOW_HELP=true
                 ;;
@@ -108,6 +220,11 @@ main() {
                 ;;
         esac
     done
+    
+    # Run interactive setup if no command line args provided
+    if [ "$INTERACTIVE" = true ] && [ "$SHOW_HELP" = false ]; then
+        interactive_setup
+    fi
     
     if [ "$SHOW_HELP" = true ]; then
         cat << 'EOF'
@@ -122,12 +239,18 @@ Options:
   --no-monitoring   Disable network monitoring
   --port=N          Air server port (default: 8765)
   --auto-update     Enable weekly auto-updates
+  --non-interactive Skip interactive prompts (use with other options)
   --help            Show this help
 
+Interactive Mode:
+  Run without options for interactive setup with guided prompts
+
 Examples:
-  ./install-with-manager.sh --redundant --auto-update
-  ./install-with-manager.sh --service --p2p-discovery --port=8766
-  ./install-with-manager.sh --cron --interval=3 --no-monitoring
+  ./install.sh                    # Interactive setup (recommended)
+  ./install.sh --redundant --auto-update
+  ./install.sh --service --p2p-discovery --port=8766
+  ./install.sh --cron --interval=3 --no-monitoring
+  ./install.sh --non-interactive --cron  # Non-interactive with defaults
 
 The Manager framework handles:
   ✓ XDG-compliant directory creation
