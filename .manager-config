@@ -1,9 +1,10 @@
 # Air P2P Database - Manager Configuration
-# Project-specific configuration for Manager framework
+# Domain-agnostic distributed database designed for the world
+# Not tied to any specific domain - works globally
 
 # Project metadata
 PROJECT_TYPE="typescript"
-PROJECT_DESCRIPTION="Distributed P2P Database System"
+PROJECT_DESCRIPTION="Domain-Agnostic Distributed P2P Database"
 PROJECT_VERSION="2.1.0"
 PROJECT_PORT="8765"
 

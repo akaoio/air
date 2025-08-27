@@ -95,6 +95,34 @@ export class Peer {
         this.config[this.env].domain = process.env.DOMAIN || this.config[this.env]?.domain || (this.env === "development" ? "localhost" : null)
         this.config[this.env].port = process.env.PORT || this.config[this.env]?.port || 8765
         this.config[this.env].peers = this.config[this.env]?.peers || this.config.peers || []
+        
+        // Domain-agnostic peer discovery configuration
+        this.config[this.env].discovery = this.config[this.env]?.discovery || {
+            enabled: process.env.AIR_DISCOVERY_ENABLED === 'true' || true,
+            methods: {
+                multicast: process.env.AIR_MULTICAST_ENABLED !== 'false',
+                dht: process.env.AIR_DHT_ENABLED !== 'false', 
+                dns: process.env.AIR_DNS_ENABLED === 'true' || false,
+                manual: true
+            },
+            multicast: {
+                address: process.env.AIR_MULTICAST_ADDR || '239.255.42.99',
+                port: parseInt(process.env.AIR_MULTICAST_PORT || '8766')
+            },
+            dns: {
+                domain: process.env.AIR_DNS_DOMAIN || '', // Empty = no DNS discovery
+                prefix: process.env.AIR_DNS_PREFIX || 'air-node'
+            },
+            dht: {
+                bootstrap: process.env.AIR_DHT_BOOTSTRAP ? 
+                    process.env.AIR_DHT_BOOTSTRAP.split(',') : 
+                    ['gun.eco/gun', 'gunjs.herokuapp.com/gun']
+            },
+            limits: {
+                max_peers: parseInt(process.env.AIR_MAX_PEERS || '50'),
+                timeout: parseInt(process.env.AIR_PEER_TIMEOUT || '5000')
+            }
+        }
         this.config[this.env].system = this.config[this.env]?.system || {}
 
         const key = process.env.SSL_KEY || this.config[this.env]?.ssl?.key || (this.config[this.env]?.domain && this.env === "production" ? `/etc/letsencrypt/live/${this.config[this.env]?.domain}/privkey.pem` : null)
@@ -213,6 +241,7 @@ export class Peer {
         await this.syncConfig()
         await this.run()
         await this.online()
+        await this.startPeerDiscovery()
         
         if (callback) await callback(this)
     }
@@ -479,6 +508,168 @@ export class Peer {
             },
             e => console.error(e)
         )
+    }
+
+    /**
+     * Domain-agnostic peer discovery system
+     * Designed for the world, not tied to any specific domain
+     */
+    async startPeerDiscovery() {
+        const discovery = this.config[this.env].discovery
+        if (!discovery?.enabled) {
+            console.log('Peer discovery disabled')
+            return
+        }
+
+        console.log('🌍 Starting domain-agnostic peer discovery...')
+        
+        // Start discovery methods
+        if (discovery.methods.multicast) {
+            this.startMulticastDiscovery()
+        }
+        
+        if (discovery.methods.dht) {
+            this.startDHTDiscovery()
+        }
+        
+        if (discovery.methods.dns && discovery.dns.domain) {
+            this.startDNSDiscovery()
+        }
+        
+        if (discovery.methods.manual) {
+            this.loadManualPeers()
+        }
+        
+        console.log('✅ Peer discovery initialized')
+    }
+
+    /**
+     * Multicast discovery for local network peers
+     */
+    private startMulticastDiscovery() {
+        const { address, port } = this.config[this.env].discovery.multicast
+        console.log(`🏠 Starting multicast discovery on ${address}:${port}`)
+        
+        // This would use Node.js dgram for multicast UDP
+        // For now, delegate to shell discovery script
+        try {
+            const { spawn } = require('child_process')
+            const discovery = spawn('sh', ['-c', './discovery.sh multicast &'])
+            console.log('Multicast discovery process started')
+        } catch (error) {
+            console.warn('Multicast discovery failed:', error)
+        }
+    }
+
+    /**
+     * DHT-based discovery using GUN's native DHT capabilities
+     */
+    private startDHTDiscovery() {
+        const bootstrap = this.config[this.env].discovery.dht.bootstrap
+        console.log('🌐 Starting DHT discovery with bootstrap peers:', bootstrap)
+        
+        // GUN handles DHT natively - just ensure bootstrap peers are configured
+        if (bootstrap && bootstrap.length > 0) {
+            // Add bootstrap peers to GUN configuration
+            bootstrap.forEach((peer: string) => {
+                if (!this.config[this.env].peers.includes(peer)) {
+                    this.config[this.env].peers.push(peer)
+                }
+            })
+            
+            console.log(`Added ${bootstrap.length} DHT bootstrap peers`)
+        }
+    }
+
+    /**
+     * DNS-based discovery (optional, only if domain is configured)
+     */
+    private startDNSDiscovery() {
+        const { domain, prefix } = this.config[this.env].discovery.dns
+        if (!domain) {
+            console.log('DNS discovery: no domain configured, skipping')
+            return
+        }
+        
+        console.log(`🌐 Starting DNS discovery for ${domain} with prefix ${prefix}`)
+        
+        // Delegate to shell discovery script for DNS operations
+        try {
+            const { spawn } = require('child_process')
+            const discovery = spawn('sh', ['-c', `./discovery.sh configure dns ${domain} && ./discovery.sh start &`])
+            console.log('DNS discovery process started')
+        } catch (error) {
+            console.warn('DNS discovery failed:', error)
+        }
+    }
+
+    /**
+     * Load manual peer configuration
+     */
+    private loadManualPeers() {
+        const configPath = path.join(this.configDir, 'manual-peers.json')
+        
+        if (fs.existsSync(configPath)) {
+            try {
+                const manualPeers = JSON.parse(fs.readFileSync(configPath, 'utf8'))
+                console.log(`📝 Loading ${manualPeers.length} manual peers`)
+                
+                manualPeers.forEach((peer: string) => {
+                    if (!this.config[this.env].peers.includes(peer)) {
+                        this.config[this.env].peers.push(peer)
+                    }
+                })
+            } catch (error) {
+                console.warn('Failed to load manual peers:', error)
+            }
+        }
+    }
+
+    /**
+     * Add a discovered peer to the network
+     */
+    async addDiscoveredPeer(peerAddress: string) {
+        if (!this.config[this.env].peers.includes(peerAddress)) {
+            this.config[this.env].peers.push(peerAddress)
+            console.log(`🔗 Added discovered peer: ${peerAddress}`)
+            
+            // If we're already running, connect to the new peer
+            if (this.gun) {
+                this.gun.opt({ peers: [peerAddress] })
+            }
+            
+            // Save to configuration
+            this.writeConfig()
+        }
+    }
+
+    /**
+     * Show current peer network status
+     */
+    showPeerStatus() {
+        const peers = this.config[this.env].peers || []
+        const discovery = this.config[this.env].discovery
+        
+        console.log('\n📊 Air Peer Network Status:')
+        console.log(`  Connected Peers: ${peers.length}`)
+        console.log(`  Discovery Enabled: ${discovery?.enabled ? 'Yes' : 'No'}`)
+        
+        if (discovery?.enabled) {
+            console.log('  Discovery Methods:')
+            console.log(`    • Multicast: ${discovery.methods.multicast ? 'Enabled' : 'Disabled'}`)
+            console.log(`    • DHT: ${discovery.methods.dht ? 'Enabled' : 'Disabled'}`) 
+            console.log(`    • DNS: ${discovery.methods.dns && discovery.dns.domain ? `Enabled (${discovery.dns.domain})` : 'Disabled'}`)
+            console.log(`    • Manual: ${discovery.methods.manual ? 'Enabled' : 'Disabled'}`)
+        }
+        
+        if (peers.length > 0) {
+            console.log('\n  Current Peers:')
+            peers.forEach((peer: string, index: number) => {
+                console.log(`    ${index + 1}. ${peer}`)
+            })
+        }
+        
+        console.log()
     }
 }
 

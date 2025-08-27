@@ -58,7 +58,7 @@ interactive_setup() {
     echo ""
     
     # Ask about automation method
-    echo "How would you like Air to run?"
+    echo "How would you like Air P2P database to run?"
     echo "  1) Systemd service (recommended for servers)"
     echo "  2) Cron job (recommended for personal use)"
     echo "  3) Both (redundant automation - most reliable)"
