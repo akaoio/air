@@ -138,6 +138,12 @@ export class Peer {
     }
 
     checkSingleton() {
+        // Development bypass for testing - use with caution
+        if (process.env.FORCE_AIR === "true" || process.env.NODE_ENV === "development") {
+            console.log("🚧 Development mode: bypassing singleton check")
+            return
+        }
+        
         // System-wide Air instance detection - bulletproof singleton
         this.enforceSystemWideSingleton()
         
@@ -156,7 +162,7 @@ export class Peer {
                     console.error(`Port: ${systemLockData.port || 'Unknown'}`)
                     console.error('')
                     console.error('Only ONE Air instance is allowed across the entire system.')
-                    console.error('To stop: pkill -f "node.*main.js" or ./air.sh stop')
+                    console.error('To stop: pkill -f "node.*main.js" or ./air-manager.sh stop')
                     process.exit(1)
                 } catch (e) {
                     // Process doesn't exist, remove stale system lock
@@ -182,7 +188,7 @@ export class Peer {
                     console.error(`Air is already running (PID: ${pid})`)
                     console.error(`Location: ${lockData.location || 'Unknown'}`)
                     console.error(`Started: ${lockData.startTime || 'Unknown'}`)
-                    console.error('Use "air stop" to stop the running instance or ./air.sh stop')
+                    console.error('Use "air stop" to stop the running instance or ./air-manager.sh stop')
                     process.exit(1)
                 } catch (e) {
                     // Process doesn't exist, remove stale lock
@@ -221,11 +227,17 @@ export class Peer {
     }
 
     enforceSystemWideSingleton() {
+        // Development bypass for testing - use with caution
+        if (process.env.FORCE_AIR === "true" || process.env.NODE_ENV === "development") {
+            console.log("🚧 Development mode: bypassing system-wide singleton enforcement")
+            return
+        }
+        
         // System-wide singleton enforcement across all possible installations
         try {
             // Method 1: Check for any node process running Air main.js (synchronous)
-            // Use more specific pattern to avoid matching bash shells
-            const foundPids = execSync('pgrep -f "^node .*main\\.js" || true', { encoding: 'utf8' })
+            // Fixed pattern to match both "node main.js" and "/usr/bin/node main.js"
+            const foundPids = execSync('pgrep -f "node.*main\\.js" || true', { encoding: 'utf8' })
             
             if (foundPids.trim()) {
                 const pids = foundPids.trim().split('\n').filter(pid => 
@@ -244,7 +256,7 @@ export class Peer {
             
             // Method 2: Check by looking for Air-specific patterns in process list
             try {
-                const psOutput = execSync('ps aux | grep -E "node .*main\\.js" | grep -v grep | grep -v "/bin/.*sh" || true', { encoding: 'utf8' })
+                const psOutput = execSync('ps aux | grep -E "node.*main\\.js" | grep -v grep | grep -v "/bin/.*sh" || true', { encoding: 'utf8' })
                 const airProcesses = psOutput.split('\n').filter(line => 
                     line && line.includes('node') && line.includes('main.js') && !line.includes(process.pid.toString()) && !line.includes('/bin/')
                 )
@@ -254,7 +266,7 @@ export class Peer {
                     airProcesses.forEach(proc => console.error(`  ${proc}`))
                     console.error('')
                     console.error('Only one Air instance allowed system-wide.')
-                    console.error('To stop all: pkill -f "node.*main.js" or use ./air.sh stop')
+                    console.error('To stop all: pkill -f "node.*main.js" or use ./air-manager.sh stop')
                     process.exit(1)
                 }
             } catch (e) {
@@ -281,7 +293,7 @@ export class Peer {
         
         console.error('')
         console.error('To stop all Air instances: pkill -f "node.*main.js"') 
-        console.error('Or use: ./air.sh stop (from any running installation)')
+        console.error('Or use: ./air-manager.sh stop (from any running installation)')
         console.error('Or use: systemctl --user stop air (if installed as service)')
     }
 
@@ -442,10 +454,20 @@ export class Peer {
 
     run(callback = () => {}) {
         return new Promise((resolve, reject) => {
-            this.gun = GUN({
+            // Configure single data source for all Air instances
+            const gunConfig = {
                 web: this.server,
                 peers: this.config[this.env].peers
-            })
+            }
+            
+            // Use shared data directory for all Air instances
+            const sharedDataPath = path.join(os.homedir(), '.local', 'share', 'air', 'data')
+            fs.mkdirSync(sharedDataPath, { recursive: true })
+            gunConfig.file = sharedDataPath
+            
+            console.log(`🔗 Using shared data source: ${sharedDataPath}`)
+            
+            this.gun = GUN(gunConfig)
             // No user authentication needed with @akaoio/gun
             resolve(true)
 

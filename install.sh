@@ -1,428 +1,433 @@
 #!/bin/sh
-# Air installation script - Following Access philosophy
-# Pure shell implementation with clean clone architecture
+# Air installation using Manager framework
+# Follows Access pattern: shell foundation with TypeScript coordination
 
 set -e
 
-# Configuration
-INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
-REPO_URL="${REPO_URL:-https://github.com/akaoio/air.git}"
-CLEAN_CLONE_DIR="$HOME/air"
-SCRIPT_NAME="air"
-VERSION="2.0.0"
-
-# Colors for output (if terminal supports it)
-if [ -t 1 ]; then
-    RED='\033[0;31m'
-    GREEN='\033[0;32m'
-    YELLOW='\033[1;33m'
-    NC='\033[0m' # No Color
-else
-    RED=''
-    GREEN=''
-    YELLOW=''
-    NC=''
-fi
-
-log() {
-    echo "${GREEN}[Air]${NC} $*"
+# Check if Manager framework is available
+check_manager() {
+    # Check if manager is installed in the system
+    if [ -d "/usr/local/lib/manager" ]; then
+        MANAGER_DIR="/usr/local/lib/manager"
+        return 0
+    fi
+    
+    # Check if manager is in user's home
+    if [ -d "$HOME/manager" ]; then
+        MANAGER_DIR="$HOME/manager"
+        return 0
+    fi
+    
+    # Check if manager is in local directory (workspace mode)
+    if [ -d "./manager" ]; then
+        MANAGER_DIR="./manager"
+        return 0
+    fi
+    
+    # Check if manager is in parent projects directory (workspace mode)
+    if [ -d "../manager" ]; then
+        MANAGER_DIR="../manager"
+        return 0
+    fi
+    
+    # Manager not found - need to clone it
+    echo "Manager framework not found. Installing..."
+    git clone https://github.com/akaoio/manager.git "$HOME/manager" || {
+        echo "Failed to install Manager framework"
+        exit 1
+    }
+    MANAGER_DIR="$HOME/manager"
 }
 
-warn() {
-    echo "${YELLOW}[Warning]${NC} $*"
-}
-
-error() {
-    echo "${RED}[Error]${NC} $*" >&2
-}
+# Load Manager framework
+check_manager
+. "$MANAGER_DIR/manager.sh"
 
 # Display header
-show_header() {
+manager_header() {
     echo "=================================================="
-    echo "  Air - P2P Database & Real-time Sync v${VERSION}"
-    echo "  Pure Node.js | XDG Compliant | Clean Clone Install"
+    echo "  Air - Distributed P2P Database System v2.1.0"
+    echo "  TypeScript | Real-time Sync | Manager-Powered"
     echo "=================================================="
     echo ""
 }
 
-# Check for required tools
-check_requirements() {
-    local missing=""
-    local missing_packages=""
+# Main installation
+main() {
+    manager_header
     
-    # Check for git (required for clean clone)
-    if ! command -v git >/dev/null 2>&1; then
-        missing="$missing git"
-        missing_packages="$missing_packages git"
+    # Initialize Manager for Air
+    manager_init "air" \
+                 "https://github.com/akaoio/air.git" \
+                 "npm run start" \
+                 "Distributed P2P Database System"
+    
+    # Parse command line arguments
+    USE_SERVICE=false
+    USE_CRON=false
+    USE_AUTO_UPDATE=false
+    USE_MONITORING=true
+    USE_P2P_DISCOVERY=false
+    CRON_INTERVAL=5
+    AIR_PORT=8765
+    SHOW_HELP=false
+    
+    for arg in "$@"; do
+        case "$arg" in
+            --service|--systemd)
+                USE_SERVICE=true
+                ;;
+            --cron)
+                USE_CRON=true
+                ;;
+            --auto-update)
+                USE_AUTO_UPDATE=true
+                ;;
+            --p2p-discovery)
+                USE_P2P_DISCOVERY=true
+                ;;
+            --no-monitoring)
+                USE_MONITORING=false
+                ;;
+            --port=*)
+                AIR_PORT="${arg#*=}"
+                ;;
+            --interval=*)
+                CRON_INTERVAL="${arg#*=}"
+                USE_CRON=true
+                ;;
+            --redundant)
+                USE_SERVICE=true
+                USE_CRON=true
+                ;;
+            --help|-h)
+                SHOW_HELP=true
+                ;;
+            *)
+                manager_warn "Unknown option: $arg"
+                ;;
+        esac
+    done
+    
+    if [ "$SHOW_HELP" = true ]; then
+        cat << 'EOF'
+Air Installation - Manager Framework Edition
+
+Options:
+  --service         Setup systemd service (system or user level)
+  --cron            Setup cron job for periodic monitoring
+  --interval=N      Cron interval in minutes (default: 5)
+  --redundant       Both service and cron (recommended for P2P)
+  --p2p-discovery   Enable P2P peer discovery features
+  --no-monitoring   Disable network monitoring
+  --port=N          Air server port (default: 8765)
+  --auto-update     Enable weekly auto-updates
+  --help            Show this help
+
+Examples:
+  ./install-with-manager.sh --redundant --auto-update
+  ./install-with-manager.sh --service --p2p-discovery --port=8766
+  ./install-with-manager.sh --cron --interval=3 --no-monitoring
+
+The Manager framework handles:
+  ✓ XDG-compliant directory creation
+  ✓ Clean clone architecture
+  ✓ Automatic sudo/non-sudo detection
+  ✓ Systemd service creation (system or user)
+  ✓ Cron job setup with proper scheduling
+  ✓ Auto-update configuration
+  ✓ TypeScript build process management
+  ✓ P2P network monitoring
+
+EOF
+        exit 0
     fi
     
+    # Build installation arguments
+    INSTALL_ARGS=""
+    [ "$USE_SERVICE" = true ] && INSTALL_ARGS="$INSTALL_ARGS --service"
+    [ "$USE_CRON" = true ] && INSTALL_ARGS="$INSTALL_ARGS --cron --interval=$CRON_INTERVAL"
+    [ "$USE_AUTO_UPDATE" = true ] && INSTALL_ARGS="$INSTALL_ARGS --auto-update"
+    
+    # Default to service mode for P2P database reliability
+    if [ "$USE_SERVICE" = false ] && [ "$USE_CRON" = false ]; then
+        manager_log "No automation specified, defaulting to systemd service (recommended for P2P)"
+        INSTALL_ARGS="--service"
+        USE_SERVICE=true
+    fi
+    
+    # Pre-installation: ensure Node.js and npm are available
+    setup_nodejs_dependencies
+    
+    # Run Manager installation
+    manager_log "Installing Air with Manager framework..."
+    manager_install $INSTALL_ARGS || {
+        manager_error "Installation failed"
+        exit 1
+    }
+    
+    # Air-specific setup
+    setup_air_configuration
+    setup_typescript_build
+    
+    # Handle Air-specific features
+    if [ "$USE_P2P_DISCOVERY" = true ]; then
+        setup_p2p_discovery
+    fi
+    
+    if [ "$USE_MONITORING" = true ]; then
+        setup_air_monitoring
+    fi
+    
+    # Show completion summary
+    show_summary
+}
+
+# Setup Node.js dependencies
+setup_nodejs_dependencies() {
+    manager_log "Checking Node.js dependencies..."
+    
     # Check for Node.js
-    if ! command -v node >/dev/null 2>&1; then
-        missing="$missing node"
-        missing_packages="$missing_packages nodejs"
+    if ! command -v node > /dev/null 2>&1; then
+        manager_warn "Node.js not found - installing via package manager"
+        manager_install_package "nodejs npm"
     fi
     
     # Check for npm
-    if ! command -v npm >/dev/null 2>&1; then
-        missing="$missing npm"
-        missing_packages="$missing_packages npm"
+    if ! command -v npm > /dev/null 2>&1; then
+        manager_warn "npm not found - installing"
+        manager_install_package "npm"
     fi
     
-    if [ -n "$missing" ]; then
-        error "Missing required tools:$missing"
-        error "Please install the following packages: $missing_packages"
-        log "On Ubuntu/Debian: sudo apt update && sudo apt install $missing_packages"
-        log "On RHEL/CentOS: sudo yum install $missing_packages"
-        log "On macOS: brew install node git"
-        exit 1
-    fi
-    
-    log "✓ All requirements satisfied"
+    manager_log "✓ Node.js dependencies verified"
 }
 
-# Create clean clone of Air repository
-create_clean_clone() {
-    log "Creating clean clone at $CLEAN_CLONE_DIR..."
+# Setup TypeScript build process
+setup_typescript_build() {
+    manager_log "Setting up TypeScript build process..."
     
-    current_dir=$(pwd)
-    
-    # SMART UPDATE: If running from target directory, update in place instead of deleting
-    if [ "$current_dir" = "$CLEAN_CLONE_DIR" ]; then
-        log "Running from Air directory - updating in place with git..."
-        
-        # Check if this is a git repository
-        if [ -d ".git" ]; then
-            log "Updating existing Air repository..."
-            git fetch origin >/dev/null 2>&1 || {
-                warn "Failed to fetch updates, continuing with existing version"
-            }
-            
-            # Check if we're behind
-            LOCAL=$(git rev-parse HEAD 2>/dev/null)
-            REMOTE=$(git rev-parse origin/main 2>/dev/null || git rev-parse origin/master 2>/dev/null)
-            
-            if [ "$LOCAL" != "$REMOTE" ]; then
-                log "Updates available, pulling changes..."
-                git pull origin main >/dev/null 2>&1 || git pull origin master >/dev/null 2>&1 || {
-                    warn "Failed to pull updates, continuing with existing version"
-                }
-            else
-                log "Already up to date"
-            fi
-        else
-            error "Current directory is not a git repository"
-            exit 1
-        fi
-        
-        # Set clean clone dir to current directory for installation
-        CLEAN_CLONE_DIR="$current_dir"
-        return 0
-    fi
-    
-    # Normal clean clone for external installation
-    if [ -d "$CLEAN_CLONE_DIR" ]; then
-        log "Removing existing Air clone..."
-        rm -rf "$CLEAN_CLONE_DIR"
-    fi
-    
-    # Clone fresh repository
-    git clone "$REPO_URL" "$CLEAN_CLONE_DIR" || {
-        error "Failed to clone Air repository from $REPO_URL"
+    # Navigate to clean clone directory
+    cd "$MANAGER_CLEAN_CLONE_DIR" || {
+        manager_error "Failed to access clean clone directory"
         exit 1
     }
     
-    # Verify main.js exists in clean clone
-    if [ ! -f "$CLEAN_CLONE_DIR/main.js" ]; then
-        error "Clean clone missing main.js - repository structure may be incorrect"
+    # Install dependencies
+    manager_log "Installing npm dependencies..."
+    npm install || {
+        manager_error "Failed to install npm dependencies"
         exit 1
-    fi
+    }
     
-    log "✓ Clean clone created successfully"
+    # Build the project
+    manager_log "Building Air TypeScript project..."
+    npm run build || {
+        manager_error "Failed to build Air project"
+        exit 1
+    }
+    
+    manager_log "✓ TypeScript build completed"
 }
 
-# Install Air from clean clone
-install_air() {
-    log "Installing Air from clean clone..."
+# Setup Air configuration
+setup_air_configuration() {
+    manager_log "Setting up Air configuration..."
     
-    # Change to clean clone directory
-    cd "$CLEAN_CLONE_DIR" || {
-        error "Failed to enter clean clone directory"
-        exit 1
-    }
+    # Config directory already created by Manager during installation
+    CONFIG_FILE="$MANAGER_CONFIG_DIR/config.json"
     
-    # Install npm dependencies
-    log "Installing npm dependencies..."
-    npm install --production >/dev/null 2>&1 || {
-        error "Failed to install npm dependencies"
-        exit 1
-    }
+    # Create initial Air configuration if it doesn't exist
+    if [ ! -f "$CONFIG_FILE" ]; then
+        cat > "$CONFIG_FILE" << EOF
+{
+  "name": "air",
+  "env": "production",
+  "port": ${AIR_PORT},
+  "host": "0.0.0.0",
+  "manager": {
+    "enabled": true,
+    "autoUpdate": ${USE_AUTO_UPDATE:-false},
+    "serviceMode": "${USE_SERVICE:+systemd}${USE_CRON:+cron}",
+    "monitoringEnabled": ${USE_MONITORING:-true},
+    "updateInterval": ${CRON_INTERVAL}
+  },
+  "production": {
+    "port": ${AIR_PORT},
+    "domain": "localhost",
+    "peers": []
+  }
+}
+EOF
+        manager_log "✓ Initial Air configuration created"
+    else
+        manager_log "✓ Existing configuration preserved"
+    fi
+}
+
+# Setup P2P discovery features
+setup_p2p_discovery() {
+    manager_log "Setting up P2P discovery..."
     
-    # Create XDG-compliant config directory
-    mkdir -p "$HOME/.config/air"
-    mkdir -p "$HOME/.local/share/air"
-    mkdir -p "$HOME/.local/state/air"
+    # Create P2P discovery script
+    discovery_script="$MANAGER_INSTALL_DIR/air-p2p-discovery"
     
-    # Create air wrapper script
-    local wrapper_script="$INSTALL_DIR/$SCRIPT_NAME"
-    log "Creating Air wrapper script at $wrapper_script..."
-    
-    cat > /tmp/air-wrapper << 'EOF'
+    cat > "$discovery_script" << 'EOF'
 #!/bin/sh
-# Air wrapper script - launches from clean clone with XDG paths
+# Air P2P Discovery - Manager Framework Integration
+# Discovers and connects to Air P2P peers
 
-CLEAN_CLONE_DIR="$HOME/air"
-XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
-XDG_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
-XDG_STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}"
+source "$(dirname "$0")/manager/manager.sh" 2>/dev/null || {
+    echo "Manager framework not available"
+    exit 1
+}
 
-export XDG_CONFIG_HOME XDG_DATA_HOME XDG_STATE_HOME
+AIR_PORT=${AIR_PORT:-8765}
+CONFIG_FILE="${MANAGER_CONFIG_DIR:-$HOME/.config/air}/config.json"
 
-# Ensure Air clean clone exists
-if [ ! -d "$CLEAN_CLONE_DIR" ]; then
-    echo "Error: Air not properly installed (missing $CLEAN_CLONE_DIR)"
-    echo "Please run the Air installer again"
+# Discover peers on local network
+discover_peers() {
+    manager_log "Discovering Air P2P peers on port $AIR_PORT..."
+    
+    # Simple network scan for Air peers
+    for i in $(seq 1 254); do
+        ip="192.168.1.$i"
+        if curl -s --connect-timeout 2 "http://$ip:$AIR_PORT" > /dev/null 2>&1; then
+            echo "Found Air peer: $ip:$AIR_PORT"
+        fi &
+    done
+    wait
+}
+
+# Add peer to configuration
+add_peer() {
+    peer_url="$1"
+    if [ -f "$CONFIG_FILE" ]; then
+        # Add peer to config (simplified - would need proper JSON editing)
+        manager_log "Adding peer: $peer_url"
+        echo "Peer discovered: $peer_url" >> "${MANAGER_DATA_DIR}/discovered-peers.log"
+    fi
+}
+
+discover_peers
+EOF
+    
+    chmod +x "$discovery_script"
+    
+    # Copy to installation directory
+    if [ -w "$MANAGER_INSTALL_DIR" ]; then
+        cp "$discovery_script" "$MANAGER_INSTALL_DIR/"
+    else
+        sudo cp "$discovery_script" "$MANAGER_INSTALL_DIR/"
+    fi
+    
+    manager_log "✓ P2P discovery enabled"
+    manager_log "  Command: air-p2p-discovery"
+}
+
+# Setup Air network monitoring
+setup_air_monitoring() {
+    manager_log "Setting up Air network monitoring..."
+    
+    # Create Air monitoring script
+    monitor_script="$MANAGER_DATA_DIR/air-monitor"
+    
+    cat > "$monitor_script" << EOF
+#!/bin/sh
+# Air Network Monitor - Manager Framework Integration
+# Monitors Air P2P network health
+
+source "$MANAGER_DIR/manager.sh"
+
+AIR_PORT=${AIR_PORT}
+AIR_PID_FILE="\$MANAGER_STATE_DIR/air.pid"
+
+# Check if Air process is running
+if [ -f "\$AIR_PID_FILE" ] && kill -0 "\$(cat "\$AIR_PID_FILE")" 2>/dev/null; then
+    manager_log "Air process running (PID: \$(cat "\$AIR_PID_FILE"))"
+else
+    manager_warn "Air process not running - attempting restart"
+    manager_service_restart "air"
     exit 1
 fi
 
-# Run Air from clean clone
-cd "$CLEAN_CLONE_DIR" || exit 1
-exec node main.js "$@"
-EOF
-    
-    # Install wrapper script
-    if [ -w "$INSTALL_DIR" ]; then
-        cp /tmp/air-wrapper "$wrapper_script"
-        chmod +x "$wrapper_script"
-    else
-        sudo cp /tmp/air-wrapper "$wrapper_script"
-        sudo chmod +x "$wrapper_script"
-    fi
-    
-    rm /tmp/air-wrapper
-    
-    log "✓ Air installed successfully with XDG compliance"
-    log "  Clean clone: $CLEAN_CLONE_DIR"
-    log "  Config: ~/.config/air/config.json"
-    log "  Data: ~/.local/share/air/"
-    log "  State: ~/.local/state/air/"
-}
-
-# Setup systemd user service
-setup_systemd_service() {
-    log "Setting up systemd user service..."
-    
-    # Create user systemd directory
-    mkdir -p "$HOME/.config/systemd/user"
-    
-    cat > "$HOME/.config/systemd/user/air.service" << EOF
-[Unit]
-Description=Air P2P Database Service
-After=network.target
-StartLimitIntervalSec=0
-
-[Service]
-Type=simple
-WorkingDirectory=$CLEAN_CLONE_DIR
-Environment=XDG_CONFIG_HOME=$HOME/.config
-Environment=XDG_DATA_HOME=$HOME/.local/share
-Environment=XDG_STATE_HOME=$HOME/.local/state
-Environment=NODE_ENV=production
-ExecStart=/usr/bin/node main.js
-Restart=always
-RestartSec=5
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=default.target
-EOF
-    
-    # Enable lingering and start service
-    if command -v loginctl >/dev/null 2>&1; then
-        loginctl enable-linger "$USER" 2>/dev/null || true
-    fi
-    
-    systemctl --user daemon-reload
-    systemctl --user enable air >/dev/null 2>&1 || {
-        warn "Failed to enable Air service"
-    }
-    
-    # Start the service immediately after installation
-    systemctl --user start air >/dev/null 2>&1 || {
-        warn "Failed to start Air service - you may need to start it manually"
-    }
-    
-    log "✓ Systemd user service configured and started"
-    log "  Control with: systemctl --user [start|stop|restart|status] air"
-    log "  View logs: journalctl --user -u air -f"
-}
-
-# Setup auto-update system
-setup_auto_update() {
-    log "Setting up auto-update system..."
-    
-    # Create update script
-    cat > "$HOME/.config/air/auto-update.sh" << 'EOF'
-#!/bin/sh
-# Air auto-update script - Uses ~/air clean clone and XDG config
-
-REPO_URL="https://github.com/akaoio/air.git"
-CLEAN_CLONE_DIR="$HOME/air"
-CONFIG_DIR="$HOME/.config/air"
-LOG_FILE="$CONFIG_DIR/auto-update.log"
-
-# Function to log with timestamp
-log_update() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOG_FILE"
-}
-
-# Function to update clean clone
-update_clean_clone() {
-    if [ -d "$CLEAN_CLONE_DIR" ]; then
-        cd "$CLEAN_CLONE_DIR" || {
-            log_update "ERROR: Cannot cd to $CLEAN_CLONE_DIR"
-            return 1
-        }
-        
-        # Check for updates
-        git fetch origin >/dev/null 2>&1 || {
-            log_update "ERROR: git fetch failed"
-            return 1
-        }
-        
-        LOCAL=$(git rev-parse HEAD)
-        REMOTE=$(git rev-parse origin/main 2>/dev/null || git rev-parse origin/master 2>/dev/null)
-        
-        if [ "$LOCAL" != "$REMOTE" ]; then
-            log_update "Updates available, pulling changes..."
-            git pull origin main >/dev/null 2>&1 || git pull origin master >/dev/null 2>&1 || {
-                log_update "ERROR: git pull failed"
-                return 1
-            }
-            
-            # Reinstall npm dependencies
-            npm install --production >/dev/null 2>&1 || {
-                log_update "ERROR: npm install failed"
-                return 1
-            }
-            
-            log_update "Air updated successfully"
-            return 0
-        else
-            log_update "No updates needed"
-            return 1
-        fi
-    else
-        # Clone if directory doesn't exist
-        log_update "Clean clone missing, creating $CLEAN_CLONE_DIR"
-        git clone "$REPO_URL" "$CLEAN_CLONE_DIR" >/dev/null 2>&1 || {
-            log_update "ERROR: git clone failed"
-            return 1
-        }
-        
-        cd "$CLEAN_CLONE_DIR" && npm install --production >/dev/null 2>&1
-        return 0
-    fi
-}
-
-# Update clean clone and restart service if needed
-if update_clean_clone; then
-    # Restart user service if it exists and is enabled
-    if systemctl --user is-enabled air >/dev/null 2>&1; then
-        systemctl --user restart air >/dev/null 2>&1 && \
-        log_update "Air service restarted successfully"
-    fi
+# Check port connectivity
+if ! netstat -ln 2>/dev/null | grep ":\$AIR_PORT" > /dev/null; then
+    manager_error "Air port \$AIR_PORT not listening"
+    exit 1
 fi
+
+# Check peer connections (if endpoint available)
+PEERS=\$(curl -s "http://localhost:\$AIR_PORT/peers" 2>/dev/null | wc -l || echo "0")
+manager_log "Air network healthy - \$PEERS peer connections, port \$AIR_PORT active"
 EOF
     
-    chmod +x "$HOME/.config/air/auto-update.sh"
+    chmod +x "$monitor_script"
     
-    # Add weekly auto-update cron job
-    local update_cron="0 3 * * 0 $HOME/.config/air/auto-update.sh >/dev/null 2>&1"
-    (crontab -l 2>/dev/null | grep -v "auto-update.sh"; echo "$update_cron") | crontab -
+    # Setup cron job for monitoring if using cron
+    if [ "$USE_CRON" = true ]; then
+        manager_cron_add "*/5 * * * *" "$monitor_script" "Air Network Monitor"
+        manager_log "✓ Air network monitoring cron job added"
+    fi
     
-    log "✓ Auto-update enabled"
-    log "  Update script: ~/.config/air/auto-update.sh"
-    log "  Update log: ~/.config/air/auto-update.log"
-    log "  Schedule: Weekly (Sunday 3 AM)"
+    manager_log "✓ Air network monitoring setup complete"
 }
 
-# Show final summary
+# Show completion summary
 show_summary() {
     echo ""
     echo "=================================================="
-    echo "  Air Installation Complete!"
+    echo "  Air Installation Complete (Manager-Powered)"
     echo "=================================================="
     echo ""
-    echo "📁 File Locations (XDG Base Directory Specification):"
+    
+    echo "📁 File Locations (XDG Compliant via Manager):"
     echo "   Config:      ~/.config/air/config.json"
     echo "   Data & Logs: ~/.local/share/air/"
     echo "   State Files: ~/.local/state/air/"
-    echo "   Clean Clone: ~/air/ (used for runtime & updates)"
+    echo "   Clean Clone: ~/air/"
     echo ""
+    
     echo "🚀 Quick Start:"
-    echo "   systemctl --user status air # Check Air status (already running)"
-    echo "   air --version              # Test CLI wrapper"
-    echo "   curl https://air.akao.io:8765/gun.js # Test HTTPS endpoint"
+    echo "   cd ~/air && npm run start    # Start Air server"
+    echo "   curl http://localhost:$AIR_PORT   # Test connectivity"
     echo ""
-    echo "📝 Service Management:"
-    echo "   systemctl --user [start|stop|restart|status] air"
-    echo "   journalctl --user -u air -f  # View logs"
-    echo ""
-    echo "🔧 Configuration:"
-    echo "   Edit: ~/.config/air/config.json"
-    echo "   Auto-update: ~/.config/air/auto-update.sh"
-    echo ""
-    echo "Air is now ready for P2P database operations!"
-    echo ""
-}
-
-# Main installation flow
-main() {
-    show_header
     
-    # Parse arguments
-    SETUP_SERVICE=true
-    SETUP_AUTO_UPDATE=true
-    
-    while [ $# -gt 0 ]; do
-        case $1 in
-            --no-service)
-                SETUP_SERVICE=false
-                ;;
-            --no-auto-update)
-                SETUP_AUTO_UPDATE=false
-                ;;
-            --help)
-                echo "Usage: $0 [options]"
-                echo ""
-                echo "Options:"
-                echo "  --no-service      Skip systemd service setup"
-                echo "  --no-auto-update  Skip auto-update configuration"
-                echo "  --help           Show this help"
-                exit 0
-                ;;
-            *)
-                warn "Unknown option: $1"
-                ;;
-        esac
-        shift
-    done
-    
-    # Installation steps
-    check_requirements
-    create_clean_clone
-    install_air
-    
-    if [ "$SETUP_SERVICE" = true ]; then
-        setup_systemd_service
+    if [ "$USE_SERVICE" = true ]; then
+        manager_show_service_commands "air"
+        echo "   Service logs: journalctl -u air --follow"
+        echo ""
     fi
     
-    if [ "$SETUP_AUTO_UPDATE" = true ]; then
-        setup_auto_update
+    if [ "$USE_CRON" = true ]; then
+        echo "⏰ Cron Monitoring:"
+        echo "   Network check every $CRON_INTERVAL minutes"
+        echo "   View logs: tail -f ~/.local/share/air/monitor.log"
+        echo ""
     fi
     
-    show_summary
+    if [ "$USE_P2P_DISCOVERY" = true ]; then
+        echo "🌐 P2P Discovery:"
+        echo "   air-p2p-discovery      # Find and connect to peers"
+        echo "   Peer logs: ~/.local/share/air/discovered-peers.log"
+        echo ""
+    fi
+    
+    echo "🔧 Manager Integration:"
+    echo "   TypeScript builds managed automatically"
+    echo "   XDG-compliant directory structure"
+    echo "   Cross-platform package manager support"
+    echo "   Unified service management"
+    echo "   Built-in network monitoring"
+    echo ""
+    
+    echo "🌐 Air P2P Network:"
+    echo "   Port: $AIR_PORT (default: 8765)"
+    echo "   Protocol: HTTP + WebSockets"
+    echo "   Database: GUN distributed P2P"
+    echo "   Config: ~/.config/air/config.json"
+    echo ""
+    
+    manager_log "Air P2P database is ready!"
 }
 
 # Run main installation

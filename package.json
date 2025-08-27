@@ -2,18 +2,37 @@
     "name": "@akaoio/air",
     "type": "module",
     "version": "2.1.0",
-    "description": "Distributed graph database",
-    "main": "index.js",
+    "description": "Distributed P2P database system with Manager framework integration",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
     "license": "MIT",
     "dependencies": {
         "@akaoio/gun": "^0.2020.1240",
-        "node-fetch": "^3.0.0"
+        "node-fetch": "^3.0.0",
+        "@akaoio/builder": "file:../builder",
+        "@akaoio/battle": "file:../battle", 
+        "@akaoio/composer": "file:../composer",
+        "@akaoio/manager": "file:../manager"
     },
     "scripts": {
-        "start": "node main.js",
-        "format": "npx prettier --write ."
+        "build": "akao-build",
+        "dev": "akao-build --watch", 
+        "start": "./air.sh start",
+        "stop": "./air.sh stop",
+        "restart": "./air.sh restart",
+        "status": "./air.sh status",
+        "logs": "./air.sh logs",
+        "test": "npm run -w @akaoio/battle test",
+        "test:watch": "npm run -w @akaoio/battle test -- --watch",
+        "docs": "npm run -w @akaoio/composer build:doc",
+        "format": "npx prettier --write .",
+        "clean": "rm -rf dist",
+        "install": "./install.sh",
+        "install:full": "./install.sh --redundant --auto-update"
     },
     "devDependencies": {
-        "prettier": "^2.4.1"
+        "@types/node": "^20.0.0",
+        "prettier": "^2.4.1",
+        "typescript": "^5.0.0"
     }
 }

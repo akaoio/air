@@ -31,8 +31,14 @@ function isProcessRunning(pid: number): boolean {
 /**
  * Acquire lock for Air process
  * Returns true if lock acquired, false if another instance is running
+ * Set FORCE_AIR=true to bypass singleton check for development
  */
 export function acquireLock(command: string = "air"): boolean {
+    // Development bypass for testing - use with caution
+    if (process.env.FORCE_AIR === "true" || process.env.NODE_ENV === "development") {
+        console.log("🚧 Development mode: bypassing singleton lock")
+        return true
+    }
     try {
         // Check existing lock
         if (fs.existsSync(LOCK_FILE)) {

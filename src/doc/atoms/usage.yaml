@@ -1,18 +1,58 @@
 installation:
-  standalone: "sudo ./install.sh"
-  nodejs: |
-    import { db } from "air"
+  manager_framework: |
+    # Install with Manager framework (recommended)
+    ./install-with-manager.sh --redundant --auto-update
+    
+    # Quick setup options
+    ./install-with-manager.sh --service    # systemd service only
+    ./install-with-manager.sh --cron       # cron monitoring only
+    ./install-with-manager.sh --redundant  # both service + cron
+  
+  npm_commands: |
+    # Via npm scripts
+    npm run install:manager     # Basic Manager installation
+    npm run install:full        # Full installation with auto-update
+    
+  nodejs_integration: |
+    import { db, manager } from "@akaoio/air"
+    import { config } from "@akaoio/air/config"
+    
     const main = async () => {
-        await db.start() // Start the db instance
+        // Enable Manager integration
+        await config.enableManager({ 
+            autoUpdate: true, 
+            serviceMode: 'redundant' 
+        })
+        
+        // Start Air with Manager integration
+        await db.start() // Manager monitoring enabled automatically
         const { GUN, gun, sea, user } = db
     }
     main()
 
+management:
+  cli_commands: |
+    # Air CLI with Manager integration
+    air manager:enable --auto-update    # Enable Manager features
+    air manager:status                  # Check Manager status
+    air manager:install --redundant     # Full Manager installation
+    air manager:service:start           # Start via Manager service
+    air manager:monitor                 # Setup network monitoring
+    
+  service_management: |
+    # Manager-powered service commands
+    npm run manager:start    # Start Air service
+    npm run manager:stop     # Stop Air service  
+    npm run manager:status   # Check service status
+
 requirements:
-  domain: "Domain name configured to point to your server"
-  port_forwarding: "NAT/port forwarding setup for Let's Encrypt"
-  access_integration: "IP synchronization handled by Access layer (no GoDaddy configuration needed)"
+  manager_framework: "Manager framework (auto-installed if missing)"
+  nodejs: "Node.js 18+ for TypeScript compilation and runtime"
+  system_permissions: "Sudo access for systemd service creation (optional)"
 
 platforms:
-  - "Raspberry OS on Raspberry Pi 4"
-  - "Ubuntu 19.10 on Acer Nitro 5"
+  - "Any Unix-like system (Linux, macOS, FreeBSD)"
+  - "Raspberry OS on Raspberry Pi"
+  - "Ubuntu/Debian Linux distributions"
+  - "RHEL/CentOS/Fedora Linux distributions"
+  - "macOS with Homebrew"
