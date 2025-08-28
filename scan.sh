@@ -18,16 +18,16 @@ fi
 # Load Manager framework
 . "$MANAGER_DIR/manager.sh"
 
-# Initialize Manager for Air discovery
-manager_init "air-discovery" \
+# Initialize Manager for Air scan
+manager_init "air-scan" \
              "https://github.com/akaoio/air.git" \
-             "discovery" \
-             "Air P2P Network Discovery"
+             "scan" \
+             "Air P2P Network Scan"
 
 # Configuration paths (XDG compliant via Manager)
-DISCOVERY_CONFIG="${DISCOVERY_CONFIG:-$MANAGER_CONFIG_DIR/discovery.json}"
-DISCOVERY_STATE="${DISCOVERY_STATE:-$MANAGER_STATE_DIR/discovery.state}"
-DISCOVERY_LOG="${DISCOVERY_LOG:-$MANAGER_DATA_DIR/discovery.log}"
+SCAN_CONFIG="${SCAN_CONFIG:-$MANAGER_CONFIG_DIR/scan.json}"
+SCAN_STATE="${SCAN_STATE:-$MANAGER_STATE_DIR/scan.state}"
+SCAN_LOG="${SCAN_LOG:-$MANAGER_DATA_DIR/scan.log}"
 
 # Default values - domain-agnostic
 DEFAULT_DISCOVERY_METHOD="multicast"  # multicast, dns, dht, manual
@@ -37,31 +37,31 @@ DEFAULT_MAX_PEERS=50
 DEFAULT_PORT=8765
 
 # Discovery methods for different environments
-ENABLE_MULTICAST="${ENABLE_MULTICAST:-true}"    # Local network discovery
-ENABLE_DNS="${ENABLE_DNS:-false}"               # DNS-based discovery (optional)
-ENABLE_DHT="${ENABLE_DHT:-true}"                # DHT-based discovery (GUN native)
+ENABLE_MULTICAST="${ENABLE_MULTICAST:-true}"    # Local network scan
+ENABLE_DNS="${ENABLE_DNS:-false}"               # DNS-based scan (optional)
+ENABLE_DHT="${ENABLE_DHT:-true}"                # DHT-based scan (GUN native)
 ENABLE_MANUAL="${ENABLE_MANUAL:-true}"          # Manual peer configuration
 
-# Initialize discovery system
-init_discovery() {
-    manager_log "Initializing Air discovery system..."
+# Initialize scan system
+init_scan() {
+    manager_log "Initializing Air scan system..."
     
     # Create necessary directories
-    mkdir -p "$(dirname "$DISCOVERY_CONFIG")"
-    mkdir -p "$(dirname "$DISCOVERY_STATE")"
-    mkdir -p "$(dirname "$DISCOVERY_LOG")"
+    mkdir -p "$(dirname "$SCAN_CONFIG")"
+    mkdir -p "$(dirname "$SCAN_STATE")"
+    mkdir -p "$(dirname "$SCAN_LOG")"
     
     # Initialize configuration if not exists
-    if [ ! -f "$DISCOVERY_CONFIG" ]; then
+    if [ ! -f "$SCAN_CONFIG" ]; then
         create_default_config
     fi
 }
 
 # Create default configuration - domain-agnostic
 create_default_config() {
-    cat > "$DISCOVERY_CONFIG" << EOF
+    cat > "$SCAN_CONFIG" << EOF
 {
-    "discovery": {
+    "scan": {
         "methods": {
             "multicast": $ENABLE_MULTICAST,
             "dns": $ENABLE_DNS,
@@ -101,22 +101,22 @@ create_default_config() {
     }
 }
 EOF
-    chmod 600 "$DISCOVERY_CONFIG"
-    manager_log "Created default discovery configuration"
+    chmod 600 "$SCAN_CONFIG"
+    manager_log "Created default scan configuration"
 }
 
-# Load discovery configuration
-load_discovery_config() {
-    if [ -f "$DISCOVERY_CONFIG" ]; then
+# Load scan configuration
+load_scan_config() {
+    if [ -f "$SCAN_CONFIG" ]; then
         # Load configuration values
-        MULTICAST_ENABLED=$(grep -o '"multicast":[^,}]*' "$DISCOVERY_CONFIG" | head -1 | cut -d: -f2 | tr -d ' ')
-        DNS_ENABLED=$(grep -o '"dns":[^,}]*' "$DISCOVERY_CONFIG" | head -1 | cut -d: -f2 | tr -d ' ')
-        DHT_ENABLED=$(grep -o '"dht":[^,}]*' "$DISCOVERY_CONFIG" | head -1 | cut -d: -f2 | tr -d ' ')
-        MANUAL_ENABLED=$(grep -o '"manual":[^,}]*' "$DISCOVERY_CONFIG" | head -1 | cut -d: -f2 | tr -d ' ')
+        MULTICAST_ENABLED=$(grep -o '"multicast":[^,}]*' "$SCAN_CONFIG" | head -1 | cut -d: -f2 | tr -d ' ')
+        DNS_ENABLED=$(grep -o '"dns":[^,}]*' "$SCAN_CONFIG" | head -1 | cut -d: -f2 | tr -d ' ')
+        DHT_ENABLED=$(grep -o '"dht":[^,}]*' "$SCAN_CONFIG" | head -1 | cut -d: -f2 | tr -d ' ')
+        MANUAL_ENABLED=$(grep -o '"manual":[^,}]*' "$SCAN_CONFIG" | head -1 | cut -d: -f2 | tr -d ' ')
         
-        MAX_PEERS=$(grep -o '"max_peers":[^,}]*' "$DISCOVERY_CONFIG" | cut -d: -f2 | tr -d ' ')
-        CHECK_INTERVAL=$(grep -o '"check_interval":[^,}]*' "$DISCOVERY_CONFIG" | cut -d: -f2 | tr -d ' ')
-        AIR_PORT=$(grep -o '"port":[^,}]*' "$DISCOVERY_CONFIG" | tail -1 | cut -d: -f2 | tr -d ' ')
+        MAX_PEERS=$(grep -o '"max_peers":[^,}]*' "$SCAN_CONFIG" | cut -d: -f2 | tr -d ' ')
+        CHECK_INTERVAL=$(grep -o '"check_interval":[^,}]*' "$SCAN_CONFIG" | cut -d: -f2 | tr -d ' ')
+        AIR_PORT=$(grep -o '"port":[^,}]*' "$SCAN_CONFIG" | tail -1 | cut -d: -f2 | tr -d ' ')
     else
         # Use defaults
         MULTICAST_ENABLED=$ENABLE_MULTICAST
@@ -129,52 +129,52 @@ load_discovery_config() {
     fi
 }
 
-# Multicast discovery - find peers on local network
+# Multicast scan - find peers on local network
 discover_multicast() {
     if [ "$MULTICAST_ENABLED" != "true" ]; then
         return
     fi
     
-    manager_log "Starting multicast discovery on local network..."
+    manager_log "Starting multicast scan on local network..."
     
     # This would typically use Node.js multicast from Air itself
-    # Shell script triggers the Node.js discovery module
-    if [ -f "$MANAGER_CLEAN_CLONE_DIR/dist/discovery.js" ]; then
-        node "$MANAGER_CLEAN_CLONE_DIR/dist/discovery.js" multicast &
-        echo $! > "$MANAGER_STATE_DIR/discovery-multicast.pid"
+    # Shell script triggers the Node.js scan module
+    if [ -f "$MANAGER_CLEAN_CLONE_DIR/dist/scan.js" ]; then
+        node "$MANAGER_CLEAN_CLONE_DIR/dist/scan.js" multicast &
+        echo $! > "$MANAGER_STATE_DIR/scan-multicast.pid"
     fi
 }
 
-# DHT discovery - use GUN's native DHT
+# DHT scan - use GUN's native DHT
 discover_dht() {
     if [ "$DHT_ENABLED" != "true" ]; then
         return
     fi
     
-    manager_log "Starting DHT-based peer discovery..."
+    manager_log "Starting DHT-based peer scan..."
     
     # GUN handles DHT natively - just ensure bootstrap peers are configured
     # This is handled in the main Air application via GUN configuration
-    echo "dht_enabled" > "$DISCOVERY_STATE"
+    echo "dht_enabled" > "$SCAN_STATE"
 }
 
-# DNS discovery - optional, domain-agnostic
+# DNS scan - optional, domain-agnostic
 discover_dns() {
     if [ "$DNS_ENABLED" != "true" ]; then
         return
     fi
     
     # Only use DNS if explicitly configured with a domain
-    local domain=$(grep -o '"domain":"[^"]*"' "$DISCOVERY_CONFIG" | cut -d'"' -f4)
+    local domain=$(grep -o '"domain":"[^"]*"' "$SCAN_CONFIG" | cut -d'"' -f4)
     if [ -z "$domain" ]; then
-        manager_warn "DNS discovery enabled but no domain configured"
+        manager_warn "DNS scan enabled but no domain configured"
         return
     fi
     
-    manager_log "Starting DNS-based discovery for domain: $domain"
+    manager_log "Starting DNS-based scan for domain: $domain"
     
     # Discover peers via DNS TXT or A records
-    local prefix=$(grep -o '"prefix":"[^"]*"' "$DISCOVERY_CONFIG" | cut -d'"' -f4)
+    local prefix=$(grep -o '"prefix":"[^"]*"' "$SCAN_CONFIG" | cut -d'"' -f4)
     prefix="${prefix:-$DEFAULT_PEER_PREFIX}"
     
     # Try to find peer records
@@ -200,7 +200,7 @@ discover_manual() {
     
     # Extract manual peers from config
     # Format: ["host1:port1", "host2:port2", ...]
-    local peers=$(grep -o '"peers":\[[^]]*\]' "$DISCOVERY_CONFIG" | sed 's/.*\[//' | sed 's/\]//' | tr ',' '\n' | tr -d '"' | tr -d ' ')
+    local peers=$(grep -o '"peers":\[[^]]*\]' "$SCAN_CONFIG" | sed 's/.*\[//' | sed 's/\]//' | tr ',' '\n' | tr -d '"' | tr -d ' ')
     
     if [ -n "$peers" ]; then
         echo "$peers" | while read -r peer; do
@@ -221,7 +221,7 @@ add_peer() {
     local port="${2:-$AIR_PORT}"
     
     # Save to state file
-    echo "${host}:${port}" >> "$DISCOVERY_STATE.peers"
+    echo "${host}:${port}" >> "$SCAN_STATE.peers"
     
     # Trigger connection in Air (via Node.js)
     if [ -f "$MANAGER_CLEAN_CLONE_DIR/dist/cli.js" ]; then
@@ -233,8 +233,8 @@ add_peer() {
 show_peers() {
     manager_log "Current discovered peers:"
     
-    if [ -f "$DISCOVERY_STATE.peers" ]; then
-        cat "$DISCOVERY_STATE.peers" | sort -u | while read -r peer; do
+    if [ -f "$SCAN_STATE.peers" ]; then
+        cat "$SCAN_STATE.peers" | sort -u | while read -r peer; do
             echo "  • $peer"
         done
     else
@@ -261,41 +261,41 @@ air_is_running() {
     fi
 }
 
-# Configure discovery for a specific environment
-configure_discovery() {
+# Configure scan for a specific environment
+configure_scan() {
     local method="$1"
     
     case "$method" in
         local)
-            manager_log "Configuring for local network discovery only"
-            sed -i 's/"multicast": [^,]*/"multicast": true/' "$DISCOVERY_CONFIG"
-            sed -i 's/"dns": [^,]*/"dns": false/' "$DISCOVERY_CONFIG"
-            sed -i 's/"dht": [^,]*/"dht": false/' "$DISCOVERY_CONFIG"
+            manager_log "Configuring for local network scan only"
+            sed -i 's/"multicast": [^,]*/"multicast": true/' "$SCAN_CONFIG"
+            sed -i 's/"dns": [^,]*/"dns": false/' "$SCAN_CONFIG"
+            sed -i 's/"dht": [^,]*/"dht": false/' "$SCAN_CONFIG"
             ;;
         global)
-            manager_log "Configuring for global P2P discovery"
-            sed -i 's/"multicast": [^,]*/"multicast": false/' "$DISCOVERY_CONFIG"
-            sed -i 's/"dns": [^,]*/"dns": false/' "$DISCOVERY_CONFIG"
-            sed -i 's/"dht": [^,]*/"dht": true/' "$DISCOVERY_CONFIG"
+            manager_log "Configuring for global P2P scan"
+            sed -i 's/"multicast": [^,]*/"multicast": false/' "$SCAN_CONFIG"
+            sed -i 's/"dns": [^,]*/"dns": false/' "$SCAN_CONFIG"
+            sed -i 's/"dht": [^,]*/"dht": true/' "$SCAN_CONFIG"
             ;;
         hybrid)
-            manager_log "Configuring for hybrid discovery (all methods)"
-            sed -i 's/"multicast": [^,]*/"multicast": true/' "$DISCOVERY_CONFIG"
-            sed -i 's/"dns": [^,]*/"dns": false/' "$DISCOVERY_CONFIG"
-            sed -i 's/"dht": [^,]*/"dht": true/' "$DISCOVERY_CONFIG"
+            manager_log "Configuring for hybrid scan (all methods)"
+            sed -i 's/"multicast": [^,]*/"multicast": true/' "$SCAN_CONFIG"
+            sed -i 's/"dns": [^,]*/"dns": false/' "$SCAN_CONFIG"
+            sed -i 's/"dht": [^,]*/"dht": true/' "$SCAN_CONFIG"
             ;;
         dns)
             local domain="$2"
             if [ -z "$domain" ]; then
-                manager_error "DNS discovery requires a domain"
+                manager_error "DNS scan requires a domain"
                 exit 1
             fi
-            manager_log "Configuring DNS discovery for domain: $domain"
-            sed -i 's/"dns": [^,]*/"dns": true/' "$DISCOVERY_CONFIG"
-            sed -i "s/\"domain\": \"[^\"]*\"/\"domain\": \"$domain\"/" "$DISCOVERY_CONFIG"
+            manager_log "Configuring DNS scan for domain: $domain"
+            sed -i 's/"dns": [^,]*/"dns": true/' "$SCAN_CONFIG"
+            sed -i "s/\"domain\": \"[^\"]*\"/\"domain\": \"$domain\"/" "$SCAN_CONFIG"
             ;;
         *)
-            manager_error "Unknown discovery method: $method"
+            manager_error "Unknown scan method: $method"
             echo "Available methods: local, global, hybrid, dns <domain>"
             exit 1
             ;;
@@ -315,7 +315,7 @@ add_manual_peer() {
     
     # Add to config file
     # TODO: Implement JSON array manipulation in POSIX shell
-    echo "$peer" >> "$DISCOVERY_STATE.manual"
+    echo "$peer" >> "$SCAN_STATE.manual"
     
     # Try to connect immediately
     local host=$(echo "$peer" | cut -d: -f1)
@@ -324,15 +324,15 @@ add_manual_peer() {
     add_peer "$host" "$port"
 }
 
-# Main discovery daemon
-run_discovery_daemon() {
-    manager_log "Starting Air discovery daemon..."
+# Main scan daemon
+run_scan_daemon() {
+    manager_log "Starting Air scan daemon..."
     
     # Initialize
-    init_discovery
-    load_discovery_config
+    init_scan
+    load_scan_config
     
-    # Start discovery methods
+    # Start scan methods
     discover_multicast
     discover_dht
     discover_dns
@@ -357,56 +357,56 @@ run_discovery_daemon() {
 # Command line interface
 case "${1:-help}" in
     start)
-        run_discovery_daemon
+        run_scan_daemon
         ;;
     show|peers)
         show_peers
         ;;
     configure)
-        configure_discovery "$2" "$3"
+        configure_scan "$2" "$3"
         ;;
     add)
         add_manual_peer "$2"
         ;;
     init)
-        init_discovery
+        init_scan
         manager_log "Discovery system initialized"
         ;;
     help)
         cat << EOF
-Air Network Discovery - Domain-Agnostic P2P System
+Air Network Scan - Domain-Agnostic P2P System
 
-Usage: ./discovery.sh [command] [options]
+Usage: ./scan.sh [command] [options]
 
 Commands:
-  start           Start discovery daemon
+  start           Start scan daemon
   show, peers     Show discovered peers
-  configure TYPE  Configure discovery method
+  configure TYPE  Configure scan method
                   Types: local, global, hybrid, dns <domain>
   add PEER        Add manual peer (host:port)
-  init            Initialize discovery configuration
+  init            Initialize scan configuration
   help            Show this help message
 
-Discovery Methods:
+Scan Methods:
   • Multicast - Discover peers on local network (LAN)
   • DHT - Distributed hash table via GUN network
-  • DNS - Optional DNS-based discovery (if domain configured)
+  • DNS - Optional DNS-based scan (if domain configured)
   • Manual - Explicitly configured peer addresses
 
 Examples:
-  ./discovery.sh start              # Start discovery daemon
-  ./discovery.sh configure global   # Use DHT for global discovery
-  ./discovery.sh configure dns example.com  # Enable DNS discovery
-  ./discovery.sh add 192.168.1.100:8765    # Add manual peer
-  ./discovery.sh show                # Show all discovered peers
+  ./scan.sh start              # Start scan daemon
+  ./scan.sh configure global   # Use DHT for global scan
+  ./scan.sh configure dns example.com  # Enable DNS scan
+  ./scan.sh add 192.168.1.100:8765    # Add manual peer
+  ./scan.sh show                # Show all discovered peers
 
 Air is designed for the world, not tied to any specific domain.
-Default configuration uses DHT for global P2P discovery.
+Default configuration uses DHT for global P2P scan.
 EOF
         ;;
     *)
         manager_error "Unknown command: $1"
-        echo "Use './discovery.sh help' for usage information"
+        echo "Use './scan.sh help' for usage information"
         exit 1
         ;;
 esac
