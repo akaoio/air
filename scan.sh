@@ -1,5 +1,5 @@
 #!/bin/sh
-# Air Network Discovery Module - Domain-Agnostic P2P System
+# Air Network Scan Module - Domain-Agnostic P2P System
 # Enables Air nodes to discover and connect to peers globally
 # Not tied to any specific domain - works for the world
 

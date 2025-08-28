@@ -554,7 +554,7 @@ export class Peer {
         // For now, delegate to shell discovery script
         try {
             const { spawn } = require('child_process')
-            const discovery = spawn('sh', ['-c', './discovery.sh multicast &'])
+            const discovery = spawn('sh', ['-c', './scan.sh multicast &'])
             console.log('Multicast discovery process started')
         } catch (error) {
             console.warn('Multicast discovery failed:', error)
@@ -596,7 +596,7 @@ export class Peer {
         // Delegate to shell discovery script for DNS operations
         try {
             const { spawn } = require('child_process')
-            const discovery = spawn('sh', ['-c', `./discovery.sh configure dns ${domain} && ./discovery.sh start &`])
+            const discovery = spawn('sh', ['-c', `./scan.sh configure dns ${domain} && ./scan.sh start &`])
             console.log('DNS discovery process started')
         } catch (error) {
             console.warn('DNS discovery failed:', error)
