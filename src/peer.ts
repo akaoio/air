@@ -96,9 +96,9 @@ export class Peer {
         this.config[this.env].port = process.env.PORT || this.config[this.env]?.port || 8765
         this.config[this.env].peers = this.config[this.env]?.peers || this.config.peers || []
         
-        // Domain-agnostic peer discovery configuration
-        this.config[this.env].discovery = this.config[this.env]?.discovery || {
-            enabled: process.env.AIR_DISCOVERY_ENABLED === 'true' || true,
+        // Domain-agnostic peer scan configuration
+        this.config[this.env].scan = this.config[this.env]?.scan || {
+            enabled: process.env.AIR_SCAN_ENABLED === 'true' || true,
             methods: {
                 multicast: process.env.AIR_MULTICAST_ENABLED !== 'false',
                 dht: process.env.AIR_DHT_ENABLED !== 'false', 
@@ -110,7 +110,7 @@ export class Peer {
                 port: parseInt(process.env.AIR_MULTICAST_PORT || '8766')
             },
             dns: {
-                domain: process.env.AIR_DNS_DOMAIN || '', // Empty = no DNS discovery
+                domain: process.env.AIR_DNS_DOMAIN || '', // Empty = no DNS scan
                 prefix: process.env.AIR_DNS_PREFIX || 'air-node'
             },
             dht: {
@@ -241,7 +241,7 @@ export class Peer {
         await this.syncConfig()
         await this.run()
         await this.online()
-        await this.startPeerDiscovery()
+        await this.startPeerScan()
         
         if (callback) await callback(this)
     }
@@ -511,62 +511,62 @@ export class Peer {
     }
 
     /**
-     * Domain-agnostic peer discovery system
+     * Domain-agnostic peer scan system
      * Designed for the world, not tied to any specific domain
      */
-    async startPeerDiscovery() {
-        const discovery = this.config[this.env].discovery
-        if (!discovery?.enabled) {
-            console.log('Peer discovery disabled')
+    async startPeerScan() {
+        const scan = this.config[this.env].scan
+        if (!scan?.enabled) {
+            console.log('Peer scan disabled')
             return
         }
 
-        console.log('🌍 Starting domain-agnostic peer discovery...')
+        console.log('🌍 Starting domain-agnostic peer scan...')
         
-        // Start discovery methods
-        if (discovery.methods.multicast) {
-            this.startMulticastDiscovery()
+        // Start scan methods
+        if (scan.methods.multicast) {
+            this.startMulticastScan()
         }
         
-        if (discovery.methods.dht) {
-            this.startDHTDiscovery()
+        if (scan.methods.dht) {
+            this.startDHTScan()
         }
         
-        if (discovery.methods.dns && discovery.dns.domain) {
-            this.startDNSDiscovery()
+        if (scan.methods.dns && scan.dns.domain) {
+            this.startDNSScan()
         }
         
-        if (discovery.methods.manual) {
+        if (scan.methods.manual) {
             this.loadManualPeers()
         }
         
-        console.log('✅ Peer discovery initialized')
+        console.log('✅ Peer scan initialized')
     }
 
     /**
-     * Multicast discovery for local network peers
+     * Multicast scan for local network peers
      */
-    private startMulticastDiscovery() {
-        const { address, port } = this.config[this.env].discovery.multicast
-        console.log(`🏠 Starting multicast discovery on ${address}:${port}`)
+    private startMulticastScan() {
+        const { address, port } = this.config[this.env].scan.multicast
+        console.log(`🏠 Starting multicast scan on ${address}:${port}`)
         
         // This would use Node.js dgram for multicast UDP
-        // For now, delegate to shell discovery script
+        // For now, delegate to shell scan script
         try {
             const { spawn } = require('child_process')
-            const discovery = spawn('sh', ['-c', './scan.sh multicast &'])
-            console.log('Multicast discovery process started')
+            const scan = spawn('sh', ['-c', './scan.sh multicast &'])
+            console.log('Multicast scan process started')
         } catch (error) {
-            console.warn('Multicast discovery failed:', error)
+            console.warn('Multicast scan failed:', error)
         }
     }
 
     /**
-     * DHT-based discovery using GUN's native DHT capabilities
+     * DHT-based scan using GUN's native DHT capabilities
      */
-    private startDHTDiscovery() {
-        const bootstrap = this.config[this.env].discovery.dht.bootstrap
-        console.log('🌐 Starting DHT discovery with bootstrap peers:', bootstrap)
+    private startDHTScan() {
+        const bootstrap = this.config[this.env].scan.dht.bootstrap
+        console.log('🌐 Starting DHT scan with bootstrap peers:', bootstrap)
         
         // GUN handles DHT natively - just ensure bootstrap peers are configured
         if (bootstrap && bootstrap.length > 0) {
@@ -582,24 +582,24 @@ export class Peer {
     }
 
     /**
-     * DNS-based discovery (optional, only if domain is configured)
+     * DNS-based scan (optional, only if domain is configured)
      */
-    private startDNSDiscovery() {
-        const { domain, prefix } = this.config[this.env].discovery.dns
+    private startDNSScan() {
+        const { domain, prefix } = this.config[this.env].scan.dns
         if (!domain) {
-            console.log('DNS discovery: no domain configured, skipping')
+            console.log('DNS scan: no domain configured, skipping')
             return
         }
         
-        console.log(`🌐 Starting DNS discovery for ${domain} with prefix ${prefix}`)
+        console.log(`🌐 Starting DNS scan for ${domain} with prefix ${prefix}`)
         
-        // Delegate to shell discovery script for DNS operations
+        // Delegate to shell scan script for DNS operations
         try {
             const { spawn } = require('child_process')
-            const discovery = spawn('sh', ['-c', `./scan.sh configure dns ${domain} && ./scan.sh start &`])
-            console.log('DNS discovery process started')
+            const scan = spawn('sh', ['-c', `./scan.sh configure dns ${domain} && ./scan.sh start &`])
+            console.log('DNS scan process started')
         } catch (error) {
-            console.warn('DNS discovery failed:', error)
+            console.warn('DNS scan failed:', error)
         }
     }
 
@@ -648,18 +648,18 @@ export class Peer {
      */
     showPeerStatus() {
         const peers = this.config[this.env].peers || []
-        const discovery = this.config[this.env].discovery
+        const scan = this.config[this.env].scan
         
         console.log('\n📊 Air Peer Network Status:')
         console.log(`  Connected Peers: ${peers.length}`)
-        console.log(`  Discovery Enabled: ${discovery?.enabled ? 'Yes' : 'No'}`)
+        console.log(`  Scan Enabled: ${scan?.enabled ? 'Yes' : 'No'}`)
         
-        if (discovery?.enabled) {
-            console.log('  Discovery Methods:')
-            console.log(`    • Multicast: ${discovery.methods.multicast ? 'Enabled' : 'Disabled'}`)
-            console.log(`    • DHT: ${discovery.methods.dht ? 'Enabled' : 'Disabled'}`) 
-            console.log(`    • DNS: ${discovery.methods.dns && discovery.dns.domain ? `Enabled (${discovery.dns.domain})` : 'Disabled'}`)
-            console.log(`    • Manual: ${discovery.methods.manual ? 'Enabled' : 'Disabled'}`)
+        if (scan?.enabled) {
+            console.log('  Scan Methods:')
+            console.log(`    • Multicast: ${scan.methods.multicast ? 'Enabled' : 'Disabled'}`)
+            console.log(`    • DHT: ${scan.methods.dht ? 'Enabled' : 'Disabled'}`) 
+            console.log(`    • DNS: ${scan.methods.dns && scan.dns.domain ? `Enabled (${scan.dns.domain})` : 'Disabled'}`)
+            console.log(`    • Manual: ${scan.methods.manual ? 'Enabled' : 'Disabled'}`)
         }
         
         if (peers.length > 0) {

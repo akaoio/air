@@ -211,13 +211,13 @@ const commands: CLICommand[] = [
             console.log("  air manager:enable --auto-update  # Enable Manager with auto-updates")
             console.log("  air manager:install --redundant   # Install with systemd + cron")
             console.log("  air manager:service:status         # Check service status")
-            console.log("  air discovery                      # Show peer discovery status")
-            console.log("  air discovery start                # Start peer discovery")
+            console.log("  air scan                      # Show peer scan status")
+            console.log("  air scan start                # Start peer scan")
         }
     },
     {
-        name: "discovery",
-        description: "Domain-agnostic P2P peer discovery system",
+        name: "scan",
+        description: "Domain-agnostic P2P peer scan system",
         handler: async (args) => {
             const { Peer } = await import("./peer.js")
             const peer = new Peer()
@@ -226,40 +226,40 @@ const commands: CLICommand[] = [
             
             switch (subcommand) {
                 case "status":
-                    console.log("🌍 Air Domain-Agnostic Peer Discovery")
+                    console.log("🌍 Air Domain-Agnostic Peer Scan")
                     peer.showPeerStatus()
                     break
                     
                 case "start":
-                    console.log("🚀 Starting peer discovery...")
-                    await peer.startPeerDiscovery()
-                    console.log("✅ Peer discovery started")
+                    console.log("🚀 Starting peer scan...")
+                    await peer.startPeerScan()
+                    console.log("✅ Peer scan started")
                     break
                     
                 case "global":
-                    console.log("🌐 Configuring for global DHT discovery...")
-                    // Configure for DHT-based global discovery
+                    console.log("🌐 Configuring for global DHT scan...")
+                    // Configure for DHT-based global scan
                     process.env.AIR_MULTICAST_ENABLED = 'false'
                     process.env.AIR_DHT_ENABLED = 'true'
                     process.env.AIR_DNS_ENABLED = 'false'
-                    await peer.startPeerDiscovery()
-                    console.log("✅ Global discovery configured")
+                    await peer.startPeerScan()
+                    console.log("✅ Global scan configured")
                     break
                     
                 case "local":
-                    console.log("🏠 Configuring for local network discovery...")
-                    // Configure for multicast local discovery
+                    console.log("🏠 Configuring for local network scan...")
+                    // Configure for multicast local scan
                     process.env.AIR_MULTICAST_ENABLED = 'true'
                     process.env.AIR_DHT_ENABLED = 'false'
                     process.env.AIR_DNS_ENABLED = 'false'
-                    await peer.startPeerDiscovery()
-                    console.log("✅ Local discovery configured")
+                    await peer.startPeerScan()
+                    console.log("✅ Local scan configured")
                     break
                     
                 case "add":
                     const peerAddr = args[1]
                     if (!peerAddr) {
-                        console.error("❌ Peer address required: air discovery add <host:port>")
+                        console.error("❌ Peer address required: air scan add <host:port>")
                         return
                     }
                     console.log(`🔗 Adding manual peer: ${peerAddr}`)
@@ -268,13 +268,13 @@ const commands: CLICommand[] = [
                     break
                     
                 default:
-                    console.log("Air Discovery Commands:")
-                    console.log("  discovery [status]     Show current discovery status")
-                    console.log("  discovery start        Start peer discovery")
-                    console.log("  discovery global       Configure for global DHT discovery") 
-                    console.log("  discovery local        Configure for local network discovery")
-                    console.log("  discovery add HOST:PORT Add manual peer")
-                    console.log("\nAir is designed for the world - domain-agnostic P2P discovery")
+                    console.log("Air Scan Commands:")
+                    console.log("  scan [status]     Show current scan status")
+                    console.log("  scan start        Start peer scan")
+                    console.log("  scan global       Configure for global DHT scan") 
+                    console.log("  scan local        Configure for local network scan")
+                    console.log("  scan add HOST:PORT Add manual peer")
+                    console.log("\nAir is designed for the world - domain-agnostic P2P scan")
                     break
             }
         }

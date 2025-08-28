@@ -36,7 +36,7 @@ load_config() {
     # P2P settings
     AIR_P2P_MODE="${AIR_P2P_MODE:-}"
     AIR_PEER_LIMIT="${AIR_PEER_LIMIT:-}"
-    AIR_DISCOVERY="${AIR_DISCOVERY:-}"
+    AIR_SCAN="${AIR_SCAN:-}"
     AIR_BOOTSTRAP_PEERS="${AIR_BOOTSTRAP_PEERS:-}"
     
     # Service settings
@@ -217,7 +217,7 @@ export AIR_PROTOCOL="$(get_config PROTOCOL http)"
 # P2P
 export AIR_P2P_MODE="$(get_config P2P_MODE hybrid)"
 export AIR_PEER_LIMIT="$(get_config PEER_LIMIT 100)"
-export AIR_DISCOVERY="$(get_config DISCOVERY true)"
+export AIR_SCAN="$(get_config SCAN true)"
 
 # Service
 export AIR_SERVICE_TYPE="$(get_config SERVICE_TYPE manual)"
@@ -250,7 +250,7 @@ BIND=$(get_config BIND 0.0.0.0)
 # P2P Settings  
 P2P_MODE=$(get_config P2P_MODE hybrid)
 PEER_LIMIT=$(get_config PEER_LIMIT 100)
-DISCOVERY=$(get_config DISCOVERY true)
+SCAN=$(get_config SCAN true)
 
 # Service Settings
 SERVICE_TYPE=$(get_config SERVICE_TYPE manual)
@@ -306,7 +306,7 @@ show_config() {
     echo "P2P:"
     echo "  Mode:       $(get_config P2P_MODE hybrid)"
     echo "  Peer Limit: $(get_config PEER_LIMIT 100)"
-    echo "  Discovery:  $(get_config DISCOVERY true)"
+    echo "  Scan:  $(get_config SCAN true)"
     echo ""
     echo "Service:"
     echo "  Type:        $(get_config SERVICE_TYPE manual)"

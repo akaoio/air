@@ -30,13 +30,13 @@ SCAN_STATE="${SCAN_STATE:-$MANAGER_STATE_DIR/scan.state}"
 SCAN_LOG="${SCAN_LOG:-$MANAGER_DATA_DIR/scan.log}"
 
 # Default values - domain-agnostic
-DEFAULT_DISCOVERY_METHOD="multicast"  # multicast, dns, dht, manual
+DEFAULT_SCAN_METHOD="multicast"  # multicast, dns, dht, manual
 DEFAULT_PEER_PREFIX="air-node"
 DEFAULT_CHECK_INTERVAL=60
 DEFAULT_MAX_PEERS=50
 DEFAULT_PORT=8765
 
-# Discovery methods for different environments
+# Scan methods for different environments
 ENABLE_MULTICAST="${ENABLE_MULTICAST:-true}"    # Local network scan
 ENABLE_DNS="${ENABLE_DNS:-false}"               # DNS-based scan (optional)
 ENABLE_DHT="${ENABLE_DHT:-true}"                # DHT-based scan (GUN native)
@@ -173,7 +173,7 @@ discover_dns() {
     
     manager_log "Starting DNS-based scan for domain: $domain"
     
-    # Discover peers via DNS TXT or A records
+    # Scan for peers via DNS TXT or A records
     local prefix=$(grep -o '"prefix":"[^"]*"' "$SCAN_CONFIG" | cut -d'"' -f4)
     prefix="${prefix:-$DEFAULT_PEER_PREFIX}"
     
@@ -350,7 +350,7 @@ run_scan_daemon() {
         # Check peer health
         # This would be done by the Node.js Air application
         
-        manager_log "Discovery cycle completed, next check in ${CHECK_INTERVAL}s"
+        manager_log "Scan cycle completed, next check in ${CHECK_INTERVAL}s"
     done
 }
 
@@ -370,7 +370,7 @@ case "${1:-help}" in
         ;;
     init)
         init_scan
-        manager_log "Discovery system initialized"
+        manager_log "Scan system initialized"
         ;;
     help)
         cat << EOF
@@ -388,7 +388,7 @@ Commands:
   help            Show this help message
 
 Scan Methods:
-  • Multicast - Discover peers on local network (LAN)
+  • Multicast - Scan peers on local network (LAN)
   • DHT - Distributed hash table via GUN network
   • DNS - Optional DNS-based scan (if domain configured)
   • Manual - Explicitly configured peer addresses

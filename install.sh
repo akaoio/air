@@ -134,7 +134,7 @@ load_global_profile() {
     export AIR_PEER_LIMIT="unlimited"
     export AIR_DATA_DIR="${HOME}/.local/share/air"
     export AIR_RELAY="true"
-    export AIR_DISCOVERY="aggressive"
+    export AIR_SCAN="aggressive"
 }
 
 # Custom configuration - full control
@@ -406,7 +406,7 @@ configure_air() {
   "p2p": {
     "mode": "${AIR_P2P_MODE}",
     "maxPeers": ${AIR_PEER_LIMIT:-100},
-    "discovery": ${AIR_DISCOVERY:-true}
+    "scan": ${AIR_SCAN:-true}
   },
   "monitoring": ${AIR_MONITORING:-true},
   "autoUpdate": ${AIR_AUTO_UPDATE:-false},
