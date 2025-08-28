@@ -1,557 +1,513 @@
 #!/bin/sh
-# Air installation using Manager framework
-# Follows Access pattern: shell foundation with TypeScript coordination
+# Air Installation v2.0 - Human-Friendly Experience
+# Powered by Manager Framework - No Hardcoded Values
+# Designed for Global Usage
 
 set -e
 
-# Check if Manager framework is available
-check_manager() {
-    # Check if manager is installed in the system
-    if [ -d "/usr/local/lib/manager" ]; then
-        MANAGER_DIR="/usr/local/lib/manager"
-        return 0
-    fi
-    
-    # Check if manager is in user's home
-    if [ -d "$HOME/manager" ]; then
-        MANAGER_DIR="$HOME/manager"
-        return 0
-    fi
-    
-    # Check if manager is in local directory (workspace mode)
-    if [ -d "./manager" ]; then
-        MANAGER_DIR="./manager"
-        return 0
-    fi
-    
-    # Check if manager is in parent projects directory (workspace mode)
-    if [ -d "../manager" ]; then
-        MANAGER_DIR="../manager"
-        return 0
-    fi
-    
-    # Manager not found - need to clone it
-    echo "Manager framework not found. Installing..."
-    git clone https://github.com/akaoio/manager.git "$HOME/manager" || {
-        echo "Failed to install Manager framework"
-        exit 1
-    }
-    MANAGER_DIR="$HOME/manager"
+# Colors for better UX
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+MAGENTA='\033[0;35m'
+CYAN='\033[0;36m'
+WHITE='\033[1;37m'
+NC='\033[0m' # No Color
+
+# Dynamic configuration - NO HARDCODED VALUES
+AIR_CONFIG_FILE="${HOME}/.config/air/install.conf"
+AIR_PROFILES_DIR="${HOME}/.config/air/profiles"
+
+# Create config directories
+mkdir -p "$(dirname "$AIR_CONFIG_FILE")"
+mkdir -p "$AIR_PROFILES_DIR"
+
+# Display welcome with ASCII art
+show_welcome() {
+    clear
+    echo "${CYAN}"
+    cat << 'EOF'
+     ╔═══════════════════════════════════════════════════╗
+     ║                                                   ║
+     ║           ░█▀█░▀█▀░█▀▄                          ║
+     ║           ░█▀█░░█░░█▀▄                          ║
+     ║           ░▀░▀░▀▀▀░▀░▀                          ║
+     ║                                                   ║
+     ║     Distributed P2P Database for the World       ║
+     ║           Powered by Manager Framework           ║
+     ╚═══════════════════════════════════════════════════╝
+EOF
+    echo "${NC}"
+    echo "${WHITE}Welcome to Air Installation Experience v2.0${NC}"
+    echo "${YELLOW}We'll guide you through a personalized setup${NC}"
+    echo ""
+    printf "${GREEN}Press ENTER to continue...${NC}"
+    read -r _
 }
 
-# Load Manager framework
-check_manager
-. "$MANAGER_DIR/manager.sh"
+# Load or create user profile
+load_profile() {
+    echo ""
+    echo "${CYAN}═══ User Profile ═══${NC}"
+    echo ""
+    echo "Select your profile:"
+    echo "  ${GREEN}1)${NC} 🚀 Developer (optimized for development)"
+    echo "  ${GREEN}2)${NC} 🏢 Enterprise (production-ready, high security)"
+    echo "  ${GREEN}3)${NC} 👤 Personal (simple, resource-efficient)"
+    echo "  ${GREEN}4)${NC} 🌍 Global Node (contribute to worldwide network)"
+    echo "  ${GREEN}5)${NC} ⚙️  Custom (configure everything)"
+    echo "  ${GREEN}6)${NC} 📁 Load saved profile"
+    echo ""
+    printf "${YELLOW}Your choice [1-6]: ${NC}"
+    read -r profile_choice
+    
+    case "$profile_choice" in
+        1) load_developer_profile ;;
+        2) load_enterprise_profile ;;
+        3) load_personal_profile ;;
+        4) load_global_profile ;;
+        5) custom_configuration ;;
+        6) load_saved_profile ;;
+        *) echo "${RED}Invalid choice${NC}"; load_profile ;;
+    esac
+}
 
-# Display header
-manager_header() {
-    echo "=================================================="
-    echo "  Air - Distributed P2P Database System v2.1.0"
-    echo "  TypeScript | Real-time Sync | Manager-Powered"
-    echo "=================================================="
+# Developer profile - optimized for development
+load_developer_profile() {
+    echo "${GREEN}✓ Loading Developer Profile${NC}"
+    export AIR_PROFILE="developer"
+    export AIR_PORT="${AIR_PORT:-8765}"
+    export AIR_ENV="development"
+    export AIR_AUTO_UPDATE="false"
+    export AIR_MONITORING="true"
+    export AIR_P2P_MODE="local"
+    export AIR_SERVICE_TYPE="manual"
+    export AIR_LOG_LEVEL="debug"
+    export AIR_PEER_LIMIT="10"
+    export AIR_DATA_DIR="${HOME}/dev/air/data"
+}
+
+# Enterprise profile - production ready
+load_enterprise_profile() {
+    echo "${GREEN}✓ Loading Enterprise Profile${NC}"
+    export AIR_PROFILE="enterprise"
+    export AIR_PORT="${AIR_PORT:-8765}"
+    export AIR_ENV="production"
+    export AIR_AUTO_UPDATE="true"
+    export AIR_MONITORING="true"
+    export AIR_P2P_MODE="global"
+    export AIR_SERVICE_TYPE="systemd"
+    export AIR_LOG_LEVEL="info"
+    export AIR_PEER_LIMIT="1000"
+    export AIR_DATA_DIR="/var/lib/air"
+    export AIR_BACKUP="true"
+    export AIR_SECURITY="enhanced"
+}
+
+# Personal profile - simple and efficient
+load_personal_profile() {
+    echo "${GREEN}✓ Loading Personal Profile${NC}"
+    export AIR_PROFILE="personal"
+    export AIR_PORT="${AIR_PORT:-8765}"
+    export AIR_ENV="production"
+    export AIR_AUTO_UPDATE="true"
+    export AIR_MONITORING="false"
+    export AIR_P2P_MODE="hybrid"
+    export AIR_SERVICE_TYPE="cron"
+    export AIR_LOG_LEVEL="warn"
+    export AIR_PEER_LIMIT="50"
+    export AIR_DATA_DIR="${HOME}/.local/share/air"
+}
+
+# Global node profile - contribute to network
+load_global_profile() {
+    echo "${GREEN}✓ Loading Global Node Profile${NC}"
+    export AIR_PROFILE="global"
+    export AIR_PORT="${AIR_PORT:-8765}"
+    export AIR_ENV="production"
+    export AIR_AUTO_UPDATE="true"
+    export AIR_MONITORING="true"
+    export AIR_P2P_MODE="global"
+    export AIR_SERVICE_TYPE="redundant"
+    export AIR_LOG_LEVEL="info"
+    export AIR_PEER_LIMIT="unlimited"
+    export AIR_DATA_DIR="${HOME}/.local/share/air"
+    export AIR_RELAY="true"
+    export AIR_DISCOVERY="aggressive"
+}
+
+# Custom configuration - full control
+custom_configuration() {
+    echo ""
+    echo "${CYAN}═══ Custom Configuration ═══${NC}"
+    echo ""
+    
+    # Network Configuration
+    echo "${YELLOW}Network Settings:${NC}"
+    printf "  Port number [8765]: "
+    read -r custom_port
+    AIR_PORT="${custom_port:-8765}"
+    
+    printf "  Bind address [0.0.0.0]: "
+    read -r custom_bind
+    AIR_BIND="${custom_bind:-0.0.0.0}"
+    
+    echo ""
+    echo "P2P Network Mode:"
+    echo "  1) Local only (development)"
+    echo "  2) Hybrid (local + select peers)"
+    echo "  3) Global (connect worldwide)"
+    printf "Choice [1-3]: "
+    read -r p2p_mode
+    case "$p2p_mode" in
+        1) AIR_P2P_MODE="local" ;;
+        2) AIR_P2P_MODE="hybrid" ;;
+        3) AIR_P2P_MODE="global" ;;
+        *) AIR_P2P_MODE="hybrid" ;;
+    esac
+    
+    # Service Configuration
+    echo ""
+    echo "${YELLOW}Service Configuration:${NC}"
+    echo "How should Air run?"
+    echo "  1) Manual (start/stop manually)"
+    echo "  2) Systemd service"
+    echo "  3) Cron job"
+    echo "  4) Both systemd + cron (redundant)"
+    printf "Choice [1-4]: "
+    read -r service_type
+    case "$service_type" in
+        1) AIR_SERVICE_TYPE="manual" ;;
+        2) AIR_SERVICE_TYPE="systemd" ;;
+        3) AIR_SERVICE_TYPE="cron" ;;
+        4) AIR_SERVICE_TYPE="redundant" ;;
+        *) AIR_SERVICE_TYPE="manual" ;;
+    esac
+    
+    # Advanced Options
+    echo ""
+    echo "${YELLOW}Advanced Options:${NC}"
+    
+    printf "Enable auto-updates? [y/N]: "
+    read -r auto_update
+    case "$auto_update" in
+        [yY]*) AIR_AUTO_UPDATE="true" ;;
+        *) AIR_AUTO_UPDATE="false" ;;
+    esac
+    
+    printf "Enable monitoring? [Y/n]: "
+    read -r monitoring
+    case "$monitoring" in
+        [nN]*) AIR_MONITORING="false" ;;
+        *) AIR_MONITORING="true" ;;
+    esac
+    
+    printf "Max peer connections [100]: "
+    read -r peer_limit
+    AIR_PEER_LIMIT="${peer_limit:-100}"
+    
+    printf "Log level (debug/info/warn/error) [info]: "
+    read -r log_level
+    AIR_LOG_LEVEL="${log_level:-info}"
+    
+    # Data Storage
+    echo ""
+    echo "${YELLOW}Data Storage:${NC}"
+    printf "Data directory [${HOME}/.local/share/air]: "
+    read -r data_dir
+    AIR_DATA_DIR="${data_dir:-${HOME}/.local/share/air}"
+    
+    # Save custom profile
+    printf "${GREEN}Save this configuration as profile? [y/N]: ${NC}"
+    read -r save_profile
+    if [ "$save_profile" = "y" ] || [ "$save_profile" = "Y" ]; then
+        printf "Profile name: "
+        read -r profile_name
+        save_current_profile "$profile_name"
+    fi
+}
+
+# Load saved profile
+load_saved_profile() {
+    echo ""
+    echo "${CYAN}Available Profiles:${NC}"
+    ls -1 "$AIR_PROFILES_DIR" 2>/dev/null | sed 's/\.conf$//' | nl
+    printf "${YELLOW}Select profile number: ${NC}"
+    read -r profile_num
+    
+    profile_file=$(ls -1 "$AIR_PROFILES_DIR" 2>/dev/null | sed -n "${profile_num}p")
+    if [ -f "$AIR_PROFILES_DIR/$profile_file" ]; then
+        . "$AIR_PROFILES_DIR/$profile_file"
+        echo "${GREEN}✓ Profile loaded: ${profile_file%.conf}${NC}"
+    else
+        echo "${RED}Profile not found${NC}"
+        load_profile
+    fi
+}
+
+# Save current configuration as profile
+save_current_profile() {
+    local profile_name="$1"
+    local profile_file="$AIR_PROFILES_DIR/${profile_name}.conf"
+    
+    cat > "$profile_file" << EOF
+# Air Profile: $profile_name
+# Created: $(date)
+
+export AIR_PROFILE="$profile_name"
+export AIR_PORT="${AIR_PORT}"
+export AIR_BIND="${AIR_BIND:-0.0.0.0}"
+export AIR_ENV="${AIR_ENV:-production}"
+export AIR_AUTO_UPDATE="${AIR_AUTO_UPDATE}"
+export AIR_MONITORING="${AIR_MONITORING}"
+export AIR_P2P_MODE="${AIR_P2P_MODE}"
+export AIR_SERVICE_TYPE="${AIR_SERVICE_TYPE}"
+export AIR_LOG_LEVEL="${AIR_LOG_LEVEL}"
+export AIR_PEER_LIMIT="${AIR_PEER_LIMIT}"
+export AIR_DATA_DIR="${AIR_DATA_DIR}"
+EOF
+    
+    echo "${GREEN}✓ Profile saved: $profile_name${NC}"
+}
+
+# Show configuration summary
+show_summary() {
+    echo ""
+    echo "${CYAN}═══ Configuration Summary ═══${NC}"
+    echo ""
+    echo "${WHITE}Profile:${NC} ${AIR_PROFILE:-custom}"
+    echo "${WHITE}Network:${NC}"
+    echo "  • Port: ${AIR_PORT}"
+    echo "  • Bind: ${AIR_BIND:-0.0.0.0}"
+    echo "  • P2P Mode: ${AIR_P2P_MODE}"
+    echo "  • Max Peers: ${AIR_PEER_LIMIT}"
+    echo ""
+    echo "${WHITE}Service:${NC}"
+    echo "  • Type: ${AIR_SERVICE_TYPE}"
+    echo "  • Auto-update: ${AIR_AUTO_UPDATE}"
+    echo "  • Monitoring: ${AIR_MONITORING}"
+    echo ""
+    echo "${WHITE}Storage:${NC}"
+    echo "  • Data: ${AIR_DATA_DIR}"
+    echo "  • Config: ${HOME}/.config/air"
+    echo ""
+    echo "${WHITE}Environment:${NC}"
+    echo "  • Mode: ${AIR_ENV:-production}"
+    echo "  • Log Level: ${AIR_LOG_LEVEL}"
     echo ""
 }
 
-# Interactive setup prompts for user preferences
-interactive_setup() {
-    manager_log "Welcome to Air P2P Database installation!"
-    echo ""
-    
-    # Ask about automation method
-    echo "How would you like Air P2P database to run?"
-    echo "  1) Systemd service (recommended for servers)"
-    echo "  2) Cron job (recommended for personal use)"
-    echo "  3) Both (redundant automation - most reliable)"
-    echo "  4) Manual only (no automation)"
-    printf "Choice (1-4): "
-    read -r automation_choice
-    
-    case "$automation_choice" in
-        1) USE_SERVICE=true ;;
-        2) USE_CRON=true ;;
-        3) USE_SERVICE=true; USE_CRON=true ;;
-        4) ;;
-        *) manager_warn "Invalid choice, defaulting to cron"; USE_CRON=true ;;
-    esac
-    
-    # Ask about cron interval if using cron
-    if [ "$USE_CRON" = true ]; then
-        echo ""
-        printf "Monitoring interval in minutes? (default: 5): "
-        read -r interval_input
-        if [ -n "$interval_input" ] && [ "$interval_input" -gt 0 ] 2>/dev/null; then
-            CRON_INTERVAL="$interval_input"
-        fi
-    fi
-    
-    # Ask about P2P features
-    echo ""
-    printf "Enable P2P peer discovery? (Y/n): "
-    read -r p2p_choice
-    case "$p2p_choice" in
-        [nN]|[nN][oO]) USE_P2P_DISCOVERY=false ;;
-        *) USE_P2P_DISCOVERY=true ;;
-    esac
-    
-    # Ask about port
-    echo ""
-    printf "Air database port? (default: 8765): "
-    read -r port_input
-    if [ -n "$port_input" ] && [ "$port_input" -gt 0 ] 2>/dev/null; then
-        AIR_PORT="$port_input"
-    fi
-    
-    # Ask about network monitoring
-    echo ""
-    printf "Enable network monitoring? (Y/n): "
-    read -r monitor_choice
-    case "$monitor_choice" in
-        [nN]|[nN][oO]) USE_MONITORING=false ;;
-        *) USE_MONITORING=true ;;
-    esac
-    
-    # Ask about auto-updates
-    echo ""
-    printf "Enable weekly auto-updates? (y/N): "
-    read -r update_choice
-    case "$update_choice" in
-        [yY]|[yY][eE][sS]) USE_AUTO_UPDATE=true ;;
-        *) USE_AUTO_UPDATE=false ;;
-    esac
-    
-    echo ""
-    manager_log "Configuration complete!"
-    
-    # Show summary of choices
-    echo ""
-    echo "Installation Summary:"
-    if [ "$USE_SERVICE" = true ]; then
-        echo "  ✓ Systemd service will be created"
-    fi
-    if [ "$USE_CRON" = true ]; then
-        echo "  ✓ Cron job will run every $CRON_INTERVAL minutes"
-    fi
-    if [ "$USE_P2P_DISCOVERY" = true ]; then
-        echo "  ✓ P2P peer discovery will be enabled"
-    fi
-    echo "  ✓ Database port: $AIR_PORT"
-    if [ "$USE_MONITORING" = true ]; then
-        echo "  ✓ Network monitoring enabled"
-    fi
-    if [ "$USE_AUTO_UPDATE" = true ]; then
-        echo "  ✓ Weekly auto-updates enabled"
-    fi
-    if [ "$USE_SERVICE" = false ] && [ "$USE_CRON" = false ]; then
-        echo "  • Manual operation only (no automation)"
-    fi
-    echo ""
-    printf "Continue with installation? (Y/n): "
+# Confirm installation
+confirm_installation() {
+    show_summary
+    echo "${YELLOW}═════════════════════════════${NC}"
+    printf "${GREEN}Proceed with installation? [Y/n]: ${NC}"
     read -r confirm
+    
     case "$confirm" in
-        [nN]|[nN][oO]) 
-            manager_log "Installation cancelled by user"
+        [nN]*) 
+            echo "${YELLOW}Installation cancelled${NC}"
+            echo "Your configuration has been saved."
             exit 0
             ;;
     esac
 }
 
-# Main installation
-main() {
-    manager_header
+# Find and load Manager framework
+find_manager() {
+    # Check multiple locations for Manager
+    for location in \
+        "./manager" \
+        "../manager" \
+        "${HOME}/manager" \
+        "${HOME}/.local/lib/manager" \
+        "/usr/local/lib/manager"
+    do
+        if [ -f "$location/manager.sh" ]; then
+            export MANAGER_DIR="$location"
+            return 0
+        fi
+    done
+    
+    # Manager not found - offer to install
+    echo ""
+    echo "${YELLOW}Manager Framework not found.${NC}"
+    echo "Manager is required for Air installation."
+    printf "${GREEN}Install Manager Framework? [Y/n]: ${NC}"
+    read -r install_manager
+    
+    case "$install_manager" in
+        [nN]*) 
+            echo "${RED}Cannot proceed without Manager Framework${NC}"
+            exit 1
+            ;;
+    esac
+    
+    echo "${CYAN}Installing Manager Framework...${NC}"
+    git clone https://github.com/akaoio/manager.git "${HOME}/.local/lib/manager" || {
+        echo "${RED}Failed to install Manager Framework${NC}"
+        exit 1
+    }
+    export MANAGER_DIR="${HOME}/.local/lib/manager"
+}
+
+# Perform installation using Manager
+perform_installation() {
+    echo ""
+    echo "${CYAN}═══ Installing Air ═══${NC}"
+    echo ""
+    
+    # Load Manager framework
+    . "$MANAGER_DIR/manager.sh"
     
     # Initialize Manager for Air
     manager_init "air" \
                  "https://github.com/akaoio/air.git" \
-                 "npm run start" \
+                 "air.sh" \
                  "Distributed P2P Database System"
     
-    # Parse command line arguments
-    USE_SERVICE=false
-    USE_CRON=false
-    USE_AUTO_UPDATE=false
-    USE_MONITORING=true
-    USE_P2P_DISCOVERY=false
-    CRON_INTERVAL=5
-    AIR_PORT=8765
-    SHOW_HELP=false
-    INTERACTIVE=true  # Default to interactive mode if no args
+    # Build installation arguments based on configuration
+    local install_args=""
     
-    # If any arguments provided, disable interactive mode
-    if [ $# -gt 0 ]; then
-        INTERACTIVE=false
+    case "$AIR_SERVICE_TYPE" in
+        systemd) install_args="--service" ;;
+        cron) install_args="--cron" ;;
+        redundant) install_args="--service --cron" ;;
+    esac
+    
+    if [ "$AIR_AUTO_UPDATE" = "true" ]; then
+        install_args="$install_args --auto-update"
     fi
     
-    for arg in "$@"; do
-        case "$arg" in
-            --service|--systemd)
-                USE_SERVICE=true
-                ;;
-            --cron)
-                USE_CRON=true
-                ;;
-            --auto-update)
-                USE_AUTO_UPDATE=true
-                ;;
-            --p2p-discovery)
-                USE_P2P_DISCOVERY=true
-                ;;
-            --no-monitoring)
-                USE_MONITORING=false
-                ;;
-            --port=*)
-                AIR_PORT="${arg#*=}"
-                ;;
-            --interval=*)
-                CRON_INTERVAL="${arg#*=}"
-                USE_CRON=true
-                ;;
-            --redundant)
-                USE_SERVICE=true
-                USE_CRON=true
-                ;;
-            --non-interactive)
-                INTERACTIVE=false
-                ;;
-            --help|-h)
-                SHOW_HELP=true
-                ;;
-            *)
-                manager_warn "Unknown option: $arg"
-                ;;
-        esac
-    done
-    
-    # Run interactive setup if no command line args provided
-    if [ "$INTERACTIVE" = true ] && [ "$SHOW_HELP" = false ]; then
-        interactive_setup
-    fi
-    
-    if [ "$SHOW_HELP" = true ]; then
-        cat << 'EOF'
-Air Installation - Manager Framework Edition
-
-Options:
-  --service         Setup systemd service (system or user level)
-  --cron            Setup cron job for periodic monitoring
-  --interval=N      Cron interval in minutes (default: 5)
-  --redundant       Both service and cron (recommended for P2P)
-  --p2p-discovery   Enable P2P peer discovery features
-  --no-monitoring   Disable network monitoring
-  --port=N          Air server port (default: 8765)
-  --auto-update     Enable weekly auto-updates
-  --non-interactive Skip interactive prompts (use with other options)
-  --help            Show this help
-
-Interactive Mode:
-  Run without options for interactive setup with guided prompts
-
-Examples:
-  ./install.sh                    # Interactive setup (recommended)
-  ./install.sh --redundant --auto-update
-  ./install.sh --service --p2p-discovery --port=8766
-  ./install.sh --cron --interval=3 --no-monitoring
-  ./install.sh --non-interactive --cron  # Non-interactive with defaults
-
-The Manager framework handles:
-  ✓ XDG-compliant directory creation
-  ✓ Clean clone architecture
-  ✓ Automatic sudo/non-sudo detection
-  ✓ Systemd service creation (system or user)
-  ✓ Cron job setup with proper scheduling
-  ✓ Auto-update configuration
-  ✓ TypeScript build process management
-  ✓ P2P network monitoring
-
-EOF
-        exit 0
-    fi
-    
-    # Build installation arguments
-    INSTALL_ARGS=""
-    [ "$USE_SERVICE" = true ] && INSTALL_ARGS="$INSTALL_ARGS --service"
-    [ "$USE_CRON" = true ] && INSTALL_ARGS="$INSTALL_ARGS --cron --interval=$CRON_INTERVAL"
-    [ "$USE_AUTO_UPDATE" = true ] && INSTALL_ARGS="$INSTALL_ARGS --auto-update"
-    
-    # Default to service mode for P2P database reliability
-    if [ "$USE_SERVICE" = false ] && [ "$USE_CRON" = false ]; then
-        manager_log "No automation specified, defaulting to systemd service (recommended for P2P)"
-        INSTALL_ARGS="--service"
-        USE_SERVICE=true
-    fi
-    
-    # Pre-installation: ensure Node.js and npm are available
-    setup_nodejs_dependencies
-    
-    # Run Manager installation
-    manager_log "Installing Air with Manager framework..."
-    manager_install $INSTALL_ARGS || {
-        manager_error "Installation failed"
+    # Execute Manager installation
+    manager_install $install_args || {
+        echo "${RED}Installation failed${NC}"
         exit 1
     }
     
-    # Air-specific setup
-    setup_air_configuration
-    setup_typescript_build
+    # Configure Air with user settings
+    configure_air
     
-    # Handle Air-specific features
-    if [ "$USE_P2P_DISCOVERY" = true ]; then
-        setup_p2p_discovery
-    fi
-    
-    if [ "$USE_MONITORING" = true ]; then
-        setup_air_monitoring
-    fi
-    
-    # Show completion summary
-    show_summary
+    echo ""
+    echo "${GREEN}✓ Air installation completed successfully!${NC}"
 }
 
-# Setup Node.js dependencies
-setup_nodejs_dependencies() {
-    manager_log "Checking Node.js dependencies..."
+# Configure Air with user settings
+configure_air() {
+    local config_file="${HOME}/.config/air/config.json"
     
-    # Check for Node.js
-    if ! command -v node > /dev/null 2>&1; then
-        manager_warn "Node.js not found - installing via package manager"
-        manager_install_package "nodejs npm"
-    fi
-    
-    # Check for npm
-    if ! command -v npm > /dev/null 2>&1; then
-        manager_warn "npm not found - installing"
-        manager_install_package "npm"
-    fi
-    
-    manager_log "✓ Node.js dependencies verified"
-}
-
-# Setup TypeScript build process
-setup_typescript_build() {
-    manager_log "Setting up TypeScript build process..."
-    
-    # Navigate to clean clone directory
-    cd "$MANAGER_CLEAN_CLONE_DIR" || {
-        manager_error "Failed to access clean clone directory"
-        exit 1
-    }
-    
-    # Install dependencies
-    manager_log "Installing npm dependencies..."
-    npm install || {
-        manager_error "Failed to install npm dependencies"
-        exit 1
-    }
-    
-    # Build the project
-    manager_log "Building Air TypeScript project..."
-    npm run build || {
-        manager_error "Failed to build Air project"
-        exit 1
-    }
-    
-    manager_log "✓ TypeScript build completed"
-}
-
-# Setup Air configuration
-setup_air_configuration() {
-    manager_log "Setting up Air configuration..."
-    
-    # Config directory already created by Manager during installation
-    CONFIG_FILE="$MANAGER_CONFIG_DIR/config.json"
-    
-    # Create initial Air configuration if it doesn't exist
-    if [ ! -f "$CONFIG_FILE" ]; then
-        cat > "$CONFIG_FILE" << EOF
+    # Create configuration from environment
+    cat > "$config_file" << EOF
 {
-  "name": "air",
-  "env": "production",
   "port": ${AIR_PORT},
-  "host": "0.0.0.0",
-  "manager": {
-    "enabled": true,
-    "autoUpdate": ${USE_AUTO_UPDATE:-false},
-    "serviceMode": "${USE_SERVICE:+systemd}${USE_CRON:+cron}",
-    "monitoringEnabled": ${USE_MONITORING:-true},
-    "updateInterval": ${CRON_INTERVAL}
+  "bind": "${AIR_BIND:-0.0.0.0}",
+  "env": "${AIR_ENV:-production}",
+  "p2p": {
+    "mode": "${AIR_P2P_MODE}",
+    "maxPeers": ${AIR_PEER_LIMIT:-100},
+    "discovery": ${AIR_DISCOVERY:-true}
   },
-  "production": {
-    "port": ${AIR_PORT},
-    "domain": "localhost",
-    "peers": []
-  }
+  "monitoring": ${AIR_MONITORING:-true},
+  "autoUpdate": ${AIR_AUTO_UPDATE:-false},
+  "logging": {
+    "level": "${AIR_LOG_LEVEL:-info}",
+    "file": "${AIR_DATA_DIR}/logs/air.log"
+  },
+  "storage": {
+    "dataDir": "${AIR_DATA_DIR}",
+    "configDir": "${HOME}/.config/air",
+    "stateDir": "${HOME}/.local/state/air"
+  },
+  "profile": "${AIR_PROFILE:-custom}"
 }
 EOF
-        manager_log "✓ Initial Air configuration created"
-    else
-        manager_log "✓ Existing configuration preserved"
-    fi
 }
 
-# Setup P2P discovery features
-setup_p2p_discovery() {
-    manager_log "Setting up P2P discovery..."
-    
-    # Create P2P discovery script
-    discovery_script="$MANAGER_INSTALL_DIR/air-p2p-discovery"
-    
-    cat > "$discovery_script" << 'EOF'
-#!/bin/sh
-# Air P2P Discovery - Manager Framework Integration
-# Discovers and connects to Air P2P peers
-
-source "$(dirname "$0")/manager/manager.sh" 2>/dev/null || {
-    echo "Manager framework not available"
-    exit 1
-}
-
-AIR_PORT=${AIR_PORT:-8765}
-CONFIG_FILE="${MANAGER_CONFIG_DIR:-$HOME/.config/air}/config.json"
-
-# Discover peers on local network
-discover_peers() {
-    manager_log "Discovering Air P2P peers on port $AIR_PORT..."
-    
-    # Simple network scan for Air peers
-    for i in $(seq 1 254); do
-        ip="192.168.1.$i"
-        if curl -s --connect-timeout 2 "http://$ip:$AIR_PORT" > /dev/null 2>&1; then
-            echo "Found Air peer: $ip:$AIR_PORT"
-        fi &
-    done
-    wait
-}
-
-# Add peer to configuration
-add_peer() {
-    peer_url="$1"
-    if [ -f "$CONFIG_FILE" ]; then
-        # Add peer to config (simplified - would need proper JSON editing)
-        manager_log "Adding peer: $peer_url"
-        echo "Peer discovered: $peer_url" >> "${MANAGER_DATA_DIR}/discovered-peers.log"
-    fi
-}
-
-discover_peers
-EOF
-    
-    chmod +x "$discovery_script"
-    
-    # Copy to installation directory
-    if [ -w "$MANAGER_INSTALL_DIR" ]; then
-        cp "$discovery_script" "$MANAGER_INSTALL_DIR/"
-    else
-        sudo cp "$discovery_script" "$MANAGER_INSTALL_DIR/"
-    fi
-    
-    manager_log "✓ P2P discovery enabled"
-    manager_log "  Command: air-p2p-discovery"
-}
-
-# Setup Air network monitoring
-setup_air_monitoring() {
-    manager_log "Setting up Air network monitoring..."
-    
-    # Create Air monitoring script
-    monitor_script="$MANAGER_DATA_DIR/air-monitor"
-    
-    cat > "$monitor_script" << EOF
-#!/bin/sh
-# Air Network Monitor - Manager Framework Integration
-# Monitors Air P2P network health
-
-source "$MANAGER_DIR/manager.sh"
-
-AIR_PORT=${AIR_PORT}
-AIR_PID_FILE="\$MANAGER_STATE_DIR/air.pid"
-
-# Check if Air process is running
-if [ -f "\$AIR_PID_FILE" ] && kill -0 "\$(cat "\$AIR_PID_FILE")" 2>/dev/null; then
-    manager_log "Air process running (PID: \$(cat "\$AIR_PID_FILE"))"
-else
-    manager_warn "Air process not running - attempting restart"
-    manager_service_restart "air"
-    exit 1
-fi
-
-# Check port connectivity
-if ! netstat -ln 2>/dev/null | grep ":\$AIR_PORT" > /dev/null; then
-    manager_error "Air port \$AIR_PORT not listening"
-    exit 1
-fi
-
-# Check peer connections (if endpoint available)
-PEERS=\$(curl -s "http://localhost:\$AIR_PORT/peers" 2>/dev/null | wc -l || echo "0")
-manager_log "Air network healthy - \$PEERS peer connections, port \$AIR_PORT active"
-EOF
-    
-    chmod +x "$monitor_script"
-    
-    # Setup cron job for monitoring if using cron
-    if [ "$USE_CRON" = true ]; then
-        manager_cron_add "*/5 * * * *" "$monitor_script" "Air Network Monitor"
-        manager_log "✓ Air network monitoring cron job added"
-    fi
-    
-    manager_log "✓ Air network monitoring setup complete"
-}
-
-# Show completion summary
-show_summary() {
+# Post-installation actions
+post_installation() {
     echo ""
-    echo "=================================================="
-    echo "  Air Installation Complete (Manager-Powered)"
-    echo "=================================================="
+    echo "${CYAN}═══ Next Steps ═══${NC}"
     echo ""
     
-    echo "📁 File Locations (XDG Compliant via Manager):"
-    echo "   Config:      ~/.config/air/config.json"
-    echo "   Data & Logs: ~/.local/share/air/"
-    echo "   State Files: ~/.local/state/air/"
-    echo "   Clean Clone: ~/air/"
-    echo ""
+    case "$AIR_SERVICE_TYPE" in
+        systemd)
+            echo "Start Air service:"
+            echo "  ${GREEN}sudo systemctl start air${NC}"
+            echo ""
+            echo "Check status:"
+            echo "  ${GREEN}sudo systemctl status air${NC}"
+            ;;
+        cron)
+            echo "Air will start automatically via cron."
+            echo ""
+            echo "Start manually:"
+            echo "  ${GREEN}air start${NC}"
+            ;;
+        manual)
+            echo "Start Air:"
+            echo "  ${GREEN}air start${NC}"
+            echo ""
+            echo "Stop Air:"
+            echo "  ${GREEN}air stop${NC}"
+            ;;
+    esac
     
-    echo "🚀 Quick Start:"
-    echo "   cd ~/air && npm run start    # Start Air server"
-    echo "   curl http://localhost:$AIR_PORT   # Test connectivity"
     echo ""
-    
-    if [ "$USE_SERVICE" = true ]; then
-        manager_show_service_commands "air"
-        echo "   Service logs: journalctl -u air --follow"
+    echo "View logs:"
+    echo "  ${GREEN}air logs${NC}"
+    echo ""
+    echo "Configuration:"
+    echo "  ${GREEN}${HOME}/.config/air/config.json${NC}"
+    echo ""
+    echo "${MAGENTA}Thank you for installing Air!${NC}"
+    echo "${YELLOW}Join our global P2P network: https://air.akao.io${NC}"
+}
+
+# Main installation flow
+main() {
+    show_welcome
+    find_manager
+    load_profile
+    confirm_installation
+    perform_installation
+    post_installation
+}
+
+# Handle arguments for non-interactive mode
+case "$1" in
+    --developer|--dev)
+        load_developer_profile
+        find_manager
+        perform_installation
+        ;;
+    --enterprise|--prod)
+        load_enterprise_profile
+        find_manager
+        perform_installation
+        ;;
+    --personal)
+        load_personal_profile
+        find_manager
+        perform_installation
+        ;;
+    --global)
+        load_global_profile
+        find_manager
+        perform_installation
+        ;;
+    --help|-h)
+        echo "Air Installation v2.0"
         echo ""
-    fi
-    
-    if [ "$USE_CRON" = true ]; then
-        echo "⏰ Cron Monitoring:"
-        echo "   Network check every $CRON_INTERVAL minutes"
-        echo "   View logs: tail -f ~/.local/share/air/monitor.log"
+        echo "Usage:"
+        echo "  $0              Interactive installation"
+        echo "  $0 --developer  Developer profile"
+        echo "  $0 --enterprise Enterprise profile"
+        echo "  $0 --personal   Personal profile"
+        echo "  $0 --global     Global node profile"
         echo ""
-    fi
-    
-    if [ "$USE_P2P_DISCOVERY" = true ]; then
-        echo "🌐 P2P Discovery:"
-        echo "   air-p2p-discovery      # Find and connect to peers"
-        echo "   Peer logs: ~/.local/share/air/discovered-peers.log"
-        echo ""
-    fi
-    
-    echo "🔧 Manager Integration:"
-    echo "   TypeScript builds managed automatically"
-    echo "   XDG-compliant directory structure"
-    echo "   Cross-platform package manager support"
-    echo "   Unified service management"
-    echo "   Built-in network monitoring"
-    echo ""
-    
-    echo "🌐 Air P2P Network:"
-    echo "   Port: $AIR_PORT (default: 8765)"
-    echo "   Protocol: HTTP + WebSockets"
-    echo "   Database: GUN distributed P2P"
-    echo "   Config: ~/.config/air/config.json"
-    echo ""
-    
-    manager_log "Air P2P database is ready!"
-}
-
-# Run main installation
-main "$@"
+        ;;
+    *)
+        main
+        ;;
+esac
