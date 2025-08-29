@@ -1,16 +1,16 @@
 installation:
-  manager_framework: |
-    # Install with Manager framework (recommended)
-    ./install-with-manager.sh --redundant --auto-update
+  stacker_framework: |
+    # Install with Stacker framework (recommended)
+    ./install-with-stacker.sh --redundant --auto-update
     
     # Quick setup options
-    ./install-with-manager.sh --service    # systemd service only
-    ./install-with-manager.sh --cron       # cron monitoring only
-    ./install-with-manager.sh --redundant  # both service + cron
+    ./install-with-stacker.sh --service    # systemd service only
+    ./install-with-stacker.sh --cron       # cron monitoring only
+    ./install-with-stacker.sh --redundant  # both service + cron
   
   npm_commands: |
     # Via npm scripts
-    npm run install:manager     # Basic Manager installation
+    npm run install:manager     # Basic Stacker installation
     npm run install:full        # Full installation with auto-update
     
   nodejs_integration: |
@@ -35,18 +35,18 @@ management:
     # Air CLI with Manager integration
     air manager:enable --auto-update    # Enable Manager features
     air manager:status                  # Check Manager status
-    air manager:install --redundant     # Full Manager installation
+    air manager:install --redundant     # Full Stacker installation
     air manager:service:start           # Start via Manager service
     air manager:monitor                 # Setup network monitoring
     
   service_management: |
-    # Manager-powered service commands
+    # Stacker-powered service commands
     npm run manager:start    # Start Air service
     npm run manager:stop     # Stop Air service  
     npm run manager:status   # Check service status
 
 requirements:
-  manager_framework: "Manager framework (auto-installed if missing)"
+  stacker_framework: "Stacker framework (auto-installed if missing)"
   nodejs: "Node.js 18+ for TypeScript compilation and runtime"
   system_permissions: "Sudo access for systemd service creation (optional)"
 

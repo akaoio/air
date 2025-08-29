@@ -6,28 +6,28 @@
 set -e
 
 # Framework initialization
-MANAGER_DIR="${MANAGER_DIR:-./manager}"
+STACKER_DIR="${STACKER_DIR:-./manager}"
 
-# Check if Manager is available
-if [ ! -f "$MANAGER_DIR/manager.sh" ]; then
-    echo "Error: Manager framework not found at $MANAGER_DIR"
-    echo "Please ensure Manager is properly installed"
+# Check if Stacker is available
+if [ ! -f "$STACKER_DIR/stacker.sh" ]; then
+    echo "Error: Stacker framework not found at $STACKER_DIR"
+    echo "Please ensure Stacker is properly installed"
     exit 1
 fi
 
-# Load Manager framework
-. "$MANAGER_DIR/manager.sh"
+# Load Stacker framework
+. "$STACKER_DIR/stacker.sh"
 
 # Initialize Manager for Air scan
-manager_init "air-scan" \
+stacker_init "air-scan" \
              "https://github.com/akaoio/air.git" \
              "scan" \
              "Air P2P Network Scan"
 
 # Configuration paths (XDG compliant via Manager)
-SCAN_CONFIG="${SCAN_CONFIG:-$MANAGER_CONFIG_DIR/scan.json}"
-SCAN_STATE="${SCAN_STATE:-$MANAGER_STATE_DIR/scan.state}"
-SCAN_LOG="${SCAN_LOG:-$MANAGER_DATA_DIR/scan.log}"
+SCAN_CONFIG="${SCAN_CONFIG:-$STACKER_CONFIG_DIR/scan.json}"
+SCAN_STATE="${SCAN_STATE:-$STACKER_STATE_DIR/scan.state}"
+SCAN_LOG="${SCAN_LOG:-$STACKER_DATA_DIR/scan.log}"
 
 # Default values - domain-agnostic
 DEFAULT_SCAN_METHOD="multicast"  # multicast, dns, dht, manual
@@ -44,7 +44,7 @@ ENABLE_MANUAL="${ENABLE_MANUAL:-true}"          # Manual peer configuration
 
 # Initialize scan system
 init_scan() {
-    manager_log "Initializing Air scan system..."
+    stacker_log "Initializing Air scan system..."
     
     # Create necessary directories
     mkdir -p "$(dirname "$SCAN_CONFIG")"
@@ -102,7 +102,7 @@ create_default_config() {
 }
 EOF
     chmod 600 "$SCAN_CONFIG"
-    manager_log "Created default scan configuration"
+    stacker_log "Created default scan configuration"
 }
 
 # Load scan configuration
@@ -130,28 +130,28 @@ load_scan_config() {
 }
 
 # Multicast scan - find peers on local network
-discover_multicast() {
+scan_multicast() {
     if [ "$MULTICAST_ENABLED" != "true" ]; then
         return
     fi
     
-    manager_log "Starting multicast scan on local network..."
+    stacker_log "Starting multicast scan on local network..."
     
     # This would typically use Node.js multicast from Air itself
     # Shell script triggers the Node.js scan module
-    if [ -f "$MANAGER_CLEAN_CLONE_DIR/dist/scan.js" ]; then
-        node "$MANAGER_CLEAN_CLONE_DIR/dist/scan.js" multicast &
-        echo $! > "$MANAGER_STATE_DIR/scan-multicast.pid"
+    if [ -f "$STACKER_CLEAN_CLONE_DIR/dist/scan.js" ]; then
+        node "$STACKER_CLEAN_CLONE_DIR/dist/scan.js" multicast &
+        echo $! > "$STACKER_STATE_DIR/scan-multicast.pid"
     fi
 }
 
 # DHT scan - use GUN's native DHT
-discover_dht() {
+scan_dht() {
     if [ "$DHT_ENABLED" != "true" ]; then
         return
     fi
     
-    manager_log "Starting DHT-based peer scan..."
+    stacker_log "Starting DHT-based peer scan..."
     
     # GUN handles DHT natively - just ensure bootstrap peers are configured
     # This is handled in the main Air application via GUN configuration
@@ -159,7 +159,7 @@ discover_dht() {
 }
 
 # DNS scan - optional, domain-agnostic
-discover_dns() {
+scan_dns() {
     if [ "$DNS_ENABLED" != "true" ]; then
         return
     fi
@@ -167,11 +167,11 @@ discover_dns() {
     # Only use DNS if explicitly configured with a domain
     local domain=$(grep -o '"domain":"[^"]*"' "$SCAN_CONFIG" | cut -d'"' -f4)
     if [ -z "$domain" ]; then
-        manager_warn "DNS scan enabled but no domain configured"
+        stacker_warn "DNS scan enabled but no domain configured"
         return
     fi
     
-    manager_log "Starting DNS-based scan for domain: $domain"
+    stacker_log "Starting DNS-based scan for domain: $domain"
     
     # Scan for peers via DNS TXT or A records
     local prefix=$(grep -o '"prefix":"[^"]*"' "$SCAN_CONFIG" | cut -d'"' -f4)
@@ -183,7 +183,7 @@ discover_dns() {
         if nslookup "$peer_host" >/dev/null 2>&1; then
             local peer_ip=$(nslookup "$peer_host" 2>/dev/null | grep "Address:" | tail -1 | awk '{print $2}')
             if [ -n "$peer_ip" ]; then
-                manager_log "Found DNS peer: $peer_host ($peer_ip)"
+                stacker_log "Found DNS peer: $peer_host ($peer_ip)"
                 add_peer "$peer_ip" "$AIR_PORT"
             fi
         fi
@@ -191,12 +191,12 @@ discover_dns() {
 }
 
 # Manual peer configuration
-discover_manual() {
+scan_manual() {
     if [ "$MANUAL_ENABLED" != "true" ]; then
         return
     fi
     
-    manager_log "Loading manual peer configuration..."
+    stacker_log "Loading manual peer configuration..."
     
     # Extract manual peers from config
     # Format: ["host1:port1", "host2:port2", ...]
@@ -208,14 +208,14 @@ discover_manual() {
                 local host=$(echo "$peer" | cut -d: -f1)
                 local port=$(echo "$peer" | cut -d: -f2)
                 port="${port:-$AIR_PORT}"
-                manager_log "Adding manual peer: $host:$port"
+                stacker_log "Adding manual peer: $host:$port"
                 add_peer "$host" "$port"
             fi
         done
     fi
 }
 
-# Add a discovered peer
+# Add a scanned peer
 add_peer() {
     local host="$1"
     local port="${2:-$AIR_PORT}"
@@ -224,37 +224,37 @@ add_peer() {
     echo "${host}:${port}" >> "$SCAN_STATE.peers"
     
     # Trigger connection in Air (via Node.js)
-    if [ -f "$MANAGER_CLEAN_CLONE_DIR/dist/cli.js" ]; then
-        node "$MANAGER_CLEAN_CLONE_DIR/dist/cli.js" connect "${host}:${port}" 2>/dev/null || true
+    if [ -f "$STACKER_CLEAN_CLONE_DIR/dist/cli.js" ]; then
+        node "$STACKER_CLEAN_CLONE_DIR/dist/cli.js" connect "${host}:${port}" 2>/dev/null || true
     fi
 }
 
-# Show discovered peers
+# Show scanned peers
 show_peers() {
-    manager_log "Current discovered peers:"
+    stacker_log "Current scanned peers:"
     
     if [ -f "$SCAN_STATE.peers" ]; then
         cat "$SCAN_STATE.peers" | sort -u | while read -r peer; do
             echo "  • $peer"
         done
     else
-        echo "  No peers discovered yet"
+        echo "  No peers scanned yet"
     fi
     
     # Also show GUN's connected peers if Air is running
     if air_is_running; then
         echo ""
         echo "GUN Network Status:"
-        if [ -f "$MANAGER_CLEAN_CLONE_DIR/dist/cli.js" ]; then
-            node "$MANAGER_CLEAN_CLONE_DIR/dist/cli.js" peers 2>/dev/null || echo "  Unable to query GUN peers"
+        if [ -f "$STACKER_CLEAN_CLONE_DIR/dist/cli.js" ]; then
+            node "$STACKER_CLEAN_CLONE_DIR/dist/cli.js" peers 2>/dev/null || echo "  Unable to query GUN peers"
         fi
     fi
 }
 
 # Check if Air is running
 air_is_running() {
-    if [ -f "$MANAGER_STATE_DIR/air.pid" ]; then
-        local pid=$(cat "$MANAGER_STATE_DIR/air.pid")
+    if [ -f "$STACKER_STATE_DIR/air.pid" ]; then
+        local pid=$(cat "$STACKER_STATE_DIR/air.pid")
         kill -0 "$pid" 2>/dev/null
     else
         false
@@ -267,19 +267,19 @@ configure_scan() {
     
     case "$method" in
         local)
-            manager_log "Configuring for local network scan only"
+            stacker_log "Configuring for local network scan only"
             sed -i 's/"multicast": [^,]*/"multicast": true/' "$SCAN_CONFIG"
             sed -i 's/"dns": [^,]*/"dns": false/' "$SCAN_CONFIG"
             sed -i 's/"dht": [^,]*/"dht": false/' "$SCAN_CONFIG"
             ;;
         global)
-            manager_log "Configuring for global P2P scan"
+            stacker_log "Configuring for global P2P scan"
             sed -i 's/"multicast": [^,]*/"multicast": false/' "$SCAN_CONFIG"
             sed -i 's/"dns": [^,]*/"dns": false/' "$SCAN_CONFIG"
             sed -i 's/"dht": [^,]*/"dht": true/' "$SCAN_CONFIG"
             ;;
         hybrid)
-            manager_log "Configuring for hybrid scan (all methods)"
+            stacker_log "Configuring for hybrid scan (all methods)"
             sed -i 's/"multicast": [^,]*/"multicast": true/' "$SCAN_CONFIG"
             sed -i 's/"dns": [^,]*/"dns": false/' "$SCAN_CONFIG"
             sed -i 's/"dht": [^,]*/"dht": true/' "$SCAN_CONFIG"
@@ -287,15 +287,15 @@ configure_scan() {
         dns)
             local domain="$2"
             if [ -z "$domain" ]; then
-                manager_error "DNS scan requires a domain"
+                stacker_error "DNS scan requires a domain"
                 exit 1
             fi
-            manager_log "Configuring DNS scan for domain: $domain"
+            stacker_log "Configuring DNS scan for domain: $domain"
             sed -i 's/"dns": [^,]*/"dns": true/' "$SCAN_CONFIG"
             sed -i "s/\"domain\": \"[^\"]*\"/\"domain\": \"$domain\"/" "$SCAN_CONFIG"
             ;;
         *)
-            manager_error "Unknown scan method: $method"
+            stacker_error "Unknown scan method: $method"
             echo "Available methods: local, global, hybrid, dns <domain>"
             exit 1
             ;;
@@ -307,14 +307,43 @@ add_manual_peer() {
     local peer="$1"
     
     if [ -z "$peer" ]; then
-        manager_error "Peer address required"
+        stacker_error "Peer address required"
         exit 1
     fi
     
-    manager_log "Adding manual peer: $peer"
+    stacker_log "Adding manual peer: $peer"
     
-    # Add to config file
-    # TODO: Implement JSON array manipulation in POSIX shell
+    # Add to config file with proper JSON array handling
+    local config_file="$AIR_CONFIG_DIR/config.json"
+    local temp_file="$(mktemp)"
+    
+    if [ -f "$config_file" ]; then
+        # Check if peers array exists, if not create it
+        if ! grep -q '"peers"' "$config_file"; then
+            # Add empty peers array
+            sed 's/}$/, "peers": [] }/' "$config_file" > "$temp_file"
+        else
+            cp "$config_file" "$temp_file"
+        fi
+        
+        # Add peer to array (simple approach - replace empty array or add to existing)
+        if grep -q '"peers"[[:space:]]*:[[:space:]]*\[\]' "$temp_file"; then
+            # Empty array - add first peer
+            sed 's/"peers"[[:space:]]*:[[:space:]]*\[\]/"peers": ["'$peer'"]/' "$temp_file" > "$SCAN_STATE.temp"
+            mv "$SCAN_STATE.temp" "$temp_file"
+        else
+            # Non-empty array - add peer before closing bracket
+            sed 's/"peers"[[:space:]]*:[[:space:]]*\[\([^]]*\)\]/"peers": [\1, "'$peer'"]/' "$temp_file" > "$SCAN_STATE.temp"
+            mv "$SCAN_STATE.temp" "$temp_file"
+        fi
+        
+        mv "$temp_file" "$config_file"
+    else
+        # Create new config with peer
+        echo '{"peers": ["'$peer'"]}' > "$config_file"
+    fi
+    
+    # Also maintain manual peers list for reference
     echo "$peer" >> "$SCAN_STATE.manual"
     
     # Try to connect immediately
@@ -326,17 +355,17 @@ add_manual_peer() {
 
 # Main scan daemon
 run_scan_daemon() {
-    manager_log "Starting Air scan daemon..."
+    stacker_log "Starting Air scan daemon..."
     
     # Initialize
     init_scan
     load_scan_config
     
     # Start scan methods
-    discover_multicast
-    discover_dht
-    discover_dns
-    discover_manual
+    scan_multicast
+    scan_dht
+    scan_dns
+    scan_manual
     
     # Monitor and refresh
     while true; do
@@ -344,13 +373,13 @@ run_scan_daemon() {
         
         # Refresh peer list
         if [ "$DNS_ENABLED" = "true" ]; then
-            discover_dns
+            scan_dns
         fi
         
         # Check peer health
         # This would be done by the Node.js Air application
         
-        manager_log "Scan cycle completed, next check in ${CHECK_INTERVAL}s"
+        stacker_log "Scan cycle completed, next check in ${CHECK_INTERVAL}s"
     done
 }
 
@@ -370,7 +399,7 @@ case "${1:-help}" in
         ;;
     init)
         init_scan
-        manager_log "Scan system initialized"
+        stacker_log "Scan system initialized"
         ;;
     help)
         cat << EOF
@@ -380,7 +409,7 @@ Usage: ./scan.sh [command] [options]
 
 Commands:
   start           Start scan daemon
-  show, peers     Show discovered peers
+  show, peers     Show scanned peers
   configure TYPE  Configure scan method
                   Types: local, global, hybrid, dns <domain>
   add PEER        Add manual peer (host:port)
@@ -398,14 +427,14 @@ Examples:
   ./scan.sh configure global   # Use DHT for global scan
   ./scan.sh configure dns example.com  # Enable DNS scan
   ./scan.sh add 192.168.1.100:8765    # Add manual peer
-  ./scan.sh show                # Show all discovered peers
+  ./scan.sh show                # Show all scanned peers
 
 Air is designed for the world, not tied to any specific domain.
 Default configuration uses DHT for global P2P scan.
 EOF
         ;;
     *)
-        manager_error "Unknown command: $1"
+        stacker_error "Unknown command: $1"
         echo "Use './scan.sh help' for usage information"
         exit 1
         ;;

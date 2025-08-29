@@ -1,189 +1,94 @@
-# CLAUDE.md - @akaoio/air
+# CLAUDE.md - {{project.name}}
 
-This file provides guidance to Claude Code (claude.ai/code) when working with the @akaoio/air codebase.
+This file provides guidance to Claude Code (claude.ai/code) when working with the {{project.name}} codebase.
 
 ## Project Overview
 
-**@akaoio/air** - Distributed P2P graph database with single data source - The living network that connects all agents in real-time
+**{{project.name}}** - {{project.description}}
 
-**Version**: 2.1.0  
-**License**: MIT  
-**Author**: AKAO.IO  
-**Repository**: https://github.com/akaoio/air  
-**Philosophy**: "Air is the breath of the living agent ecosystem - enabling real-time P2P communication without central servers"
+**Version**: {{project.version}}  
+**License**: {{project.license}}  
+**Author**: {{project.author}}  
+**Repository**: {{project.repository}}  
+**Philosophy**: "{{project.philosophy}}"
 
 ## Core Development Principles
 
+{{#each core_principles}}
+### {{this.title}}
+{{this.description}}
+{{#if this.critical}}
+**Critical**: true
+{{/if}}
 
-### Distributed P2P Architecture
-Peer-to-peer graph database using GUN for decentralized, real-time data synchronization
-
-
-
-### Single Data Source
-One unified data source shared across multiple instances for consistency
-
-
-
-### Real-Time Synchronization
-Instant data propagation across all connected peers without polling
-
-
-
-### XDG Compliance
-Follows XDG Base Directory specification for configuration management
-
-
-
+{{/each}}
 
 ## Architecture Overview
 
 ### System Design
 
-Air provides the distributed data layer for the Living Agent Network, enabling real-time P2P communication between agents using GUN database technology.
+{{architecture.overview}}
 
 ### Core Components
 
+{{#each architecture.components}}
+**{{this.name}}**
+- {{this.description}}
+- Responsibility: {{this.responsibility}}
 
-**Peer**
-- Core P2P node that manages connections and data synchronization
-- Responsibility: Peer discovery, connection management, and data replication
-
-
-**GUN Database**
-- Distributed graph database engine providing CRDT-based synchronization
-- Responsibility: Data storage, conflict resolution, and real-time updates
-
-
-**Network Layer**
-- WebSocket and WebRTC communication layer for peer connections
-- Responsibility: Network protocol handling and message routing
-
-
-**Storage Backend**
-- Persistent storage layer with pluggable adapters
-- Responsibility: Data persistence and retrieval
-
-
-**Security Layer**
-- Cryptographic security and access control
-- Responsibility: Authentication, encryption, and authorization
-
-
+{{/each}}
 
 ## Features
 
+{{#each features}}
+### {{this.name}}
+{{this.description}}
 
-### Real-Time P2P Sync
-Instant synchronization across all connected peers without central servers
-
-
-### Conflict-Free Replication
-CRDT-based data types ensure eventual consistency without conflicts
-
-
-### Offline-First
-Works offline and syncs when connection is restored
-
-
-### Graph Database
-Flexible graph structure for complex data relationships
-
-
-### WebSocket Support
-Real-time bidirectional communication via WebSockets
-
-
-### Development Bypass
-Special development mode for testing without full P2P stack
-
-
-### TypeScript Native
-Written in TypeScript with full type safety
-
-
-### Living Agent Integration
-Native integration with the multi-agent ecosystem
-
-
+{{/each}}
 
 ## Command Interface
 
 ### Core Commands
 
 ```bash
-
-air start [options]  # Start the Air P2P node
-
-air status  # Check node status and connections
-
-air peers  # List connected peers
-
-air data [get|put|subscribe] [path] [value]  # Interact with the distributed database
-
+{{#each commands.subcommands}}
+{{this.usage}}  # {{this.description}}
+{{/each}}
 ```
 
 ### Detailed Command Reference
 
+{{#each commands.subcommands}}
+#### `{{this.name}}` Command
+**Purpose**: {{this.description}}  
+**Usage**: `{{this.usage}}`
 
-#### `start` Command
-**Purpose**: Start the Air P2P node  
-**Usage**: `air start [options]`
+{{#if this.options}}
+**Options**:
+{{#each this.options}}
+- `{{this.flag}}`: {{this.description}}{{#if this.default}} (default: {{this.default}}){{/if}}
+{{/each}}
+{{/if}}
 
+{{#if this.examples}}
+**Examples**:
+```bash
+{{#each this.examples}}
+{{this.command}}  # {{this.description}}
+{{/each}}
+```
+{{/if}}
 
-
-#### `status` Command
-**Purpose**: Check node status and connections  
-**Usage**: `air status`
-
-
-
-#### `peers` Command
-**Purpose**: List connected peers  
-**Usage**: `air peers`
-
-
-
-#### `data` Command
-**Purpose**: Interact with the distributed database  
-**Usage**: `air data [get|put|subscribe] [path] [value]`
-
-
-
-
-
-
-
-
+{{/each}}
 
 ## Environment Variables
 
+{{#each environment_variables}}
+### {{this.name}}
+- **Description**: {{this.description}}
+- **Default**: `{{this.default}}`
 
-### AIR_PORT
-- **Description**: Default port for Air node
-- **Default**: `8765`
-
-
-### AIR_PEERS
-- **Description**: Default peer URLs to connect to
-- **Default**: ``
-
-
-### AIR_DATA_DIR
-- **Description**: Directory for persistent storage
-- **Default**: `$HOME/.local/share/air`
-
-
-### AIR_CONFIG_DIR
-- **Description**: Configuration directory
-- **Default**: `$HOME/.config/air`
-
-
-### AIR_DEV_MODE
-- **Description**: Enable development mode
-- **Default**: `false`
-
-
+{{/each}}
 
 ## Development Guidelines
 
@@ -314,7 +219,9 @@ load_module "module-name" || {
 
 ## Use Cases
 
-
+{{#each use_cases}}
+### {{@index}}. {{this}}
+{{/each}}
 
 ## Security Considerations
 
@@ -337,7 +244,7 @@ load_module "module-name" || {
 **Module Loading Failures**
 ```bash
 # Debug module loading
-STACKER_DEBUG=true stacker init
+STACKER_DEBUG=true manager init
 
 # Check module path
 echo $STACKER_MODULE_PATH
@@ -349,26 +256,26 @@ sh -n module-name.sh
 **Configuration Issues**
 ```bash
 # Check configuration
-stacker config list
+manager config list
 
 # Validate configuration file
-stacker config validate
+manager config validate
 
 # Reset configuration
 rm -rf ~/.config/stacker
-stacker init
+manager init
 ```
 
 **Service Issues**
 ```bash
 # Check service status
-stacker service status
+manager service status
 
 # View service logs
-journalctl -u stacker -f
+journalctl -u manager -f
 
 # Restart service
-stacker service restart
+manager service restart
 ```
 
 ## Notes for AI Assistants
@@ -404,15 +311,17 @@ When extending Manager:
 4. Add tests for new functionality
 5. Document in module header
 
-## 
+## {{why_manager.title}}
 
-
+{{why_manager.description}}
 
 ### Benefits
-
+{{#each why_manager.benefits}}
+- {{this}}
+{{/each}}
 
 ---
 
 *Stacker is the foundation - bringing order to chaos through universal shell patterns.*
 
-*Version: 2.1.0 | License: MIT | Author: AKAO.IO*
+*Version: {{project.version}} | License: {{project.license}} | Author: {{project.author}}*

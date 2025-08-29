@@ -2,37 +2,37 @@
     "name": "@akaoio/air",
     "type": "module",
     "version": "2.1.0",
-    "description": "Distributed P2P database system with Manager framework integration",
+    "description": "Distributed P2P database system with Stacker framework integration",
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
     "license": "MIT",
     "dependencies": {
-        "@akaoio/gun": "^0.2020.1240",
-        "node-fetch": "^3.0.0",
-        "@akaoio/builder": "file:../builder",
-        "@akaoio/battle": "file:../battle", 
-        "@akaoio/composer": "file:../composer",
-        "@akaoio/manager": "file:../manager"
+        "@akaoio/gun": "^0.2020.1240"
     },
     "scripts": {
         "build": "akao-build",
         "dev": "akao-build --watch", 
         "start": "./air.sh start",
-        "stop": "./air.sh stop",
+        "stop": "./air.sh stop", 
         "restart": "./air.sh restart",
         "status": "./air.sh status",
         "logs": "./air.sh logs",
-        "test": "npm run -w @akaoio/battle test",
-        "test:watch": "npm run -w @akaoio/battle test -- --watch",
-        "docs": "npm run -w @akaoio/composer build:doc",
+        "test": "tsx test/index.ts",
+        "test:watch": "tsx --watch test/index.ts",
+        "docs": "npm run docs:build",
+        "docs:build": "npx @akaoio/composer build",
         "format": "npx prettier --write .",
         "clean": "rm -rf dist",
-        "install": "./install.sh",
-        "install:full": "./install.sh --redundant --auto-update"
+        "prepublishOnly": "npm run build && npm test"
     },
     "devDependencies": {
+        "@akaoio/battle": "^1.2.3",
+        "@akaoio/builder": "*",
+        "@akaoio/composer": "*",
+        "@akaoio/stacker": "^0.0.2",
         "@types/node": "^20.0.0",
-        "prettier": "^2.4.1",
+        "prettier": "^3.0.0",
+        "tsx": "^4.0.0",
         "typescript": "^5.0.0"
     }
 }

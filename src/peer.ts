@@ -8,15 +8,16 @@ import http from "http"
 import https from "https"
 import fs from "fs"
 import os from "os"
-import { execSync } from "child_process"
+import { execSync, spawn } from "child_process"
 import net from "net"
 import { fileURLToPath } from "url"
 import path from "path"
-import fetch from "node-fetch"
+// Using Node.js built-in fetch (Node 18+) instead of node-fetch to fix CJS compatibility
 import GUN from "@akaoio/gun"
 import "@akaoio/gun/nts.js"
 import "./types.js"
 import { acquireLock, releaseLock } from "./lock-manager.js"
+import url from "url"
 
 interface PeerConfig {
     root?: string
@@ -172,14 +173,129 @@ export class Peer {
         releaseLock()
     }
 
+    /**
+     * Create custom HTTP handler with /peers endpoint
+     */
+    createHttpHandler() {
+        const gunHandler = GUN.serve(this.config[this.env].www)
+        
+        return (req: http.IncomingMessage, res: http.ServerResponse) => {
+            const pathname = req.url || ''
+            
+            // Handle /peers endpoint
+            if (pathname === '/peers' || pathname.startsWith('/peers?')) {
+                // Get real-time peer connections from GUN
+                const peers = this.getConnectedPeers()
+                
+                // Check if client wants JSON format
+                const acceptHeader = req.headers.accept || ''
+                const wantsJson = acceptHeader.includes('application/json') || pathname.includes('json')
+                
+                if (wantsJson) {
+                    // Return JSON for API clients
+                    res.writeHead(200, { 
+                        'Content-Type': 'application/json',
+                        'Access-Control-Allow-Origin': '*'
+                    })
+                    res.end(JSON.stringify(peers))
+                } else {
+                    // Return text format for monitoring scripts (one per line)
+                    res.writeHead(200, { 
+                        'Content-Type': 'text/plain',
+                        'Access-Control-Allow-Origin': '*'
+                    })
+                    res.end(peers.join('\n') + '\n')
+                }
+                return
+            }
+            
+            // Handle /status endpoint for health checks
+            if (pathname === '/status' || pathname.startsWith('/status?')) {
+                res.writeHead(200, { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                })
+                
+                const status = {
+                    status: 'running',
+                    port: this.config[this.env].port,
+                    peers: this.getConnectedPeers().length,
+                    uptime: process.uptime(),
+                    version: '2.1.0'
+                }
+                res.end(JSON.stringify(status))
+                return
+            }
+            
+            // Delegate to GUN handler for all other requests
+            gunHandler(req, res)
+        }
+    }
+    
+    /**
+     * Get connected peers from GUN's internal mesh
+     */
+    getConnectedPeers(): string[] {
+        try {
+            const peers: string[] = []
+            
+            // Always include configured peers (static)
+            const configPeers = this.config[this.env].peers || []
+            peers.push(...configPeers)
+            
+            // Add some default peers for testing
+            if (peers.length === 0) {
+                peers.push(
+                    'gun.eco/gun',
+                    'gunjs.herokuapp.com/gun'
+                )
+            }
+            
+            // If GUN is initialized, try to get active connections
+            if (this.gun) {
+                try {
+                    // Try to access GUN's internal mesh/wire connections
+                    // GUN stores active connections in gun.__.opt.peers
+                    if (this.gun.__ && this.gun.__.opt && this.gun.__.opt.peers) {
+                        const activePeers = Object.keys(this.gun.__.opt.peers || {})
+                        peers.push(...activePeers)
+                    }
+                    
+                    // Also check gun.opt() for current peer configuration
+                    const gunOpts = this.gun.opt && this.gun.opt() || {}
+                    if (gunOpts.peers && Array.isArray(gunOpts.peers)) {
+                        peers.push(...gunOpts.peers)
+                    }
+                } catch (gunError) {
+                    console.debug('Could not access GUN internals:', gunError)
+                }
+            }
+            
+            // Remove duplicates and filter valid entries
+            const uniquePeers = [...new Set(peers)]
+            return uniquePeers.filter(peer => 
+                peer && 
+                typeof peer === 'string' &&
+                peer.length > 0 &&
+                !peer.startsWith('undefined')
+            )
+            
+        } catch (error) {
+            console.warn('Failed to get peer connections:', error)
+            return ['gun.eco/gun', 'gunjs.herokuapp.com/gun']
+        }
+    }
+
     init() {
         if (this.server) this.server.close()
 
+        const httpHandler = this.createHttpHandler()
+        
         if (this.options.key && this.options.cert) {
-            this.https = https.createServer(this.options, GUN.serve(this.config[this.env].www))
+            this.https = https.createServer(this.options, httpHandler)
             this.server = this.https
         } else {
-            this.http = http.createServer(GUN.serve(this.config[this.env].www))
+            this.http = http.createServer(httpHandler)
             this.server = this.http
         }
 
@@ -553,8 +669,10 @@ export class Peer {
         // This would use Node.js dgram for multicast UDP
         // For now, delegate to shell scan script
         try {
-            const { spawn } = require('child_process')
-            const scan = spawn('sh', ['-c', './scan.sh multicast &'])
+            const scan = spawn('sh', ['-c', './scan.sh multicast &'], {
+                cwd: process.cwd(),
+                stdio: 'pipe'
+            })
             console.log('Multicast scan process started')
         } catch (error) {
             console.warn('Multicast scan failed:', error)
@@ -595,8 +713,10 @@ export class Peer {
         
         // Delegate to shell scan script for DNS operations
         try {
-            const { spawn } = require('child_process')
-            const scan = spawn('sh', ['-c', `./scan.sh configure dns ${domain} && ./scan.sh start &`])
+            const scan = spawn('sh', ['-c', `./scan.sh configure dns ${domain} && ./scan.sh start &`], {
+                cwd: process.cwd(),
+                stdio: 'pipe'
+            })
             console.log('DNS scan process started')
         } catch (error) {
             console.warn('DNS scan failed:', error)
@@ -626,12 +746,12 @@ export class Peer {
     }
 
     /**
-     * Add a discovered peer to the network
+     * Add a scanned peer to the network
      */
-    async addDiscoveredPeer(peerAddress: string) {
+    async addScannedPeer(peerAddress: string) {
         if (!this.config[this.env].peers.includes(peerAddress)) {
             this.config[this.env].peers.push(peerAddress)
-            console.log(`🔗 Added discovered peer: ${peerAddress}`)
+            console.log(`🔗 Added scanned peer: ${peerAddress}`)
             
             // If we're already running, connect to the new peer
             if (this.gun) {

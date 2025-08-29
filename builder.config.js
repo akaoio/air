@@ -4,7 +4,7 @@
  */
 
 export default {
-    // Entry points - all TypeScript files including Manager integration
+    // Entry points - core Air P2P functionality with Stacker integration
     entry: [
         "src/index.ts",
         "src/main.ts", 
@@ -15,7 +15,7 @@ export default {
         "src/utils.ts",
         "src/xdg-paths.ts",
         "src/types.ts",
-        "src/manager.ts",
+        "src/stacker.ts",  // Re-enabled: Uses @akaoio/stacker npm package
         "src/cli.ts"
     ],
     
@@ -24,6 +24,17 @@ export default {
     
     // Output formats
     formats: ["esm", "cjs"],
+    
+    // Fix module resolution in CJS builds
+    format: {
+        cjs: {
+            splitting: false,
+            interop: true
+        },
+        esm: {
+            splitting: false
+        }
+    },
     
     // TypeScript settings
     dts: false,         // Skip .d.ts files (has errors)
@@ -35,7 +46,7 @@ export default {
     // External dependencies - don't bundle
     external: [
         "@akaoio/gun", 
-        "node-fetch",
+        "@akaoio/stacker",
         "node:http",
         "node:https", 
         "node:fs",
@@ -46,6 +57,10 @@ export default {
         "node:path",
         "child_process"
     ],
+    
+    // Bundle internal modules to avoid cross-format imports
+    bundle: true,
+    noExternal: [],
     
     // Platform target
     platform: "node"

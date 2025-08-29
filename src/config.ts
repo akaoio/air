@@ -2,12 +2,12 @@
  * Simple configuration management for Air
  * One config file. One location. That's it.
  * 
- * Enhanced with Manager framework integration for system-wide management
+ * Enhanced with Stacker framework integration for system-wide management
  */
 
 import fs from "fs"
 import { CONFIG_FILE, ensureDirectories } from "./xdg-paths.js"
-import { ManagerUtils, type ManagerConfig } from "./manager.js"
+import { StackerUtils, type StackerConfig } from "./stacker.js"
 interface AirConfig {
     name?: string
     env?: string
@@ -17,7 +17,7 @@ interface AirConfig {
     host?: string
     production?: any
     development?: any
-    manager?: {
+    stacker?: {
         enabled?: boolean
         autoUpdate?: boolean
         serviceMode?: 'systemd' | 'cron' | 'redundant'
@@ -35,8 +35,8 @@ const DEFAULT_CONFIG: any = {
     bash: process.cwd(),
     port: 8765,
     host: "0.0.0.0",
-    manager: {
-        enabled: ManagerUtils.isAvailable(),
+    stacker: {
+        enabled: StackerUtils.isAvailable(),
         autoUpdate: false,
         serviceMode: 'systemd',
         monitoringEnabled: true,
@@ -203,22 +203,22 @@ export function validateConfig(config: AirConfig): { valid: boolean; errors: str
 }
 
 /**
- * Manager-aware configuration functions
+ * Stacker-aware configuration functions
  */
-export async function enableManagerIntegration(options: {
+export async function enableStackerIntegration(options: {
     autoUpdate?: boolean
     serviceMode?: 'systemd' | 'cron' | 'redundant'
     monitoringEnabled?: boolean
     updateInterval?: number
 } = {}): Promise<void> {
-    if (!ManagerUtils.isAvailable()) {
-        console.warn("Manager framework not available - cannot enable integration")
+    if (!StackerUtils.isAvailable()) {
+        console.warn("Stacker framework not available - cannot enable integration")
         return
     }
     
     const current = loadConfig()
     const updated = updateConfig({
-        manager: {
+        stacker: {
             enabled: true,
             autoUpdate: options.autoUpdate ?? false,
             serviceMode: options.serviceMode ?? 'systemd',
@@ -227,36 +227,36 @@ export async function enableManagerIntegration(options: {
         }
     })
     
-    console.log("✓ Manager integration enabled in Air configuration")
+    console.log("✓ Stacker integration enabled in Air configuration")
 }
 
 /**
- * Disable Manager integration
+ * Disable Stacker integration
  */
-export function disableManagerIntegration(): void {
+export function disableStackerIntegration(): void {
     const updated = updateConfig({
-        manager: {
+        stacker: {
             enabled: false
         }
     })
     
-    console.log("✓ Manager integration disabled")
+    console.log("✓ Stacker integration disabled")
 }
 
 /**
- * Check if Manager integration is enabled
+ * Check if Stacker integration is enabled
  */
-export function isManagerEnabled(): boolean {
+export function isStackerEnabled(): boolean {
     const config = loadConfig()
-    return config.manager?.enabled === true
+    return config.stacker?.enabled === true
 }
 
 /**
- * Get Manager-specific configuration
+ * Get Stacker-specific configuration
  */
-export function getManagerConfig(): any {
+export function getStackerConfig(): any {
     const config = loadConfig()
-    return config.manager || DEFAULT_CONFIG.manager
+    return config.stacker || DEFAULT_CONFIG.stacker
 }
 
 // Export a singleton instance for convenience
@@ -268,9 +268,9 @@ export const config = {
     reset: resetConfig,
     validate: validateConfig,
     file: CONFIG_FILE,
-    // Manager integration functions
-    enableManager: enableManagerIntegration,
-    disableManager: disableManagerIntegration,
-    isManagerEnabled: isManagerEnabled,
-    getManagerConfig: getManagerConfig
+    // Stacker integration functions
+    enableStacker: enableStackerIntegration,
+    disableStacker: disableStackerIntegration,
+    isStackerEnabled: isStackerEnabled,
+    getStackerConfig: getStackerConfig
 }

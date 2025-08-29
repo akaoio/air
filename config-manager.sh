@@ -104,9 +104,9 @@ set_config() {
     fi
 }
 
-# Discover optimal settings based on system
-discover_settings() {
-    echo "Discovering optimal settings for your system..."
+# Scan optimal settings based on system
+scan_settings() {
+    echo "Scanning optimal settings for your system..."
     
     # Detect system resources
     if command -v nproc >/dev/null 2>&1; then
@@ -328,8 +328,8 @@ reset_config() {
     # Remove local overrides
     rm -f "$AIR_CONFIG_HOME/local.conf"
     
-    # Discover system settings
-    discover_settings
+    # Scan system settings
+    scan_settings
     
     # Apply suggested defaults
     set_config "PORT" "${SUGGESTED_PORT:-8765}"
@@ -346,8 +346,8 @@ case "${1:-show}" in
         load_config
         echo "Configuration loaded"
         ;;
-    discover)
-        discover_settings
+    scan)
+        scan_settings
         echo "System: ${SYSTEM_CPUS} CPUs, ${SYSTEM_MEMORY_MB}MB RAM"
         echo "Suggested profile: $SUGGESTED_PROFILE"
         echo "Suggested port: $SUGGESTED_PORT"
@@ -392,7 +392,7 @@ case "${1:-show}" in
         echo "Usage:"
         echo "  $0 show      Show current configuration"
         echo "  $0 edit      Edit configuration interactively"
-        echo "  $0 discover  Discover optimal settings"
+        echo "  $0 scan      Scan optimal settings"
         echo "  $0 validate  Validate configuration"
         echo "  $0 export    Export configuration"
         echo "  $0 reset     Reset to defaults"

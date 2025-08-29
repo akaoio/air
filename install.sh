@@ -1,6 +1,6 @@
 #!/bin/sh
 # Air Installation v2.0 - Human-Friendly Experience
-# Powered by Manager Framework - No Hardcoded Values
+# Powered by Stacker Framework - No Hardcoded Values
 # Designed for Global Usage
 
 set -e
@@ -35,7 +35,7 @@ show_welcome() {
      ║           ░▀░▀░▀▀▀░▀░▀                          ║
      ║                                                   ║
      ║     Distributed P2P Database for the World       ║
-     ║           Powered by Manager Framework           ║
+     ║           Powered by Stacker Framework           ║
      ╚═══════════════════════════════════════════════════╝
 EOF
     echo "${NC}"
@@ -314,42 +314,42 @@ confirm_installation() {
     esac
 }
 
-# Find and load Manager framework
-find_manager() {
-    # Check multiple locations for Manager
+# Find and load Stacker framework
+find_stacker() {
+    # Check multiple locations for Stacker
     for location in \
-        "./manager" \
-        "../manager" \
-        "${HOME}/manager" \
-        "${HOME}/.local/lib/manager" \
-        "/usr/local/lib/manager"
+        "./stacker" \
+        "../stacker" \
+        "${HOME}/stacker" \
+        "${HOME}/.local/lib/stacker" \
+        "/usr/local/lib/stacker"
     do
-        if [ -f "$location/manager.sh" ]; then
-            export MANAGER_DIR="$location"
+        if [ -f "$location/stacker.sh" ]; then
+            export STACKER_DIR="$location"
             return 0
         fi
     done
     
-    # Manager not found - offer to install
+    # Stacker not found - offer to install
     echo ""
-    echo "${YELLOW}Manager Framework not found.${NC}"
-    echo "Manager is required for Air installation."
-    printf "${GREEN}Install Manager Framework? [Y/n]: ${NC}"
-    read -r install_manager
+    echo "${YELLOW}Stacker Framework not found.${NC}"
+    echo "Stacker is required for Air installation."
+    printf "${GREEN}Install Stacker Framework? [Y/n]: ${NC}"
+    read -r install_stacker
     
-    case "$install_manager" in
+    case "$install_stacker" in
         [nN]*) 
-            echo "${RED}Cannot proceed without Manager Framework${NC}"
+            echo "${RED}Cannot proceed without Stacker Framework${NC}"
             exit 1
             ;;
     esac
     
-    echo "${CYAN}Installing Manager Framework...${NC}"
-    git clone https://github.com/akaoio/manager.git "${HOME}/.local/lib/manager" || {
-        echo "${RED}Failed to install Manager Framework${NC}"
+    echo "${CYAN}Installing Stacker Framework...${NC}"
+    git clone https://github.com/akaoio/stacker.git "${HOME}/.local/lib/stacker" || {
+        echo "${RED}Failed to install Stacker Framework${NC}"
         exit 1
     }
-    export MANAGER_DIR="${HOME}/.local/lib/manager"
+    export STACKER_DIR="${HOME}/.local/lib/stacker"
 }
 
 # Perform installation using Manager
@@ -358,11 +358,11 @@ perform_installation() {
     echo "${CYAN}═══ Installing Air ═══${NC}"
     echo ""
     
-    # Load Manager framework
-    . "$MANAGER_DIR/manager.sh"
+    # Load Stacker framework
+    . "$STACKER_DIR/stacker.sh"
     
     # Initialize Manager for Air
-    manager_init "air" \
+    stacker_init "air" \
                  "https://github.com/akaoio/air.git" \
                  "air.sh" \
                  "Distributed P2P Database System"
@@ -380,17 +380,53 @@ perform_installation() {
         install_args="$install_args --auto-update"
     fi
     
-    # Execute Manager installation
-    manager_install $install_args || {
+    # Execute Stacker installation
+    stacker_install $install_args || {
         echo "${RED}Installation failed${NC}"
         exit 1
     }
+    
+    # Create proper global command wrapper that knows where Air is installed
+    create_global_command
     
     # Configure Air with user settings
     configure_air
     
     echo ""
     echo "${GREEN}✓ Air installation completed successfully!${NC}"
+}
+
+# Create global command wrapper that properly locates Air installation
+create_global_command() {
+    echo "${YELLOW}Creating global air command...${NC}"
+    
+    # The clean clone directory where Air is actually installed
+    local air_clone_dir="$STACKER_CLEAN_CLONE_DIR"
+    
+    # Create the global command wrapper
+    cat > "$STACKER_INSTALL_DIR/air" << EOF
+#!/bin/sh
+# Air Global Command Wrapper
+# This wrapper knows where Air is actually installed
+
+# Air installation directory (set during installation)
+AIR_INSTALL_DIR="$air_clone_dir"
+
+# Check if Air installation exists
+if [ ! -f "\$AIR_INSTALL_DIR/air.sh" ]; then
+    echo "Error: Air installation not found at \$AIR_INSTALL_DIR"
+    echo "Please reinstall Air"
+    exit 1
+fi
+
+# Execute Air from its installation directory
+exec "\$AIR_INSTALL_DIR/air.sh" "\$@"
+EOF
+    
+    # Make it executable
+    chmod +x "$STACKER_INSTALL_DIR/air"
+    
+    echo "${GREEN}✓ Global command created at: $STACKER_INSTALL_DIR/air${NC}"
 }
 
 # Configure Air with user settings
@@ -467,7 +503,7 @@ post_installation() {
 # Main installation flow
 main() {
     show_welcome
-    find_manager
+    find_stacker
     load_profile
     confirm_installation
     perform_installation
@@ -478,22 +514,22 @@ main() {
 case "$1" in
     --developer|--dev)
         load_developer_profile
-        find_manager
+        find_stacker
         perform_installation
         ;;
     --enterprise|--prod)
         load_enterprise_profile
-        find_manager
+        find_stacker
         perform_installation
         ;;
     --personal)
         load_personal_profile
-        find_manager
+        find_stacker
         perform_installation
         ;;
     --global)
         load_global_profile
-        find_manager
+        find_stacker
         perform_installation
         ;;
     --help|-h)

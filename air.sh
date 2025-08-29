@@ -1,386 +1,301 @@
 #!/bin/sh
-# Air - Manager-powered P2P Database Management
-# Following Access philosophy: Manager handles all shell operations
+# Air - Modular P2P Database Management System
+# Version: 2.1.0
+# Following Stacker/Access philosophy: Modular, clean, maintainable
 
 set -e
 
-# Framework initialization
-MANAGER_DIR="${MANAGER_DIR:-./manager}"
+# Detect script location
+SCRIPT_PATH="$0"
+if [ -L "$SCRIPT_PATH" ]; then
+    SCRIPT_PATH="$(readlink -f "$SCRIPT_PATH" 2>/dev/null || readlink "$SCRIPT_PATH")"
+fi
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
 
-# Check if Manager is available
-if [ ! -f "$MANAGER_DIR/manager.sh" ]; then
-    echo "Error: Manager framework not found at $MANAGER_DIR"
-    echo "Please ensure Manager is properly installed"
+# Set Air module directory
+export AIR_MODULE_DIR="$SCRIPT_DIR/modules"
+
+# Load module loader first
+if [ -f "$AIR_MODULE_DIR/loader.sh" ]; then
+    . "$AIR_MODULE_DIR/loader.sh"
+else
+    echo "ERROR: Air module loader not found at $AIR_MODULE_DIR/loader.sh" >&2
     exit 1
 fi
 
-# Load Manager framework
-. "$MANAGER_DIR/manager.sh"
+# Load core module (always needed)
+air_require "core" || {
+    echo "ERROR: Failed to load core module" >&2
+    exit 1
+}
 
-# Initialize Manager for Air
-manager_init "air" \
-             "https://github.com/akaoio/air.git" \
-             "node dist/main.js" \
-             "Air Distributed P2P Database"
+# Command processing
+air_main() {
+    local command="$1"
+    shift
+    
+    case "$command" in
+        start)
+            air_require "service" || exit 1
+            air_start "$@"
+            ;;
+            
+        stop)
+            air_require "service" || exit 1
+            air_stop "$@"
+            ;;
+            
+        restart)
+            air_require "service" || exit 1
+            air_restart "$@"
+            ;;
+            
+        status)
+            air_require "service" || exit 1
+            air_status "$@"
+            ;;
+            
+        logs|log)
+            air_show_logs "$@"
+            ;;
+            
+        config)
+            air_config "$@"
+            ;;
+            
+        network)
+            air_require "network" || exit 1
+            shift
+            case "$1" in
+                health) air_network_health ;;
+                info)   air_network_info ;;
+                scan)   air_scan_local ;;
+                peers)  air_peers_list ;;
+                *)      air_network_info ;;
+            esac
+            ;;
+            
+        install)
+            # Use Manager for installation
+            air_stacker_install "$@"
+            ;;
+            
+        update)
+            air_update "$@"
+            ;;
+            
+        modules)
+            case "$1" in
+                list)   air_list_modules ;;
+                loaded) air_list_loaded ;;
+                info)   air_module_info "$2" ;;
+                *)      air_list_modules ;;
+            esac
+            ;;
+            
+        peers)
+            # Alias for network peers for better UX
+            air_require "network" || exit 1
+            air_peers_list
+            ;;
+            
+        version|--version|-v)
+            echo "Air P2P Database v${AIR_VERSION}"
+            echo "Modular Shell Architecture"  
+            echo "Standalone P2P System"
+            ;;
+            
+        help|--help|-h|"")
+            air_show_help
+            ;;
+            
+        *)
+            air_error "Unknown command: $command"
+            echo "Run 'air help' for usage information"
+            exit 1
+            ;;
+    esac
+}
 
-# Air-specific configuration
-AIR_PORT="${AIR_PORT:-8765}"
-AIR_HOST="${AIR_HOST:-0.0.0.0}"
-AIR_ENV="${AIR_ENV:-production}"
-
-# Check if Air is running using Manager's process management
-air_is_running() {
-    if [ -f "$MANAGER_STATE_DIR/air.pid" ]; then
-        local pid=$(cat "$MANAGER_STATE_DIR/air.pid")
-        kill -0 "$pid" 2>/dev/null
+# Show logs
+air_show_logs() {
+    local log_file="$AIR_DATA_DIR/air.log"
+    
+    if [ ! -f "$log_file" ]; then
+        air_warn "No log file found at $log_file"
+        return 1
+    fi
+    
+    if [ "$1" = "-f" ] || [ "$1" = "--follow" ]; then
+        tail -f "$log_file"
     else
-        false
+        tail -n 50 "$log_file"
+        echo ""
+        echo "Use 'air logs -f' to follow logs in real-time"
     fi
 }
 
-# Start Air using Manager patterns
-air_start() {
-    if air_is_running; then
-        manager_log "Air is already running"
-        return 0
-    fi
+# Configuration management
+air_config() {
+    local action="$1"
+    shift
     
-    manager_log "Starting Air P2P database..."
+    case "$action" in
+        show|"")
+            if [ -f "$AIR_CONFIG_DIR/config.json" ]; then
+                cat "$AIR_CONFIG_DIR/config.json"
+            else
+                air_warn "No configuration file found"
+            fi
+            ;;
+            
+        get)
+            air_config_get "$1"
+            ;;
+            
+        set)
+            air_require "core" || exit 1
+            if [ $# -lt 2 ]; then
+                air_error "Usage: air config set <key> <value>"
+                exit 1
+            fi
+            local key="$1"
+            local value="$2"
+            air_config_set "$key" "$value"
+            ;;
+            
+        *)
+            air_error "Unknown config action: $action"
+            ;;
+    esac
+}
+
+# Update Air
+air_update() {
+    air_info "Updating Air P2P Database..."
     
-    # Ensure we're in the clean clone directory
-    cd "$MANAGER_CLEAN_CLONE_DIR" || {
-        manager_error "Clean clone directory not found: $MANAGER_CLEAN_CLONE_DIR"
+    cd "$AIR_HOME" || {
+        air_error "Air home not found: $AIR_HOME"
         return 1
     }
     
-    # Check if built artifacts exist
-    if [ ! -f "dist/main.js" ]; then
-        manager_log "Building Air TypeScript project..."
-        npm run build || {
-            manager_error "Failed to build Air project"
+    # Pull latest from git
+    if [ -d ".git" ]; then
+        air_info "Pulling latest changes..."
+        git pull || {
+            air_error "Failed to pull updates"
             return 1
         }
     fi
     
-    # Start the process in background and save PID
-    nohup node dist/main.js > "$MANAGER_DATA_DIR/air.log" 2>&1 &
-    local pid=$!
-    echo "$pid" > "$MANAGER_STATE_DIR/air.pid"
-    
-    # Wait a moment and check if process started successfully
-    sleep 2
-    if kill -0 "$pid" 2>/dev/null; then
-        manager_log "Air started successfully (PID: $pid)"
-        manager_log "Port: $AIR_PORT | Config: $MANAGER_CONFIG_DIR/config.json"
-        return 0
-    else
-        manager_error "Failed to start Air"
-        rm -f "$MANAGER_STATE_DIR/air.pid"
-        return 1
-    fi
-}
-
-# Stop Air using Manager patterns
-air_stop() {
-    if ! air_is_running; then
-        manager_log "Air is not running"
-        return 0
+    # Rebuild if needed
+    if [ -f "package.json" ] && command -v npm >/dev/null 2>&1; then
+        air_info "Installing dependencies..."
+        npm install || {
+            air_error "Failed to install dependencies"
+            return 1
+        }
+        
+        air_info "Building project..."
+        npm run build || {
+            air_error "Failed to build project"
+            return 1
+        }
     fi
     
-    local pid=$(cat "$MANAGER_STATE_DIR/air.pid")
-    manager_log "Stopping Air P2P database (PID: $pid)..."
+    air_info "Update complete!"
     
-    # Graceful shutdown
-    kill "$pid" 2>/dev/null || true
-    sleep 3
-    
-    # Force kill if still running
-    if kill -0 "$pid" 2>/dev/null; then
-        manager_warn "Graceful shutdown failed, forcing termination..."
-        kill -9 "$pid" 2>/dev/null || true
-        sleep 1
-    fi
-    
-    rm -f "$MANAGER_STATE_DIR/air.pid"
-    
-    if ! air_is_running; then
-        manager_log "Air stopped successfully"
-        return 0
-    else
-        manager_error "Failed to stop Air"
-        return 1
-    fi
-}
-
-# Restart Air
-air_restart() {
-    manager_log "Restarting Air P2P database..."
-    air_stop
-    sleep 2
-    air_start
-}
-
-# Show Air status using Manager patterns
-air_status() {
-    echo "=============================================="
-    echo "  Air P2P Database Status (Manager-Powered)"
-    echo "=============================================="
-    echo ""
-    
-    # Process status
+    # Restart if running
     if air_is_running; then
-        local pid=$(cat "$MANAGER_STATE_DIR/air.pid")
-        manager_log "Air is running (PID: $pid)"
-        
-        # Show network status
-        if command -v netstat >/dev/null 2>&1; then
-            if netstat -ln 2>/dev/null | grep ":$AIR_PORT " >/dev/null; then
-                echo "  🌐 Port $AIR_PORT: Active"
-            else
-                echo "  ⚠️  Port $AIR_PORT: Not listening"
-            fi
-        fi
-        
-        # Show configuration
-        if [ -f "$MANAGER_CONFIG_DIR/config.json" ]; then
-            echo "  📄 Config: $MANAGER_CONFIG_DIR/config.json"
-            if command -v jq >/dev/null 2>&1; then
-                local port=$(jq -r '.port // "8765"' "$MANAGER_CONFIG_DIR/config.json" 2>/dev/null)
-                local env=$(jq -r '.env // "production"' "$MANAGER_CONFIG_DIR/config.json" 2>/dev/null)
-                echo "  ⚙️  Environment: $env | Port: $port"
-            fi
-        fi
-    else
-        manager_error "Air is not running"
-        return 1
-    fi
-    
-    # Show Manager-managed directories
-    echo ""
-    echo "📁 Manager Directories:"
-    echo "  Config: $MANAGER_CONFIG_DIR"
-    echo "  Data:   $MANAGER_DATA_DIR"
-    echo "  State:  $MANAGER_STATE_DIR"
-    echo "  Clone:  $MANAGER_CLEAN_CLONE_DIR"
-    
-    return 0
-}
-
-# Show Air logs using Manager patterns
-air_logs() {
-    local log_file="$MANAGER_DATA_DIR/air.log"
-    
-    if [ -f "$log_file" ]; then
-        manager_log "Following Air logs..."
-        tail -f "$log_file"
-    else
-        manager_error "Log file not found: $log_file"
-        return 1
+        air_info "Restarting Air..."
+        air_require "service" && air_restart
     fi
 }
 
-# Show Air configuration
-air_config() {
-    local config_file="$MANAGER_CONFIG_DIR/config.json"
-    
-    if [ -f "$config_file" ]; then
-        if command -v jq >/dev/null 2>&1; then
-            jq '.' "$config_file"
-        else
-            cat "$config_file"
+# Stacker-based installation
+air_stacker_install() {
+    # Find Manager
+    local stacker_dir=""
+    for location in \
+        "$SCRIPT_DIR/manager" \
+        "$HOME/air/manager" \
+        "$HOME/.local/lib/manager" \
+        "/usr/local/lib/manager"
+    do
+        if [ -f "$location/stacker.sh" ]; then
+            stacker_dir="$location"
+            break
         fi
-    else
-        manager_error "Configuration file not found: $config_file"
-        manager_log "To create initial config, run: air install"
-        return 1
-    fi
-}
-
-# Install Air using Manager framework
-air_install() {
-    manager_log "Installing Air using Manager framework..."
-    
-    # Parse installation arguments
-    local install_args=""
-    local show_help=false
-    
-    for arg in "$@"; do
-        case "$arg" in
-            --service|--systemd)
-                install_args="$install_args --service"
-                ;;
-            --cron)
-                install_args="$install_args --cron"
-                ;;
-            --auto-update)
-                install_args="$install_args --auto-update"
-                ;;
-            --redundant)
-                install_args="$install_args --redundant"
-                ;;
-            --help|-h)
-                show_help=true
-                ;;
-            --interval=*)
-                install_args="$install_args $arg"
-                ;;
-        esac
     done
     
-    if [ "$show_help" = true ]; then
-        echo "Air Installation Options:"
-        echo "  --service         Setup systemd service"
-        echo "  --cron            Setup cron monitoring"
-        echo "  --redundant       Both systemd and cron (recommended)"
-        echo "  --auto-update     Enable weekly auto-updates"
-        echo "  --interval=N      Cron interval in minutes (default: 5)"
-        echo "  --help            Show this help"
-        return 0
+    if [ -z "$stacker_dir" ]; then
+        air_error "Stacker framework not found"
+        echo "Please install Manager first"
+        return 1
     fi
     
-    # Default to service mode for P2P reliability
-    if [ -z "$install_args" ]; then
-        install_args="--service"
-    fi
+    # Load Manager and run installation
+    . "$stacker_dir/stacker.sh"
+    stacker_init "air" \
+        "https://github.com/akaoio/air.git" \
+        "air.sh" \
+        "Air P2P Database"
     
-    # Run Manager installation
-    manager_install $install_args || {
-        manager_error "Installation failed"
-        return 1
-    }
-    
-    # Build Air TypeScript project
-    cd "$MANAGER_CLEAN_CLONE_DIR" && npm run build || {
-        manager_error "Failed to build Air project"
-        return 1
-    }
-    
-    manager_log "Air installation completed successfully"
-    return 0
+    stacker_install "$@"
 }
 
-# Update Air using Manager framework  
-air_update() {
-    manager_log "Updating Air using Manager framework..."
-    
-    # Navigate to clean clone
-    cd "$MANAGER_CLEAN_CLONE_DIR" || {
-        manager_error "Clean clone directory not found"
-        return 1
-    }
-    
-    # Git update
-    if [ -d ".git" ]; then
-        git fetch origin || manager_warn "Git fetch failed"
-        git pull origin main || git pull origin master || manager_warn "Git pull failed"
-    fi
-    
-    # NPM update and rebuild
-    npm update || manager_warn "NPM update failed"
-    npm run build || {
-        manager_error "Build failed after update"
-        return 1
-    }
-    
-    # Restart if currently running
-    if air_is_running; then
-        manager_log "Restarting Air to apply updates..."
-        air_restart
-    fi
-    
-    manager_log "Air update completed successfully"
-    return 0
+# Show help
+air_show_help() {
+    cat << EOF
+==============================================
+  Air P2P Database v${AIR_VERSION} (Modular Edition)
+==============================================
+
+🚀 Usage:
+  air <command> [options]
+
+📌 Core Commands:
+  start              Start Air P2P database
+  stop               Stop Air P2P database
+  restart            Restart Air P2P database
+  status             Show status and health
+
+📊 Monitoring:
+  logs [--follow]    Show Air logs
+  peers              List connected peers
+  network health     Check network connectivity
+  network info       Show network configuration  
+  network scan       Scan for local Air nodes
+  network peers      List configured peers
+
+⚙️  Management:
+  config [show]      Show configuration
+  config get KEY     Get configuration value
+  update             Update Air to latest version
+  install            Install Air with Manager
+
+🔧 Development:
+  modules list       List available modules
+  modules loaded     Show loaded modules
+  modules info NAME  Show module information
+
+ℹ️  Information:
+  version            Show version
+  help               Show this help
+
+📁 Directories:
+  Config: ~/.config/air/
+  Data:   ~/.local/share/air/
+  State:  ~/.local/state/air/
+  Home:   ~/air/
+
+🌐 Architecture:
+  Air uses a modular shell architecture following
+  Manager and Access design patterns for clean,
+  maintainable, and extensible code.
+
+EOF
 }
 
-# Show version information
-air_version() {
-    echo "Air P2P Database (Manager Edition)"
-    echo "Manager Framework: v$(manager_version | grep -o 'v[0-9.]*')"
-    echo ""
-    
-    if [ -f "$MANAGER_CLEAN_CLONE_DIR/package.json" ]; then
-        if command -v jq >/dev/null 2>&1; then
-            local air_version=$(jq -r '.version // "unknown"' "$MANAGER_CLEAN_CLONE_DIR/package.json" 2>/dev/null)
-            echo "Air Version: $air_version"
-        fi
-    fi
-}
-
-# Main command handler following Access style
-case "${1:-help}" in
-    start)
-        air_start
-        ;;
-    stop)
-        air_stop
-        ;;
-    restart)
-        air_restart
-        ;;
-    status)
-        air_status
-        ;;
-    logs)
-        air_logs
-        ;;
-    config)
-        air_config
-        ;;
-    install)
-        shift
-        air_install "$@"
-        ;;
-    update)
-        air_update
-        ;;
-    version)
-        air_version
-        ;;
-    help|--help|-h)
-        echo ""
-        echo "=============================================="
-        echo "  Air P2P Database v2.1.0 (Manager Edition)"
-        echo "=============================================="
-        echo ""
-        echo "🚀 Usage:"
-        echo "  air start              Start Air P2P database"
-        echo "  air stop               Stop Air P2P database" 
-        echo "  air restart            Restart Air P2P database"
-        echo "  air status             Show Air status and health"
-        echo "  air logs               Follow Air logs"
-        echo "  air config             Show current configuration"
-        echo "  air install [options]  Install Air with Manager"
-        echo "  air update             Update Air to latest version"
-        echo "  air version            Show version information"
-        echo "  air help               Show this help"
-        echo ""
-        echo "📦 Installation Options:"
-        echo "  --service         Setup systemd service (recommended)"
-        echo "  --cron            Setup cron monitoring"  
-        echo "  --redundant       Both systemd and cron"
-        echo "  --auto-update     Enable weekly auto-updates"
-        echo ""
-        echo "🔧 Manager Integration:"
-        echo "  ✅ XDG-compliant directories"
-        echo "  ✅ Clean clone architecture"
-        echo "  ✅ TypeScript build management"
-        echo "  ✅ Cross-platform compatibility"
-        echo "  ✅ Unified service management"
-        echo ""
-        echo "📁 Directories:"
-        echo "  Config: ~/.config/air/"
-        echo "  Data:   ~/.local/share/air/"
-        echo "  State:  ~/.local/state/air/"
-        echo "  Clone:  ~/air/"
-        echo ""
-        echo "🌐 Philosophy:"
-        echo "  Manager handles all system operations for consistency"
-        echo "  and reliability across the AKAO technology stack."
-        echo ""
-        ;;
-    *)
-        echo "Unknown command: $1"
-        echo "Run 'air help' for usage information"
-        exit 1
-        ;;
-esac
+# Run main function with all arguments
+air_main "$@"

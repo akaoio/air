@@ -1,0 +1,149 @@
+project:
+  name: "@akaoio/air"
+  version: "2.1.0"
+  license: "MIT"
+  author: "AKAO.IO"
+  repository: "https://github.com/akaoio/air"
+  description: "Distributed P2P graph database with single data source - The living network that connects all agents in real-time"
+  philosophy: "Air is the breath of the living agent ecosystem - enabling real-time P2P communication without central servers"
+
+core_principles:
+  - title: "Distributed P2P Architecture"
+    description: "Peer-to-peer graph database using GUN for decentralized, real-time data synchronization"
+    critical: true
+  
+  - title: "Single Data Source"
+    description: "One unified data source shared across multiple instances for consistency"
+    critical: true
+  
+  - title: "Real-Time Synchronization"
+    description: "Instant data propagation across all connected peers without polling"
+    critical: true
+  
+  - title: "XDG Compliance"
+    description: "Follows XDG Base Directory specification for configuration management"
+    critical: false
+
+architecture:
+  overview: "Air provides the distributed data layer for the Living Agent Network, enabling real-time P2P communication between agents using GUN database technology."
+  
+  components:
+    - name: "Peer"
+      description: "Core P2P node that manages connections and data synchronization"
+      responsibility: "Peer discovery, connection management, and data replication"
+    
+    - name: "GUN Database"
+      description: "Distributed graph database engine providing CRDT-based synchronization"
+      responsibility: "Data storage, conflict resolution, and real-time updates"
+    
+    - name: "Network Layer"
+      description: "WebSocket and WebRTC communication layer for peer connections"
+      responsibility: "Network protocol handling and message routing"
+    
+    - name: "Storage Backend"
+      description: "Persistent storage layer with pluggable adapters"
+      responsibility: "Data persistence and retrieval"
+    
+    - name: "Security Layer"
+      description: "Cryptographic security and access control"
+      responsibility: "Authentication, encryption, and authorization"
+
+features:
+  - name: "Real-Time P2P Sync"
+    description: "Instant synchronization across all connected peers without central servers"
+  
+  - name: "Conflict-Free Replication"
+    description: "CRDT-based data types ensure eventual consistency without conflicts"
+  
+  - name: "Offline-First"
+    description: "Works offline and syncs when connection is restored"
+  
+  - name: "Graph Database"
+    description: "Flexible graph structure for complex data relationships"
+  
+  - name: "WebSocket Support"
+    description: "Real-time bidirectional communication via WebSockets"
+  
+  - name: "Development Bypass"
+    description: "Special development mode for testing without full P2P stack"
+  
+  - name: "TypeScript Native"
+    description: "Written in TypeScript with full type safety"
+  
+  - name: "Living Agent Integration"
+    description: "Native integration with the multi-agent ecosystem"
+
+commands:
+  subcommands:
+    - name: "start"
+      description: "Start the Air P2P node"
+      usage: "air start [options]"
+      options:
+        - flag: "--port"
+          description: "Port to listen on"
+          default: "8765"
+        - flag: "--peers"
+          description: "Comma-separated list of peer URLs"
+        - flag: "--dev"
+          description: "Enable development mode"
+      examples:
+        - command: "air start"
+          description: "Start with default settings"
+        - command: "air start --port 8766 --peers http://localhost:8765"
+          description: "Start on custom port with peer"
+    
+    - name: "status"
+      description: "Check node status and connections"
+      usage: "air status"
+      examples:
+        - command: "air status"
+          description: "Show current node status"
+    
+    - name: "peers"
+      description: "List connected peers"
+      usage: "air peers"
+      examples:
+        - command: "air peers"
+          description: "Show all connected peers"
+    
+    - name: "data"
+      description: "Interact with the distributed database"
+      usage: "air data [get|put|subscribe] [path] [value]"
+      examples:
+        - command: "air data get agents"
+          description: "Get agents data"
+        - command: "air data put agents.meta.status online"
+          description: "Update agent status"
+
+environment_variables:
+  - name: "AIR_PORT"
+    description: "Default port for Air node"
+    default: "8765"
+  
+  - name: "AIR_PEERS"
+    description: "Default peer URLs to connect to"
+    default: ""
+  
+  - name: "AIR_DATA_DIR"
+    description: "Directory for persistent storage"
+    default: "$HOME/.local/share/air"
+  
+  - name: "AIR_CONFIG_DIR"
+    description: "Configuration directory"
+    default: "$HOME/.config/air"
+  
+  - name: "AIR_DEV_MODE"
+    description: "Enable development mode"
+    default: "false"
+
+why_air:
+  title: "Why Air Matters"
+  description: "Air is the living, breathing network that connects all agents in the ecosystem. It provides the real-time, distributed foundation that enables agents to communicate, coordinate, and collaborate without central control."
+  
+  benefits:
+    - "No central point of failure - fully distributed architecture"
+    - "Real-time updates - instant propagation across the network"
+    - "Offline resilience - works without constant connectivity"
+    - "Conflict-free - CRDT technology ensures consistency"
+    - "Privacy-preserving - data stays within your network"
+    - "Scalable - grows with your agent ecosystem"

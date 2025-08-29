@@ -1,11 +1,11 @@
 /**
  * @akaoio/air - Default Database Instance with Auto-Initialization
- * Enhanced with Manager framework integration for system management
+ * Enhanced with Stacker framework integration for system management
  */
 
 import { Peer } from "./peer.js"
-import { isManagerEnabled, getManagerConfig } from "./config.js"
-import { manager, ManagerUtils } from "./manager.js"
+import { isStackerEnabled, getStackerConfig } from "./config.js"
+// import { stacker, StackerUtils } from "./stacker.js"  // Disabled: Stacker is separate cortex
 
 // Create singleton instance
 const _db = new Peer()
@@ -19,33 +19,24 @@ async function ensureInit() {
     if (initialized) return
     if (initPromise) return initPromise
     
-    initPromise = initializeWithManager()
+    initPromise = initializeWithStacker()
     await initPromise
 }
 
-// Initialize Air with Manager framework integration
-async function initializeWithManager(): Promise<void> {
+// Initialize Air with Stacker framework integration
+async function initializeWithStacker(): Promise<void> {
     try {
-        // Initialize Manager if enabled
-        if (isManagerEnabled()) {
-            console.log("🔧 Initializing Manager framework integration...")
-            await ManagerUtils.safeInit()
-            
-            const managerConfig = getManagerConfig()
-            if (managerConfig.monitoringEnabled) {
-                await manager.setupNetworkMonitoring()
-                console.log("✓ Manager network monitoring enabled")
-            }
-        }
+        // Stacker integration disabled - Air runs standalone
+        console.log("✓ Stacker integration disabled - running Air standalone")
         
         // Initialize Air database
         await _db.auto()
         initialized = true
         
-        console.log("✅ Air database initialized with Manager integration")
+        console.log("✅ Air database initialized with Stacker integration")
         
     } catch (error) {
-        console.error("Failed to initialize Air with Manager:", error)
+        console.error("Failed to initialize Air with Stacker:", error)
         // Fallback to basic initialization
         await _db.auto()
         initialized = true

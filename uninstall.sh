@@ -1,34 +1,34 @@
 #!/bin/sh
-# Air Uninstaller - Powered by Manager Framework
+# Air Uninstaller - Powered by Stacker Framework
 # Clean removal of Air P2P database system
-# Manager handles services, cron jobs, binaries, configs, data - everything
+# Stacker handles services, cron jobs, binaries, configs, data - everything
 
 set -e
 
 # Find and load Manager - required for proper uninstallation
 find_manager() {
     # Check common locations for Manager
-    if [ -f "$HOME/manager/manager.sh" ]; then
-        MANAGER_DIR="$HOME/manager"
-    elif [ -f "/usr/local/lib/manager/manager.sh" ]; then
-        MANAGER_DIR="/usr/local/lib/manager"
-    elif [ -f "./manager/manager.sh" ]; then
-        MANAGER_DIR="./manager"
+    if [ -f "$HOME/stacker/stacker.sh" ]; then
+        STACKER_DIR="$HOME/manager"
+    elif [ -f "/usr/local/lib/stacker/stacker.sh" ]; then
+        STACKER_DIR="/usr/local/lib/manager"
+    elif [ -f "./stacker/stacker.sh" ]; then
+        STACKER_DIR="./manager"
     else
-        echo "ERROR: Manager framework not found!"
-        echo "Manager is required for proper uninstallation."
+        echo "ERROR: Stacker framework not found!"
+        echo "Stacker is required for proper uninstallation."
         echo ""
         echo "Install Manager first:"
-        echo "  git clone https://github.com/akaoio/manager.git ~/manager"
+        echo "  git clone https://github.com/akaoio/stacker.git ~/manager"
         echo ""
         echo "Manager handles all aspects of uninstallation properly."
         exit 1
     fi
 }
 
-# Load Manager framework
+# Load Stacker framework
 find_manager
-. "$MANAGER_DIR/manager.sh"
+. "$STACKER_DIR/stacker.sh"
 
 # Display header
 show_header() {
@@ -65,28 +65,28 @@ confirm_uninstall() {
 
 # Initialize Manager for Air
 init_air() {
-    manager_init "air" \
+    stacker_init "air" \
                  "https://github.com/akaoio/air.git" \
                  "node dist/main.js" \
                  "Air Distributed P2P Database"
     
-    manager_log "Manager initialized for Air uninstallation"
+    stacker_log "Manager initialized for Air uninstallation"
 }
 
 # Stop running Air instances
 stop_air_instances() {
-    manager_log "Checking for running Air instances..."
+    stacker_log "Checking for running Air instances..."
     
     # Check if Air is running via Manager's PID file
-    if [ -f "$MANAGER_STATE_DIR/air.pid" ]; then
-        local pid=$(cat "$MANAGER_STATE_DIR/air.pid" 2>/dev/null || true)
+    if [ -f "$STACKER_STATE_DIR/air.pid" ]; then
+        local pid=$(cat "$STACKER_STATE_DIR/air.pid" 2>/dev/null || true)
         if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-            manager_log "Stopping Air instance (PID: $pid)..."
+            stacker_log "Stopping Air instance (PID: $pid)..."
             kill "$pid" 2>/dev/null || true
             sleep 2
             # Force kill if still running
             if kill -0 "$pid" 2>/dev/null; then
-                manager_warn "Force killing Air instance..."
+                stacker_warn "Force killing Air instance..."
                 kill -9 "$pid" 2>/dev/null || true
             fi
         fi
@@ -96,9 +96,9 @@ stop_air_instances() {
     if command -v pgrep >/dev/null 2>&1; then
         local air_pids=$(pgrep -f "node.*dist/main.js" 2>/dev/null || true)
         if [ -n "$air_pids" ]; then
-            manager_warn "Found stray Air processes: $air_pids"
+            stacker_warn "Found stray Air processes: $air_pids"
             for pid in $air_pids; do
-                manager_log "Stopping process $pid..."
+                stacker_log "Stopping process $pid..."
                 kill "$pid" 2>/dev/null || true
             done
             sleep 2
@@ -117,16 +117,16 @@ parse_options() {
             --keep-config)
                 UNINSTALL_OPTS="$UNINSTALL_OPTS --keep-config"
                 KEEP_CONFIG=true
-                manager_log "Keeping configuration files"
+                stacker_log "Keeping configuration files"
                 ;;
             --keep-data)
                 UNINSTALL_OPTS="$UNINSTALL_OPTS --keep-data"
                 KEEP_DATA=true
-                manager_log "Keeping database and log files"
+                stacker_log "Keeping database and log files"
                 ;;
             --keep-locks)
                 UNINSTALL_OPTS="$UNINSTALL_OPTS --keep-state"
-                manager_log "Keeping lock files and state"
+                stacker_log "Keeping lock files and state"
                 ;;
             --force|-f)
                 # Already handled in confirm_uninstall
@@ -171,36 +171,36 @@ EOF
 
 # Clean up Air-specific artifacts not handled by Manager
 cleanup_air_artifacts() {
-    manager_log "Cleaning up Air-specific artifacts..."
+    stacker_log "Cleaning up Air-specific artifacts..."
     
     # Remove node_modules if in clean clone directory
-    if [ -d "$MANAGER_CLEAN_CLONE_DIR/node_modules" ] && [ "$KEEP_DATA" = false ]; then
-        manager_log "Removing node_modules..."
-        rm -rf "$MANAGER_CLEAN_CLONE_DIR/node_modules"
+    if [ -d "$STACKER_CLEAN_CLONE_DIR/node_modules" ] && [ "$KEEP_DATA" = false ]; then
+        stacker_log "Removing node_modules..."
+        rm -rf "$STACKER_CLEAN_CLONE_DIR/node_modules"
     fi
     
     # Remove dist directory (built artifacts)
-    if [ -d "$MANAGER_CLEAN_CLONE_DIR/dist" ]; then
-        manager_log "Removing built artifacts..."
-        rm -rf "$MANAGER_CLEAN_CLONE_DIR/dist"
+    if [ -d "$STACKER_CLEAN_CLONE_DIR/dist" ]; then
+        stacker_log "Removing built artifacts..."
+        rm -rf "$STACKER_CLEAN_CLONE_DIR/dist"
     fi
     
     # Remove GUN database files (radata)
     if [ "$KEEP_DATA" = false ]; then
-        if [ -d "$MANAGER_DATA_DIR/radata" ]; then
-            manager_log "Removing GUN database..."
-            rm -rf "$MANAGER_DATA_DIR/radata"
+        if [ -d "$STACKER_DATA_DIR/radata" ]; then
+            stacker_log "Removing GUN database..."
+            rm -rf "$STACKER_DATA_DIR/radata"
         fi
-        if [ -d "$MANAGER_CLEAN_CLONE_DIR/radata" ]; then
-            rm -rf "$MANAGER_CLEAN_CLONE_DIR/radata"
+        if [ -d "$STACKER_CLEAN_CLONE_DIR/radata" ]; then
+            rm -rf "$STACKER_CLEAN_CLONE_DIR/radata"
         fi
     fi
     
     # Remove lock files
     if [ "$KEEP_DATA" = false ]; then
-        manager_log "Removing lock files..."
-        rm -f "$MANAGER_STATE_DIR"/*.lock 2>/dev/null || true
-        rm -rf "$MANAGER_DATA_DIR/locks" 2>/dev/null || true
+        stacker_log "Removing lock files..."
+        rm -f "$STACKER_STATE_DIR"/*.lock 2>/dev/null || true
+        rm -rf "$STACKER_DATA_DIR/locks" 2>/dev/null || true
     fi
 }
 
@@ -219,9 +219,9 @@ main() {
     stop_air_instances
     
     # Let Manager handle the core uninstallation
-    manager_log "Starting Manager uninstallation process..."
+    stacker_log "Starting Manager uninstallation process..."
     
-    # Manager handles:
+    # Stacker handles:
     # - Stopping and removing systemd services
     # - Removing cron jobs
     # - Deleting binaries and symlinks
@@ -230,8 +230,8 @@ main() {
     # - Handling both root and non-root installations
     # - Updating the Manager registry
     
-    manager_uninstall $UNINSTALL_OPTS || {
-        manager_error "Manager uninstallation failed!"
+    stacker_uninstall $UNINSTALL_OPTS || {
+        stacker_error "Manager uninstallation failed!"
         exit 1
     }
     
@@ -257,7 +257,7 @@ main() {
     if [ -z "$UNINSTALL_OPTS" ]; then
         echo "Note: All Air files have been removed."
     fi
-    echo "Manager framework remains installed for other tools."
+    echo "Stacker framework remains installed for other tools."
 }
 
 # Run main uninstallation
