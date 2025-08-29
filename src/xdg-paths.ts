@@ -51,7 +51,6 @@ export function migrateFromLegacy(): void {
             if (fs.existsSync(migration.old) && !fs.existsSync(migration.new)) {
                 if (migration.type === "file") {
                     fs.copyFileSync(migration.old, migration.new)
-                    console.log(`✓ Migrated ${migration.old} → ${migration.new}`)
                 } else {
                     // Directory migration would go here if needed
                 }

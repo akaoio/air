@@ -27,20 +27,17 @@ async function ensureInit() {
 async function initializeWithStacker(): Promise<void> {
     try {
         // Stacker integration disabled - Air runs standalone
-        console.log("✓ Stacker integration disabled - running Air standalone")
         
         // Initialize Air database
         await _db.auto()
         initialized = true
         
-        console.log("✅ Air database initialized with Stacker integration")
         
     } catch (error) {
         console.error("Failed to initialize Air with Stacker:", error)
         // Fallback to basic initialization
         await _db.auto()
         initialized = true
-        console.log("✅ Air database initialized (fallback mode)")
     }
 }
 

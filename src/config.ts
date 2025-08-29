@@ -135,7 +135,6 @@ export function saveConfig(config: AirConfig): void {
     const finalConfig = removeUndefined(cleanConfig)
     
     fs.writeFileSync(CONFIG_FILE, JSON.stringify(finalConfig, null, 2))
-    console.log(`✓ Configuration saved to ${CONFIG_FILE}`)
 }
 
 /**
@@ -165,7 +164,6 @@ export function getEnvConfig(config?: AirConfig): any {
  */
 export function resetConfig(): void {
     saveConfig(DEFAULT_CONFIG)
-    console.log("✓ Configuration reset to defaults")
 }
 
 /**
@@ -227,7 +225,6 @@ export async function enableStackerIntegration(options: {
         }
     })
     
-    console.log("✓ Stacker integration enabled in Air configuration")
 }
 
 /**
@@ -240,7 +237,6 @@ export function disableStackerIntegration(): void {
         }
     })
     
-    console.log("✓ Stacker integration disabled")
 }
 
 /**

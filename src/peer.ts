@@ -79,7 +79,6 @@ export class Peer {
         const legacyPath = path.join(this.config.root, "air.json")
         if (fs.existsSync(legacyPath) && !fs.existsSync(this.config.path)) {
             fs.copyFileSync(legacyPath, this.config.path)
-            console.log(`✓ Migrated ${legacyPath} → ${this.config.path}`)
         }
 
         this.readConfig()
@@ -312,13 +311,11 @@ export class Peer {
         })
 
         this.server.on('close', () => {
-            console.log('Server closed gracefully')
         })
 
         try {
             this.server.listen(this.config[this.env].port)
             this.restarts = 0
-            console.log(`Server started successfully on port ${this.config[this.env].port}`)
         } catch (error) {
             console.error('Failed to start server:', error)
             this.restart()
@@ -328,7 +325,6 @@ export class Peer {
     restart() {
         if (this.restarts < this.maxRestarts) {
             this.restarts++
-            console.log(`Attempting restart ${this.restarts}/${this.maxRestarts} in ${this.delay/1000} seconds...`)
             
             setTimeout(() => {
                 try {
@@ -377,7 +373,6 @@ export class Peer {
         // Use provided peers or default to localhost
         const peers = options.peers || [`http://localhost:${this.config[this.env].port || 8765}/gun`]
         
-        console.log('🔌 Connecting Air as client to:', peers)
         
         // Initialize GUN in client-only mode (no server!)
         this.gun = this.GUN({
@@ -391,7 +386,6 @@ export class Peer {
         // Still register in network but as client
         await this.online()
         
-        console.log('✅ Connected as client')
         return this
     }
 
@@ -400,16 +394,13 @@ export class Peer {
      * Tries server first, falls back to client if port is taken
      */
     async auto() {
-        console.log('🧠 Air auto-detecting best mode...')
         
         // Try to start as server
         try {
             if (this.checkSingleton()) {
-                console.log('🚀 Starting as server (port available)')
                 return await this.start()
             }
         } catch (e) {
-            console.log('Server slot taken, trying client mode...')
         }
         
         // Check if local server exists
@@ -417,7 +408,6 @@ export class Peer {
         try {
             const response = await fetch(`http://localhost:${port}/gun`)
             if (response.ok) {
-                console.log('📡 Connecting as client (local server found)')
                 return await this.connect()
             }
         } catch (e) {
@@ -426,11 +416,9 @@ export class Peer {
         
         // Try to start server if no local server exists
         try {
-            console.log('🚀 No server found, starting new server')
             return await this.start()
         } catch (e) {
             // If we can't start server, connect as client anyway
-            console.log('⚠️ Cannot start server, connecting as client')
             return await this.connect()
         }
     }
@@ -490,12 +478,10 @@ export class Peer {
             fs.mkdirSync(sharedDataPath, { recursive: true })
             gunConfig.file = sharedDataPath
             
-            console.log(`🔗 Using shared data source: ${sharedDataPath}`)
             
             this.gun = GUN(gunConfig)
             resolve(true)
 
-            console.log(`Environment: ${this.env}\nHTTPS: ${this.https ? true : false}\nHTTP: ${this.http ? true : false}\nPort: ${this.config[this.env].port}`)
         }).then(
             response => {
                 this.writeConfig()
@@ -521,7 +507,6 @@ export class Peer {
                 (response: any = {}) => {
                     if (response.err) reject(response.err)
                     else {
-                        console.log(`Node registered: ${this.config.name || 'localhost'}`)
                         resolve(response)
                     }
                 }
@@ -633,11 +618,9 @@ export class Peer {
     async startPeerScan() {
         const scan = this.config[this.env].scan
         if (!scan?.enabled) {
-            console.log('Peer scan disabled')
             return
         }
 
-        console.log('🌍 Starting domain-agnostic peer scan...')
         
         // Start scan methods
         if (scan.methods.multicast) {
@@ -656,7 +639,6 @@ export class Peer {
             this.loadManualPeers()
         }
         
-        console.log('✅ Peer scan initialized')
     }
 
     /**
@@ -664,7 +646,6 @@ export class Peer {
      */
     private startMulticastScan() {
         const { address, port } = this.config[this.env].scan.multicast
-        console.log(`🏠 Starting multicast scan on ${address}:${port}`)
         
         // This would use Node.js dgram for multicast UDP
         // For now, delegate to shell scan script
@@ -673,7 +654,6 @@ export class Peer {
                 cwd: process.cwd(),
                 stdio: 'pipe'
             })
-            console.log('Multicast scan process started')
         } catch (error) {
             console.warn('Multicast scan failed:', error)
         }
@@ -684,7 +664,6 @@ export class Peer {
      */
     private startDHTScan() {
         const bootstrap = this.config[this.env].scan.dht.bootstrap
-        console.log('🌐 Starting DHT scan with bootstrap peers:', bootstrap)
         
         // GUN handles DHT natively - just ensure bootstrap peers are configured
         if (bootstrap && bootstrap.length > 0) {
@@ -695,7 +674,6 @@ export class Peer {
                 }
             })
             
-            console.log(`Added ${bootstrap.length} DHT bootstrap peers`)
         }
     }
 
@@ -705,11 +683,9 @@ export class Peer {
     private startDNSScan() {
         const { domain, prefix } = this.config[this.env].scan.dns
         if (!domain) {
-            console.log('DNS scan: no domain configured, skipping')
             return
         }
         
-        console.log(`🌐 Starting DNS scan for ${domain} with prefix ${prefix}`)
         
         // Delegate to shell scan script for DNS operations
         try {
@@ -717,7 +693,6 @@ export class Peer {
                 cwd: process.cwd(),
                 stdio: 'pipe'
             })
-            console.log('DNS scan process started')
         } catch (error) {
             console.warn('DNS scan failed:', error)
         }
@@ -732,7 +707,6 @@ export class Peer {
         if (fs.existsSync(configPath)) {
             try {
                 const manualPeers = JSON.parse(fs.readFileSync(configPath, 'utf8'))
-                console.log(`📝 Loading ${manualPeers.length} manual peers`)
                 
                 manualPeers.forEach((peer: string) => {
                     if (!this.config[this.env].peers.includes(peer)) {
@@ -751,7 +725,6 @@ export class Peer {
     async addScannedPeer(peerAddress: string) {
         if (!this.config[this.env].peers.includes(peerAddress)) {
             this.config[this.env].peers.push(peerAddress)
-            console.log(`🔗 Added scanned peer: ${peerAddress}`)
             
             // If we're already running, connect to the new peer
             if (this.gun) {
@@ -770,26 +743,15 @@ export class Peer {
         const peers = this.config[this.env].peers || []
         const scan = this.config[this.env].scan
         
-        console.log('\n📊 Air Peer Network Status:')
-        console.log(`  Connected Peers: ${peers.length}`)
-        console.log(`  Scan Enabled: ${scan?.enabled ? 'Yes' : 'No'}`)
         
         if (scan?.enabled) {
-            console.log('  Scan Methods:')
-            console.log(`    • Multicast: ${scan.methods.multicast ? 'Enabled' : 'Disabled'}`)
-            console.log(`    • DHT: ${scan.methods.dht ? 'Enabled' : 'Disabled'}`) 
-            console.log(`    • DNS: ${scan.methods.dns && scan.dns.domain ? `Enabled (${scan.dns.domain})` : 'Disabled'}`)
-            console.log(`    • Manual: ${scan.methods.manual ? 'Enabled' : 'Disabled'}`)
         }
         
         if (peers.length > 0) {
-            console.log('\n  Current Peers:')
             peers.forEach((peer: string, index: number) => {
-                console.log(`    ${index + 1}. ${peer}`)
             })
         }
         
-        console.log()
     }
 }
 

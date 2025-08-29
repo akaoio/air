@@ -36,7 +36,6 @@ function isProcessRunning(pid: number): boolean {
 export function acquireLock(command: string = "air"): boolean {
     // Development bypass for testing - use with caution
     if (process.env.FORCE_AIR === "true" || process.env.NODE_ENV === "development") {
-        console.log("🚧 Development mode: bypassing singleton lock")
         return true
     }
     try {
@@ -47,12 +46,10 @@ export function acquireLock(command: string = "air"): boolean {
             
             // If lock is recent and process is alive, don't acquire
             if (lockAge < LOCK_TIMEOUT && isProcessRunning(lockData.pid)) {
-                console.log(`Another Air instance is running (PID: ${lockData.pid}, Command: ${lockData.command})`)
                 return false
             }
             
             // Lock is stale or process is dead, clean it up
-            console.log("Cleaning up stale lock file")
             releaseLock()
         }
         
@@ -120,7 +117,6 @@ export function shouldSkipRun(lastRunFile?: string): boolean {
             const timeSinceRun = Date.now() - lastTimestamp
             
             if (timeSinceRun < MIN_INTERVAL) {
-                console.log(`Recent run detected (${Math.round(timeSinceRun/1000)}s ago), skipping to avoid conflicts`)
                 return true
             }
         }
@@ -141,7 +137,6 @@ export function forceCleanup(): void {
         [LOCK_FILE, PID_FILE, `${LOCK_FILE}.last`].forEach(file => {
             if (fs.existsSync(file)) {
                 fs.unlinkSync(file)
-                console.log(`Removed ${file}`)
             }
         })
     } catch (error) {

@@ -53,7 +53,6 @@ export class StackerFramework {
             })
             
             this.initialized = true
-            console.log("✓ Stacker initialized for Air")
             
         } catch (error) {
             console.error("Failed to initialize Stacker:", error)
@@ -69,7 +68,6 @@ export class StackerFramework {
         
         try {
             await this.stacker.install(options)
-            console.log("✓ Air installed using Stacker framework")
             
         } catch (error) {
             console.error("Air installation failed:", error)
@@ -112,7 +110,6 @@ export class StackerFramework {
      */
     async setupNetworkMonitoring(): Promise<void> {
         await this.init()
-        console.log("✓ Air network monitoring delegated to Stacker framework")
     }
     
     /**

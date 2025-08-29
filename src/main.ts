@@ -14,7 +14,6 @@ import fs from "fs"
  */
 async function initializeStacker(): Promise<void> {
     // Stacker integration disabled - Air runs standalone  
-    console.log("✓ Air running in standalone mode")
 }
 
 /**
@@ -23,7 +22,6 @@ async function initializeStacker(): Promise<void> {
 function writePidFile(): void {
     try {
         fs.writeFileSync(PID_FILE, process.pid.toString())
-        console.log(`✓ PID file written: ${PID_FILE}`)
         
         // Clean up PID file on exit
         const cleanup = () => {
@@ -51,27 +49,14 @@ function logStartupInfo(): void {
     const cfg = config.load()
     const isStackerEnabled = config.isStackerEnabled()
     
-    console.log("")
-    console.log("==============================================")
-    console.log("  Air Distributed P2P Database v2.1.0")
-    console.log(`  ${isStackerEnabled ? "Stacker-Powered" : "Standalone Mode"}`)
-    console.log("==============================================")
-    console.log("")
-    console.log(`🌐 Network: ${cfg.host}:${cfg.port}`)
-    console.log(`⚙️  Environment: ${cfg.env}`)
-    console.log(`📁 Config: ${config.file}`)
     
     if (isStackerEnabled) {
         const stackerConfig = config.getStackerConfig()
-        console.log(`🔧 Stacker: Enabled (${stackerConfig.serviceMode})`)
-        console.log(`📊 Monitoring: ${stackerConfig.monitoringEnabled ? "Enabled" : "Disabled"}`)
         
         if (stackerConfig.autoUpdate) {
-            console.log(`🔄 Auto-update: Every ${stackerConfig.updateInterval} minutes`)
         }
     }
     
-    console.log("")
 }
 
 /**
@@ -89,14 +74,11 @@ const main = async () => {
         logStartupInfo()
         
         // Start the Air P2P database
-        console.log("🚀 Starting Air P2P database...")
         await db.start()
         
-        console.log("✅ Air P2P database started successfully")
         
         // Register success with Stacker if available
         if (StackerUtils.isAvailable() && config.isStackerEnabled()) {
-            console.log("📡 Air running under Stacker framework supervision")
         }
         
     } catch (error) {
