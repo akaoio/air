@@ -30,7 +30,7 @@
         "@akaoio/builder": "*",
         "@akaoio/composer": "*",
         "@akaoio/stacker": "^0.0.2",
-        "@types/node": "^20.0.0",
+        "@types/node": "^20.19.11",
         "prettier": "^3.0.0",
         "tsx": "^4.0.0",
         "typescript": "^5.0.0"
