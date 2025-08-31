@@ -1,38 +1,18 @@
-# CLAUDE.md - @akaoio/air
+# CLAUDE.md - 
 
-This file provides guidance to Claude Code (claude.ai/code) when working with the @akaoio/air codebase.
+This file provides guidance to Claude Code (claude.ai/code) when working with the  codebase.
 
 ## Project Overview
 
-**@akaoio/air** - Distributed P2P graph database with single data source - The living network that connects all agents in real-time
+**** - 
 
-**Version**: 2.1.0  
-**License**: MIT  
-**Author**: AKAO.IO  
-**Repository**: https://github.com/akaoio/air  
-**Philosophy**: "Air is the breath of the living agent ecosystem - enabling real-time P2P communication without central servers"
+**Version**:   
+**License**:   
+**Author**:   
+**Repository**:   
+**Philosophy**: ""
 
 ## Core Development Principles
-
-
-### Distributed P2P Architecture
-Peer-to-peer graph database using GUN for decentralized, real-time data synchronization
-
-
-
-### Single Data Source
-One unified data source shared across multiple instances for consistency
-
-
-
-### Real-Time Synchronization
-Instant data propagation across all connected peers without polling
-
-
-
-### XDG Compliance
-Follows XDG Base Directory specification for configuration management
-
 
 
 
@@ -40,379 +20,237 @@ Follows XDG Base Directory specification for configuration management
 
 ### System Design
 
-Air provides the distributed data layer for the Living Agent Network, enabling real-time P2P communication between agents using GUN database technology.
+Air is built as a distributed P2P graph database using GUN. It serves as the foundational communication layer for the entire living agent ecosystem, enabling real-time coordination without central servers.
 
 ### Core Components
-
-
-**Peer**
-- Core P2P node that manages connections and data synchronization
-- Responsibility: Peer discovery, connection management, and data replication
-
-
-**GUN Database**
-- Distributed graph database engine providing CRDT-based synchronization
-- Responsibility: Data storage, conflict resolution, and real-time updates
-
-
-**Network Layer**
-- WebSocket and WebRTC communication layer for peer connections
-- Responsibility: Network protocol handling and message routing
-
-
-**Storage Backend**
-- Persistent storage layer with pluggable adapters
-- Responsibility: Data persistence and retrieval
-
-
-**Security Layer**
-- Cryptographic security and access control
-- Responsibility: Authentication, encryption, and authorization
 
 
 
 ## Features
 
 
-### Real-Time P2P Sync
-Instant synchronization across all connected peers without central servers
 
+## Development Guidelines
 
-### Conflict-Free Replication
-CRDT-based data types ensure eventual consistency without conflicts
+### TypeScript Standards
 
+- **Strict Mode**: All TypeScript compiled with strict mode
+- **Type Safety**: No `any` types allowed in production
+- **Interface First**: Define interfaces before implementation
+- **Error Handling**: Always handle Promise rejections
+- **Testing**: Every class and method must have tests
 
-### Offline-First
-Works offline and syncs when connection is restored
-
-
-### Graph Database
-Flexible graph structure for complex data relationships
-
-
-### WebSocket Support
-Real-time bidirectional communication via WebSockets
-
-
-### Development Bypass
-Special development mode for testing without full P2P stack
-
-
-### TypeScript Native
-Written in TypeScript with full type safety
-
-
-### Living Agent Integration
-Native integration with the multi-agent ecosystem
-
-
-
-## Command Interface
-
-### Core Commands
-
-```bash
-
-air start [options]  # Start the Air P2P node
-
-air status  # Check node status and connections
-
-air peers  # List connected peers
-
-air data [get|put|subscribe] [path] [value]  # Interact with the distributed database
+### File Structure
 
 ```
+air/
+├── src/
+│   ├── Air/              # Main Air class
+│   ├── Network/          # Network layer
+│   ├── Storage/          # Data persistence
+│   ├── Security/         # Encryption and auth
+│   └── types/            # TypeScript definitions
+├── dist/                 # Compiled output
+├── test/                 # Test suites
+└── docs/                 # Documentation
+```
 
-### Detailed Command Reference
+### Class = Directory Pattern
 
+Following AKAO.IO standards:
 
-#### `start` Command
-**Purpose**: Start the Air P2P node  
-**Usage**: `air start [options]`
+```
+Air/
+├── index.ts              # Class exports
+├── constructor.ts        # Constructor logic
+├── connect.ts            # connect() method
+├── disconnect.ts         # disconnect() method
+├── put.ts               # put() method
+├── get.ts               # get() method
+└── on.ts                # on() method
+```
 
+### P2P Network Development
 
+When working with P2P functionality:
 
-#### `status` Command
-**Purpose**: Check node status and connections  
-**Usage**: `air status`
+1. **Peer Discovery**: Implement robust peer discovery
+2. **Connection Management**: Handle connection lifecycle
+3. **Data Synchronization**: Ensure consistency across peers
+4. **Conflict Resolution**: Implement CRDT-based resolution
+5. **Network Partitioning**: Handle network splits gracefully
 
+### Security Requirements
 
+- **Encryption**: All sensitive data must be encrypted
+- **Authentication**: Verify peer identities
+- **Authorization**: Control access to data
+- **Integrity**: Ensure data hasn't been tampered with
+- **Privacy**: Protect user data and metadata
 
-#### `peers` Command
-**Purpose**: List connected peers  
-**Usage**: `air peers`
+## Testing Requirements
 
+### Unit Tests
 
+```typescript
+// Air/put.test.ts
+import { Air } from './index.js'
 
-#### `data` Command
-**Purpose**: Interact with the distributed database  
-**Usage**: `air data [get|put|subscribe] [path] [value]`
+export default async function test() {
+  const air = new Air({ peers: [] })
+  
+  const result = await air.put('test-key', { value: 'test' })
+  
+  if (!result) {
+    throw new Error('Put operation should return success')
+  }
+}
+```
 
+### Integration Tests
 
+```typescript
+// test/integration/network.test.ts
+export default async function test() {
+  const peer1 = new Air({ port: 8765 })
+  const peer2 = new Air({ peers: ['http://localhost:8765/gun'] })
+  
+  await peer1.start()
+  await peer2.connect()
+  
+  // Test real-time synchronization
+  peer1.put('sync-test', { timestamp: Date.now() })
+  
+  const synced = await peer2.waitForData('sync-test')
+  if (!synced) {
+    throw new Error('Data should sync between peers')
+  }
+}
+```
 
+## Performance Guidelines
 
+- **Lazy Loading**: Load data only when needed
+- **Connection Pooling**: Reuse connections efficiently
+- **Delta Sync**: Synchronize only changed data
+- **Compression**: Compress data for network transfer
+- **Caching**: Cache frequently accessed data
 
+## Real-Time Communication
 
+### Event Handling
 
+```typescript
+// Listen for real-time updates
+air.get('agents').map().on((agent, key) => {
+  console.log(`Agent ${key} updated:`, agent)
+})
 
+// Handle connection events
+air.on('peer.connect', (peer) => {
+  console.log('New peer connected:', peer.id)
+})
+
+air.on('peer.disconnect', (peer) => {
+  console.log('Peer disconnected:', peer.id)
+})
+```
+
+### Data Patterns
+
+```typescript
+// Agent registration
+air.get('agents').get(agentId).put({
+  name: 'Agent Name',
+  status: 'online',
+  lastSeen: Date.now(),
+  capabilities: ['task1', 'task2']
+})
+
+// Message broadcasting
+air.get('broadcast').get(Date.now()).put({
+  from: agentId,
+  message: 'Hello, network!',
+  timestamp: Date.now()
+})
+
+// Direct messaging
+air.get('messages').get(targetId).get(Date.now()).put({
+  from: agentId,
+  to: targetId,
+  content: 'Direct message',
+  timestamp: Date.now()
+})
+```
+
+## Common Commands
+
+```bash
+# Start Air server
+npm run start
+
+# Build project
+npm run build
+
+# Run tests
+npm test
+
+# Type check
+npm run type-check
+
+# Lint code
+npm run lint
+
+# Start in development mode
+npm run dev
+
+# Monitor network
+npm run monitor
+```
 
 ## Environment Variables
 
 
-### AIR_PORT
-- **Description**: Default port for Air node
-- **Default**: `8765`
 
+## Anti-Patterns to Avoid
 
-### AIR_PEERS
-- **Description**: Default peer URLs to connect to
-- **Default**: ``
+❌ **DON'T**:
+- Block the event loop with synchronous operations
+- Store sensitive data without encryption
+- Ignore peer connection failures
+- Use global state for peer-specific data
+- Skip error handling for network operations
 
-
-### AIR_DATA_DIR
-- **Description**: Directory for persistent storage
-- **Default**: `$HOME/.local/share/air`
-
-
-### AIR_CONFIG_DIR
-- **Description**: Configuration directory
-- **Default**: `$HOME/.config/air`
-
-
-### AIR_DEV_MODE
-- **Description**: Enable development mode
-- **Default**: `false`
-
-
-
-## Development Guidelines
-
-### Shell Script Standards
-
-**POSIX Compliance**
-- Use `/bin/sh` (not bash-specific features)
-- Avoid bashisms and GNU-specific extensions
-- Test on multiple shells (dash, ash, bash)
-
-**Error Handling**
-- Always check exit codes: `command || handle_error`
-- Use proper error messages with context
-- Fail fast and clearly on configuration errors
-
-**Security Practices**
-- Validate all user input
-- Use secure temp file creation
-- Never expose sensitive data in logs
-- Proper file permissions (600 for configs)
-
-### Code Organization
-
-```
-stacker.sh              # Main entry point
-├── Core Functions
-│   ├── stacker_init()      # Framework initialization
-│   ├── stacker_config()    # Configuration management
-│   └── stacker_error()     # Error handling
-├── Module Loading
-│   ├── load_module()       # Dynamic module loading
-│   └── verify_module()     # Module verification
-└── Utility Functions
-    ├── log()              # Logging functionality
-    ├── validate_posix()   # POSIX compliance check
-    └── check_deps()       # Dependency verification
-```
-
-### Module Development
-
-Each module follows this pattern:
-
-```bash
-#!/bin/sh
-# Module: module-name
-# Description: Brief description
-# Dependencies: none (or list them)
-
-# Module initialization
-module_init() {
-    # Initialization code
-}
-
-# Module functions
-module_function() {
-    # Function implementation
-}
-
-# Module cleanup
-module_cleanup() {
-    # Cleanup code
-}
-
-# Export module interface
-STACKER_MODULE_NAME="module-name"
-STACKER_MODULE_VERSION="1.0.0"
-```
-
-### Testing Requirements
-
-**Manual Testing**
-- Test on multiple shells (sh, dash, ash, bash)
-- Verify on different Unix-like systems
-- Test failure scenarios and recovery
-- Validate all command options
-
-**Test Framework**
-```bash
-# Run all tests
-./tests/run-all.sh
-
-# Run specific test
-./tests/test-core.sh
-
-# Test with specific shell
-SHELL=/bin/dash ./tests/run-all.sh
-```
-
-## Common Patterns
-
-### Standard Error Handling
-```bash
-# Function with error handling
-function_name() {
-    command || {
-        log "ERROR: Command failed: $*"
-        return 1
-    }
-}
-```
-
-### Configuration Validation
-```bash
-# Validate required configuration
-validate_config() {
-    [ -z "$CONFIG_VALUE" ] && {
-        echo "ERROR: CONFIG_VALUE not set"
-        exit 1
-    }
-}
-```
-
-### Safe Temp File Creation
-```bash
-# Create temporary file safely
-TEMP_FILE=$(mktemp) || exit 1
-trap 'rm -f "$TEMP_FILE"' EXIT
-```
-
-### Module Loading
-```bash
-# Load module with verification
-load_module "module-name" || {
-    log "ERROR: Failed to load module: module-name"
-    exit 1
-}
-```
-
-## Use Cases
-
-
-
-## Security Considerations
-
-### Framework Security
-- All modules verified before loading
-- Configuration files with restricted permissions (600)
-- No execution of untrusted code
-- Input validation at all entry points
-
-### Deployment Security
-- Secure installation process
-- Proper service user creation
-- Limited privileges for service execution
-- Audit logging for critical operations
-
-## Troubleshooting Guide
-
-### Common Issues
-
-**Module Loading Failures**
-```bash
-# Debug module loading
-STACKER_DEBUG=true stacker init
-
-# Check module path
-echo $STACKER_MODULE_PATH
-
-# Verify module syntax
-sh -n module-name.sh
-```
-
-**Configuration Issues**
-```bash
-# Check configuration
-stacker config list
-
-# Validate configuration file
-stacker config validate
-
-# Reset configuration
-rm -rf ~/.config/stacker
-stacker init
-```
-
-**Service Issues**
-```bash
-# Check service status
-stacker service status
-
-# View service logs
-journalctl -u stacker -f
-
-# Restart service
-stacker service restart
-```
+✅ **DO**:
+- Use async/await for all network operations
+- Implement proper encryption for sensitive data
+- Handle network partitions gracefully
+- Use immutable data structures
+- Add comprehensive error handling
 
 ## Notes for AI Assistants
 
-When working with Manager:
+When working on this codebase:
 
-### Critical Guidelines
-- **ALWAYS maintain POSIX compliance** - test with `/bin/sh`
-- **NEVER introduce dependencies** - pure shell only
-- **Follow the module pattern** - consistency is key
-- **Test on multiple shells** - dash, ash, sh, bash
-- **Respect the framework philosophy** - universal patterns
+1. **P2P First**: Consider distributed nature in all decisions
+2. **Real-Time**: Optimize for real-time performance
+3. **Security**: Always consider security implications
+4. **Reliability**: Handle network failures gracefully
+5. **Scalability**: Design for thousands of peers
+6. **Testing**: Test network scenarios thoroughly
 
-### Development Best Practices
-- **Start with the core module** - understand the foundation
-- **Use existing patterns** - don't reinvent the wheel
-- **Test error conditions** - robust error handling
-- **Document module interfaces** - clear contracts
-- **Validate all inputs** - security first
+## Key Implementation Rules
 
-### Common Mistakes to Avoid
-- Using bash-specific features (arrays, [[ ]], etc.)
-- Assuming GNU coreutils extensions
-- Hardcoding paths instead of using variables
-- Forgetting to check exit codes
-- Not testing on minimal systems
-
-### Framework Extensions
-When extending Manager:
-1. Create new module following the pattern
-2. Add module to the module registry
-3. Update configuration schema if needed
-4. Add tests for new functionality
-5. Document in module header
-
-## 
-
-
-
-### Benefits
-
+- **Async Operations**: All network operations must be asynchronous
+- **Error Recovery**: Implement exponential backoff for failed operations
+- **Data Validation**: Validate all incoming data from peers
+- **Resource Management**: Clean up connections and listeners
+- **Monitoring**: Add metrics for all critical operations
 
 ---
 
-*Stacker is the foundation - bringing order to chaos through universal shell patterns.*
+*This documentation is generated using @akaoio/composer*
 
-*Version: 2.1.0 | License: MIT | Author: AKAO.IO*
+* - The living network that connects everything*
+
+*Generated with ❤️ by @akaoio/composer v*

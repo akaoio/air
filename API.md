@@ -1,403 +1,403 @@
-# @akaoio/air API Reference
+# API Documentation - 
 
-Distributed P2P graph database with single data source - The living network that connects all agents in real-time
+Complete API reference for .
 
 ## Core API
 
-### Framework Functions
+### Air Class
 
-#### `stacker_init()`
-Initialize the Stacker framework.
+#### Constructor
 
-**Usage**: `stacker_init [options]`
-
-**Returns**: 0 on success, 1 on failure
-
-**Example**:
-```bash
-stacker_init || exit 1
+```typescript
+constructor(options: AirOptions)
 ```
-
----
-
-#### `stacker_load_module()`
-Load a Stacker module dynamically.
-
-**Usage**: `stacker_load_module module_name`
-
-**Parameters**:
-- `module_name`: Name of the module to load
-
-**Returns**: 0 on success, 1 on failure
-
-**Example**:
-```bash
-stacker_load_module "config" || {
-    echo "Failed to load config module"
-    exit 1
-}
-```
-
----
-
-#### `stacker_config_get()`
-Get a configuration value.
-
-**Usage**: `stacker_config_get key [default]`
-
-**Parameters**:
-- `key`: Configuration key
-- `default`: Optional default value
-
-**Returns**: Configuration value or default
-
-**Example**:
-```bash
-interval=$(stacker_config_get "update.interval" "3600")
-```
-
----
-
-#### `stacker_config_set()`
-Set a configuration value.
-
-**Usage**: `stacker_config_set key value`
-
-**Parameters**:
-- `key`: Configuration key
-- `value`: Configuration value
-
-**Returns**: 0 on success, 1 on failure
-
-**Example**:
-```bash
-stacker_config_set "update.interval" "1800"
-```
-
----
-
-#### `stacker_log()`
-Log a message with level.
-
-**Usage**: `stacker_log level message`
-
-**Parameters**:
-- `level`: Log level (debug, info, warn, error)
-- `message`: Message to log
-
-**Example**:
-```bash
-stacker_log "info" "Starting update process"
-stacker_log "error" "Failed to connect to server"
-```
-
----
-
-#### `stacker_error()`
-Handle errors with proper cleanup.
-
-**Usage**: `stacker_error message [exit_code]`
-
-**Parameters**:
-- `message`: Error message
-- `exit_code`: Optional exit code (default: 1)
-
-**Example**:
-```bash
-command || stacker_error "Command failed" 2
-```
-
----
-
-### Service Functions
-
-#### `stacker_service_start()`
-Start a Manager service.
-
-**Usage**: `stacker_service_start [service_name]`
-
-**Returns**: 0 on success, 1 on failure
-
----
-
-#### `stacker_service_stop()`
-Stop a Manager service.
-
-**Usage**: `stacker_service_stop [service_name]`
-
-**Returns**: 0 on success, 1 on failure
-
----
-
-#### `stacker_service_status()`
-Get service status.
-
-**Usage**: `stacker_service_status [service_name]`
-
-**Returns**: Service status string
-
----
-
-### Installation Functions
-
-#### `stacker_install()`
-Install a Manager-based application.
-
-**Usage**: `stacker_install [options]`
 
 **Options**:
-- `--systemd`: Install as systemd service
-- `--cron`: Install as cron job
-- `--prefix`: Installation prefix
+- `port?: number` - Server port (default: 8765)
+- `host?: string` - Server host (default: '0.0.0.0')
+- `peers?: string[]` - Initial peers to connect to
+- `storage?: StorageOptions` - Storage configuration
+- `security?: SecurityOptions` - Security settings
 
-**Returns**: 0 on success, 1 on failure
+#### Methods
 
----
+##### `get(key: string): AirReference`
 
-#### `stacker_uninstall()`
-Uninstall a Manager-based application.
+Access data at the specified key path.
 
-**Usage**: `stacker_uninstall [options]`
-
-**Returns**: 0 on success, 1 on failure
-
----
-
-### Update Functions
-
-#### `stacker_update_check()`
-Check for available updates.
-
-**Usage**: `stacker_update_check`
-
-**Returns**: 0 if update available, 1 if current
-
----
-
-#### `stacker_update_apply()`
-Apply available updates.
-
-**Usage**: `stacker_update_apply [version]`
-
-**Parameters**:
-- `version`: Optional specific version
-
-**Returns**: 0 on success, 1 on failure
-
----
-
-#### `stacker_rollback()`
-Rollback to previous version.
-
-**Usage**: `stacker_rollback [version]`
-
-**Returns**: 0 on success, 1 on failure
-
----
-
-## Module API
-
-### Creating a Module
-
-Modules must export these variables:
-
-```bash
-STACKER_MODULE_NAME="module-name"
-STACKER_MODULE_VERSION="1.0.0"
-STACKER_MODULE_DESCRIPTION="Module description"
+```typescript
+const user = air.get('users').get('user123')
 ```
 
-### Module Lifecycle
+##### `put(data: any): Promise<boolean>`
 
-#### `module_init()`
-Called when module is loaded.
+Store data in the distributed database.
 
-**Required**: Yes
+```typescript
+await air.put({ name: 'John', age: 30 })
+```
 
-**Example**:
+##### `on(event: string, callback: Function): void`
+
+Listen for real-time events.
+
+```typescript
+air.on('peer.connect', (peer) => {
+  console.log('Peer connected:', peer.id)
+})
+```
+
+##### `start(): Promise<void>`
+
+Start the Air server.
+
+```typescript
+await air.start()
+```
+
+##### `stop(): Promise<void>`
+
+Stop the Air server.
+
+```typescript
+await air.stop()
+```
+
+### AirReference Class
+
+#### Methods
+
+##### `put(data: any): Promise<boolean>`
+
+Store data at this reference.
+
+```typescript
+await air.get('messages').get('msg1').put({
+  text: 'Hello',
+  timestamp: Date.now()
+})
+```
+
+##### `get(key: string): AirReference`
+
+Get a child reference.
+
+```typescript
+const message = air.get('messages').get('msg1')
+```
+
+##### `on(callback: (data: any, key: string) => void): void`
+
+Listen for changes at this reference.
+
+```typescript
+air.get('messages').on((data, key) => {
+  console.log('Message updated:', data)
+})
+```
+
+##### `map(): AirReference`
+
+Iterate over all children.
+
+```typescript
+air.get('users').map().on((user, id) => {
+  console.log('User:', id, user)
+})
+```
+
+##### `once(callback: (data: any, key: string) => void): void`
+
+Get current value once.
+
+```typescript
+air.get('config').get('version').once((version) => {
+  console.log('Version:', version)
+})
+```
+
+## Network API
+
+### Events
+
+#### `peer.connect`
+Fired when a new peer connects.
+
+```typescript
+air.on('peer.connect', (peer: PeerInfo) => {
+  console.log('New peer:', peer.id)
+})
+```
+
+#### `peer.disconnect`
+Fired when a peer disconnects.
+
+```typescript
+air.on('peer.disconnect', (peer: PeerInfo) => {
+  console.log('Peer left:', peer.id)
+})
+```
+
+#### `data.sync`
+Fired when data synchronizes.
+
+```typescript
+air.on('data.sync', (key: string, data: any) => {
+  console.log('Data synced:', key, data)
+})
+```
+
+#### `network.error`
+Fired on network errors.
+
+```typescript
+air.on('network.error', (error: Error) => {
+  console.error('Network error:', error)
+})
+```
+
+### Peer Management
+
+#### `getPeers(): Promise<PeerInfo[]>`
+
+Get list of connected peers.
+
+```typescript
+const peers = await air.getPeers()
+console.log('Connected peers:', peers.length)
+```
+
+#### `connectToPeer(url: string): Promise<boolean>`
+
+Connect to a specific peer.
+
+```typescript
+await air.connectToPeer('https://peer.example.com:8765/gun')
+```
+
+#### `disconnectFromPeer(peerId: string): Promise<boolean>`
+
+Disconnect from a specific peer.
+
+```typescript
+await air.disconnectFromPeer('peer123')
+```
+
+## Storage API
+
+### Configuration
+
+```typescript
+const air = new Air({
+  storage: {
+    type: 'file',
+    path: './air-data',
+    options: {
+      compression: true,
+      encryption: true
+    }
+  }
+})
+```
+
+### Methods
+
+#### `backup(): Promise<string>`
+
+Create a backup of all data.
+
+```typescript
+const backupPath = await air.backup()
+console.log('Backup created:', backupPath)
+```
+
+#### `restore(backupPath: string): Promise<boolean>`
+
+Restore data from backup.
+
+```typescript
+await air.restore('./backup-2024-08-30.json')
+```
+
+#### `clear(): Promise<boolean>`
+
+Clear all local data.
+
+```typescript
+await air.clear()
+```
+
+## Security API
+
+### Authentication
+
+```typescript
+// Enable authentication
+const air = new Air({
+  security: {
+    enabled: true,
+    auth: {
+      type: 'keypair',
+      publicKey: 'public_key_here',
+      privateKey: 'private_key_here'
+    }
+  }
+})
+```
+
+### Methods
+
+#### `authenticate(credentials: any): Promise<boolean>`
+
+Authenticate with the network.
+
+```typescript
+await air.authenticate({
+  username: 'user',
+  password: 'pass'
+})
+```
+
+#### `encrypt(data: any, key?: string): string`
+
+Encrypt data for storage.
+
+```typescript
+const encrypted = air.encrypt({ secret: 'data' })
+```
+
+#### `decrypt(encryptedData: string, key?: string): any`
+
+Decrypt data.
+
+```typescript
+const decrypted = air.decrypt(encryptedData)
+```
+
+## CLI API
+
+### Commands
+
+#### `air server`
+
+Start Air server.
+
 ```bash
-module_init() {
-    # Initialize module state
-    MODULE_STATE="initialized"
-    return 0
+air server --port 8765 --host 0.0.0.0
+```
+
+**Options**:
+- `--port, -p` - Port number (default: 8765)
+- `--host, -h` - Host address (default: 0.0.0.0)
+- `--peers` - Comma-separated list of peer URLs
+- `--storage` - Storage directory path
+- `--config` - Configuration file path
+
+#### `air status`
+
+Check network status.
+
+```bash
+air status
+```
+
+#### `air peers`
+
+List connected peers.
+
+```bash
+air peers --json
+```
+
+#### `air monitor`
+
+Monitor real-time network activity.
+
+```bash
+air monitor --filter messages
+```
+
+#### `air backup`
+
+Create data backup.
+
+```bash
+air backup --output ./backup.json
+```
+
+#### `air restore`
+
+Restore from backup.
+
+```bash
+air restore --input ./backup.json
+```
+
+## Type Definitions
+
+### AirOptions
+
+```typescript
+interface AirOptions {
+  port?: number
+  host?: string
+  peers?: string[]
+  storage?: StorageOptions
+  security?: SecurityOptions
 }
 ```
 
----
+### PeerInfo
 
-#### `module_cleanup()`
-Called when module is unloaded.
-
-**Required**: No
-
-**Example**:
-```bash
-module_cleanup() {
-    # Clean up resources
-    unset MODULE_STATE
-    return 0
+```typescript
+interface PeerInfo {
+  id: string
+  url: string
+  connected: boolean
+  lastSeen: number
+  latency?: number
 }
 ```
 
----
+### StorageOptions
 
-#### `module_verify()`
-Verify module integrity.
-
-**Required**: No
-
-**Example**:
-```bash
-module_verify() {
-    # Check module dependencies
-    command -v required_command >/dev/null 2>&1 || return 1
-    return 0
+```typescript
+interface StorageOptions {
+  type: 'memory' | 'file' | 'redis'
+  path?: string
+  options?: any
 }
 ```
 
----
+### SecurityOptions
 
-## Environment Variables
-
-### Core Variables
-
-
-#### AIR_PORT
-Default port for Air node
-
-**Default**: `8765`
-
-
-#### AIR_PEERS
-Default peer URLs to connect to
-
-**Default**: ``
-
-
-#### AIR_DATA_DIR
-Directory for persistent storage
-
-**Default**: `$HOME/.local/share/air`
-
-
-#### AIR_CONFIG_DIR
-Configuration directory
-
-**Default**: `$HOME/.config/air`
-
-
-#### AIR_DEV_MODE
-Enable development mode
-
-**Default**: `false`
-
-
-
-### Module Variables
-
-Modules can access these variables:
-
-- `STACKER_MODULE_PATH`: Module search path
-- `STACKER_MODULE_CACHE`: Module cache directory
-- `STACKER_MODULE_REGISTRY`: Module registry file
-
-## Exit Codes
-
-| Code | Meaning |
-|------|---------|
-| 0 | Success |
-| 1 | General error |
-| 2 | Configuration error |
-| 3 | Module loading error |
-| 4 | Service error |
-| 5 | Installation error |
-| 6 | Update error |
-| 10 | Permission denied |
-| 11 | Resource not found |
-| 12 | Invalid argument |
-
-## Shell Compatibility
-
-Stacker is tested with:
-
-- `/bin/sh` (POSIX shell)
-- `dash` (Debian Almquist shell)
-- `ash` (Almquist shell)
-- `bash` (Bourne Again shell)
-- `zsh` (Z shell)
-
-## Examples
-
-### Basic Usage
-
-```bash
-#!/bin/sh
-# Load Stacker framework
-. /usr/local/lib/stacker/stacker-core.sh
-
-# Initialize
-stacker_init || exit 1
-
-# Use framework functions
-stacker_log "info" "Application starting"
-config_value=$(stacker_config_get "app.setting" "default")
-```
-
-### Creating a Service
-
-```bash
-#!/bin/sh
-# My Service using Manager
-
-# Load Manager
-. /usr/local/lib/stacker/stacker-core.sh
-stacker_init || exit 1
-
-# Service logic
-service_run() {
-    while true; do
-        stacker_log "info" "Service running"
-        # Do work here
-        sleep 60
-    done
-}
-
-# Start service
-stacker_service_start "my-service"
-service_run
-```
-
-### Module Development
-
-```bash
-#!/bin/sh
-# Custom Stacker module
-
-# Module metadata
-STACKER_MODULE_NAME="custom"
-STACKER_MODULE_VERSION="1.0.0"
-STACKER_MODULE_DESCRIPTION="Custom module"
-
-# Module initialization
-module_init() {
-    stacker_log "debug" "Custom module initialized"
-    return 0
-}
-
-# Module functions
-custom_function() {
-    echo "Custom functionality"
-}
-
-# Module cleanup
-module_cleanup() {
-    stacker_log "debug" "Custom module cleaned up"
-    return 0
+```typescript
+interface SecurityOptions {
+  enabled: boolean
+  encryption?: string
+  auth?: AuthOptions
 }
 ```
+
+## Error Codes
+
+| Code | Description |
+|------|-------------|
+| 1000 | Connection failed |
+| 1001 | Authentication failed |
+| 1002 | Invalid data format |
+| 1003 | Storage error |
+| 1004 | Network timeout |
+| 1005 | Peer not found |
+| 1006 | Encryption failed |
+| 1007 | Sync conflict |
+
+## Rate Limits
+
+- **Connections**: 100 per minute per IP
+- **Data Operations**: 1000 per minute per peer
+- **Broadcasts**: 10 per minute per peer
 
 ---
 
-*@akaoio/air API Reference*
-
-*Version 2.1.0 | License: MIT*
+*Generated with ❤️ by @akaoio/composer*

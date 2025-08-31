@@ -7,7 +7,7 @@
     "types": "dist/index.d.ts",
     "license": "MIT",
     "dependencies": {
-        "@akaoio/gun": "^0.2020.1240"
+        "@akaoio/gun": "^0.2020.1241"
     },
     "scripts": {
         "build": "akao-build",

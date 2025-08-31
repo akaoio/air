@@ -10,7 +10,7 @@ Distributed P2P graph database with single data source - The living network that
 
 ## Overview
 
-Air provides the distributed data layer for the Living Agent Network, enabling real-time P2P communication between agents using GUN database technology.
+Air is the foundational P2P database that powers the entire living agent system. Built on GUN for distributed, real-time data synchronization without central servers.
 
 ## Core Principles
 
@@ -18,15 +18,21 @@ Air provides the distributed data layer for the Living Agent Network, enabling r
 ### Distributed P2P Architecture
 Peer-to-peer graph database using GUN for decentralized, real-time data synchronization
 
+**Critical**: This is a foundational requirement
+
 
 
 ### Single Data Source
 One unified data source shared across multiple instances for consistency
 
+**Critical**: This is a foundational requirement
+
 
 
 ### Real-Time Synchronization
 Instant data propagation across all connected peers without polling
+
+**Critical**: This is a foundational requirement
 
 
 
@@ -39,93 +45,78 @@ Follows XDG Base Directory specification for configuration management
 ## Features
 
 
-- **Real-Time P2P Sync**: Instant synchronization across all connected peers without central servers
-
-- **Conflict-Free Replication**: CRDT-based data types ensure eventual consistency without conflicts
-
-- **Offline-First**: Works offline and syncs when connection is restored
-
-- **Graph Database**: Flexible graph structure for complex data relationships
-
-- **WebSocket Support**: Real-time bidirectional communication via WebSockets
-
-- **Development Bypass**: Special development mode for testing without full P2P stack
-
-- **TypeScript Native**: Written in TypeScript with full type safety
-
-- **Living Agent Integration**: Native integration with the multi-agent ecosystem
-
 
 ## Installation
 
 ```bash
-# Quick install with default settings
-curl -sSL https://raw.githubusercontent.com/akaoio/stacker/main/install.sh | sh
+# Install via npm
+npm install @akaoio/air
 
-# Install as systemd service
-curl -sSL https://raw.githubusercontent.com/akaoio/stacker/main/install.sh | sh -s -- --systemd
+# Or install globally
+npm install -g @akaoio/air
 
-# Install with custom prefix
-curl -sSL https://raw.githubusercontent.com/akaoio/stacker/main/install.sh | sh -s -- --prefix=/opt/manager
+# Start air network
+npx air start
 ```
 
 ## Usage
 
-```bash
-# Initialize a new Manager-based project
-manager init
+### Basic Usage
 
-# Configure settings
-manager config set update.interval 3600
+```javascript
+import { Air } from '@akaoio/air'
 
-# Install application
-manager install --systemd
+// Connect to the Air network
+const air = new Air({
+  peers: ['https://air.akao.io:8765/gun']
+})
 
-# Check health
-manager health
+// Store data
+air.get('agents').get('my-agent').put({
+  name: 'My Agent',
+  status: 'online',
+  timestamp: Date.now()
+})
 
-# Update application
-manager update
+// Listen for real-time updates
+air.get('agents').map().on((agent, key) => {
+  console.log(`Agent ${key}:`, agent)
+})
 ```
 
-## Commands
+### Server Usage
 
+```bash
+# Start Air server on default port (8765)
+air server
 
-### `start`
-Start the Air P2P node
+# Start with custom configuration
+air server --port 9000 --host 0.0.0.0
 
-**Usage**: `air start [options]`
+# Start with peers
+air server --peers https://peer1.com:8765,https://peer2.com:8765
+```
 
+### Command Line Interface
 
+```bash
+# Initialize Air configuration
+air init
 
-### `status`
-Check node status and connections
+# Check network status
+air status
 
-**Usage**: `air status`
+# List connected peers
+air peers
 
+# Monitor real-time data
+air monitor
 
+# Health check
+air health
+```
 
-### `peers`
-List connected peers
-
-**Usage**: `air peers`
-
-
-
-### `data`
-Interact with the distributed database
-
-**Usage**: `air data [get|put|subscribe] [path] [value]`
-
-
-
-
-
-
-
-
-
-## Architecture Components
+## Architecture
 
 
 ### Peer
@@ -159,9 +150,121 @@ Cryptographic security and access control
 
 
 
+## API Reference
+
+### Core Methods
+
+#### `air.get(key)`
+Access data at the specified key path.
+
+```javascript
+const user = air.get('users').get('user123')
+```
+
+#### `air.put(data)`
+Store data in the distributed database.
+
+```javascript
+air.get('messages').get(Date.now()).put({
+  text: 'Hello, Air!',
+  sender: 'agent1'
+})
+```
+
+#### `air.on(callback)`
+Listen for real-time data changes.
+
+```javascript
+air.get('events').on((data, key) => {
+  console.log('New event:', data)
+})
+```
+
+## Configuration
+
+Create an `air.config.js` file:
+
+```javascript
+module.exports = {
+  port: 8765,
+  host: '0.0.0.0',
+  peers: [
+    'https://air.akao.io:8765/gun',
+    'https://backup.akao.io:8765/gun'
+  ],
+  storage: {
+    type: 'file',
+    path: './air-data'
+  },
+  security: {
+    enabled: true,
+    encryption: 'aes-256-gcm'
+  }
+}
+```
+
+## Network Topology
+
+Air creates a mesh network of interconnected peers:
+
+```
+    Peer A ←→ Peer B
+       ↑         ↑
+       ↓         ↓  
+    Peer C ←→ Peer D
+```
+
+Each peer maintains a complete copy of the data and synchronizes changes in real-time.
+
 ## Use Cases
 
 
+- No central point of failure - fully distributed architecture
+
+- Real-time updates - instant propagation across the network
+
+- Offline resilience - works without constant connectivity
+
+- Conflict-free - CRDT technology ensures consistency
+
+- Privacy-preserving - data stays within your network
+
+- Scalable - grows with your agent ecosystem
+
+
+## Development
+
+### Requirements
+
+- Node.js 18+
+- TypeScript 5+
+- @akaoio/builder for compilation
+- @akaoio/battle for testing
+
+### Build
+
+```bash
+npm run build
+```
+
+### Test
+
+```bash
+npm test
+```
+
+### Local Development
+
+```bash
+# Start local Air network
+npm run dev
+
+# In another terminal, start a peer
+npm run peer
+
+# Monitor network activity
+npm run monitor
+```
 
 ## Environment Variables
 
@@ -179,44 +282,31 @@ Cryptographic security and access control
 | `AIR_DEV_MODE` | Enable development mode | `false` |
 
 
-## 
+## Performance
 
+- **Real-time**: Sub-millisecond synchronization
+- **Scalability**: Handles thousands of concurrent connections
+- **Reliability**: Automatic failover and data recovery
+- **Efficiency**: Delta synchronization reduces bandwidth
 
+## Security
 
-### Benefits
-
-
-
-## Development
-
-Manager follows strict POSIX compliance and zero-dependency principles. All code must be pure POSIX shell without bashisms or GNU extensions.
-
-### Contributing
-
-1. Fork the repository
-2. Create your feature branch
-3. Ensure POSIX compliance
-4. Add tests using the test framework
-5. Submit a pull request
-
-### Testing
-
-```bash
-# Run all tests
-./tests/run-all.sh
-
-# Run specific test suite
-./tests/test-core.sh
-```
+- End-to-end encryption for sensitive data
+- Cryptographic signatures for data integrity
+- Peer authentication and authorization
+- Rate limiting and DDoS protection
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/akaoio/stacker/issues)
-- **Documentation**: [Wiki](https://github.com/akaoio/stacker/wiki)
-- **Community**: [Discussions](https://github.com/akaoio/stacker/discussions)
+- **Issues**: [GitHub Issues](https://github.com/akaoio/air/issues)
+- **Documentation**: [GitHub Wiki](https://github.com/akaoio/air/wiki)
+- **Community**: [Discussions](https://github.com/akaoio/air/discussions)
 
 ---
 
-*@akaoio/air - The foundational framework that brings order to chaos*
+* - The living network that connects everything*
 
-*Built with zero dependencies for eternal reliability*
+*Built with ❤️ by AKAO.IO*
+
+---
+*Generated by [Composer](https://composer.akao.io) - Atomic documentation engine*

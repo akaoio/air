@@ -49,7 +49,9 @@ export class StackerFramework {
                 name: "air",
                 repository: "https://github.com/akaoio/air.git",
                 executable: "air",
-                description: "Distributed P2P Database System"
+                description: "Distributed P2P Database System",
+                serviceType: "forking",
+                pidFile: "/home/x/.local/state/air/air.pid"
             })
             
             this.initialized = true
@@ -67,6 +69,10 @@ export class StackerFramework {
         await this.init()
         
         try {
+            // Set service configuration for Air's forking behavior
+            process.env.STACKER_SERVICE_TYPE = "forking"
+            process.env.STACKER_PID_FILE = "/home/x/.local/state/air/air.pid"
+            
             await this.stacker.install(options)
             
         } catch (error) {
