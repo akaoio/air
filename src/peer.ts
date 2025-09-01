@@ -17,6 +17,8 @@ import GUN from "@akaoio/gun"
 import "@akaoio/gun/nts.js"
 import "./types.js"
 import { acquireLock, releaseLock } from "./lock-manager.js"
+import { AIR_CONFIG_DIR, AIR_DATA_DIR, AIR_STATE_DIR, CONFIG_FILE, SYSTEM_LOCK_FILE, RUNTIME_LOCK_FILE, RUNTIME_PID_FILE, ensureDirectories } from "./xdg-paths.js"
+import { loadConfig, saveConfig, updateConfig } from "./config.js"
 import url from "url"
 
 interface PeerConfig {
@@ -58,22 +60,13 @@ export class Peer {
         this.config.root = this.config.root || process.env.ROOT || process.env.PWD || process.cwd() || cwd
         this.config.bash = (this.config.bash || process.env.BASH || cwd).replace(/\/\s*$/, "")
 
-        // XDG-compliant configuration path
-        const XDG_CONFIG_HOME = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config')
-        const XDG_STATE_HOME = process.env.XDG_STATE_HOME || path.join(os.homedir(), '.local', 'state')
-        const XDG_DATA_HOME = process.env.XDG_DATA_HOME || path.join(os.homedir(), '.local', 'share')
+        // Use centralized XDG paths
+        this.configDir = AIR_CONFIG_DIR
+        this.stateDir = AIR_STATE_DIR
+        this.dataDir = AIR_DATA_DIR
         
-        this.configDir = path.join(XDG_CONFIG_HOME, 'air')
-        this.stateDir = path.join(XDG_STATE_HOME, 'air')
-        this.dataDir = path.join(XDG_DATA_HOME, 'air')
-        
-        // Ensure directories exist
-        fs.mkdirSync(this.configDir, { recursive: true })
-        fs.mkdirSync(this.stateDir, { recursive: true })
-        fs.mkdirSync(this.dataDir, { recursive: true })
-        
-        // XDG paths
-        this.config.path = path.join(this.configDir, "config.json")
+        // Directories are ensured by xdg-paths module on import
+        this.config.path = CONFIG_FILE
         
         // Migrate from legacy air.json if it exists and XDG config doesn't
         const legacyPath = path.join(this.config.root, "air.json")
@@ -81,7 +74,9 @@ export class Peer {
             fs.copyFileSync(legacyPath, this.config.path)
         }
 
-        this.readConfig()
+        // Load config using centralized system
+        const savedConfig = loadConfig()
+        this.config = merge(this.config, savedConfig)
 
         // Parse environment
         const envArg = process.argv.find(arg => arg.startsWith('--env='))
@@ -138,20 +133,10 @@ export class Peer {
     }
 
     setupSingleton() {
-        // Use XDG-compliant paths for lock files
-        const xdgRuntimeDir = process.env.XDG_RUNTIME_DIR || path.join(os.tmpdir(), `user-${process.getuid()}`)
-        const xdgStateDir = process.env.XDG_STATE_HOME || path.join(os.homedir(), '.local', 'state')
-        
-        try {
-            if (!fs.existsSync(xdgRuntimeDir)) fs.mkdirSync(xdgRuntimeDir, { recursive: true, mode: 0o700 })
-            if (!fs.existsSync(path.join(xdgStateDir, 'air'))) fs.mkdirSync(path.join(xdgStateDir, 'air'), { recursive: true })
-        } catch (error) {
-            console.warn('Warning: Could not create XDG directories:', error.message)
-        }
-
-        this.systemLockFile = path.join(xdgRuntimeDir, 'air-system.lock')
-        this.lockFile = path.join(xdgRuntimeDir, 'air.lock')
-        this.pidFile = path.join(xdgStateDir, 'air', 'air.pid')
+        // Use centralized XDG paths
+        this.systemLockFile = SYSTEM_LOCK_FILE
+        this.lockFile = RUNTIME_LOCK_FILE
+        this.pidFile = RUNTIME_PID_FILE
         
         process.on('exit', () => this.cleanup())
         process.on('SIGINT', () => { this.cleanup(); process.exit(0) })
@@ -220,7 +205,7 @@ export class Peer {
                     port: this.config[this.env].port,
                     peers: this.getConnectedPeers().length,
                     uptime: process.uptime(),
-                    version: '2.1.0'
+                    version: '0.0.1'
                 }
                 res.end(JSON.stringify(status))
                 return
@@ -303,7 +288,7 @@ export class Peer {
             if (error.code === 'EADDRINUSE') {
                 console.error(`Port ${this.config[this.env].port} is already in use. Trying next port...`)
                 this.config[this.env].port = parseInt(this.config[this.env].port) + 1
-                this.writeConfig()
+                saveConfig(this.config as any)
                 this.restart()
             } else {
                 this.restart()
@@ -423,20 +408,7 @@ export class Peer {
         }
     }
 
-    readConfig() {
-        if (fs.existsSync(this.config.path!)) {
-            let config = fs.readFileSync(this.config.path!, "utf8")
-            config = JSON.parse(config)
-            this.config = merge(this.config, config)
-        }
-        return this.config
-    }
-
-    writeConfig() {
-        const content = JSON.stringify(this.config, null, 4)
-        if (JSON.parse(content)) fs.writeFileSync(this.config.path!, content)
-        return this.config
-    }
+    // Use centralized config methods instead of duplicates
 
     syncConfig(callback = () => {}) {
         if (!this.config?.sync) return Promise.resolve()
@@ -444,14 +416,16 @@ export class Peer {
         return new Promise((resolve, reject) => {
             fetch(this.config.sync!)
                 .then(response => response.json())
-                .then(data => {
+                .then((data: any) => {
                     data = data || {}
                     data.system = data.system || {}
 
                     this.config[this.env].system = data.system.pub && data.system.epub && data.system.cert ? data.system : {}
 
-                    this.readConfig()
-                    this.writeConfig()
+                    // Reload and save config with centralized system
+                    const currentConfig = loadConfig()
+                    this.config = merge(this.config, currentConfig)
+                    saveConfig(this.config as any)
                     resolve(undefined)
                 })
                 .catch(e => reject(e))
@@ -484,7 +458,7 @@ export class Peer {
 
         }).then(
             response => {
-                this.writeConfig()
+                saveConfig(this.config as any)
                 if (callback) callback(response)
                 return this
             },
@@ -732,7 +706,7 @@ export class Peer {
             }
             
             // Save to configuration
-            this.writeConfig()
+            saveConfig(this.config)
         }
     }
 

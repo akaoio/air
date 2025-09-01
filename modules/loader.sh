@@ -1,6 +1,6 @@
 #!/bin/sh
 # Air Module Loader - Dynamic Module Loading System
-# Version: 2.1.0
+# Version: 0.0.1
 # Following Manager's modular loading philosophy
 
 # Module directory

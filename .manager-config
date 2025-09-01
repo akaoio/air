@@ -5,7 +5,7 @@
 # Project metadata
 PROJECT_TYPE="typescript"
 PROJECT_DESCRIPTION="Domain-Agnostic Distributed P2P Database"
-PROJECT_VERSION="2.1.0"
+PROJECT_VERSION="0.0.1"
 PROJECT_PORT="8765"
 
 # Build configuration  

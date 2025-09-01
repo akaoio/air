@@ -1,7 +1,7 @@
 {
     "name": "@akaoio/air",
     "type": "module",
-    "version": "2.1.0",
+    "version": "0.0.1",
     "description": "Distributed P2P database system with Stacker framework integration",
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
@@ -29,7 +29,6 @@
         "@akaoio/battle": "^1.2.3",
         "@akaoio/builder": "*",
         "@akaoio/composer": "*",
-        "@akaoio/stacker": "^0.0.2",
         "@types/node": "^20.19.11",
         "prettier": "^3.0.0",
         "tsx": "^4.0.0",

@@ -15,18 +15,23 @@ const XDG_CONFIG_HOME = process.env.XDG_CONFIG_HOME || path.join(HOME, ".config"
 const XDG_DATA_HOME = process.env.XDG_DATA_HOME || path.join(HOME, ".local", "share")
 const XDG_STATE_HOME = process.env.XDG_STATE_HOME || path.join(HOME, ".local", "state")
 const XDG_CACHE_HOME = process.env.XDG_CACHE_HOME || path.join(HOME, ".cache")
+const XDG_RUNTIME_DIR = process.env.XDG_RUNTIME_DIR || path.join(os.tmpdir(), `user-${process.getuid?.() || 0}`)
 
 // Air directories - THESE ARE THE ONLY PATHS WE USE
 export const AIR_CONFIG_DIR = path.join(XDG_CONFIG_HOME, "air")
 export const AIR_DATA_DIR = path.join(XDG_DATA_HOME, "air")
 export const AIR_STATE_DIR = path.join(XDG_STATE_HOME, "air")
 export const AIR_CACHE_DIR = path.join(XDG_CACHE_HOME, "air")
+export const AIR_RUNTIME_DIR = XDG_RUNTIME_DIR
 
 // Specific files - SINGLE SOURCE OF TRUTH
 export const CONFIG_FILE = path.join(AIR_CONFIG_DIR, "config.json")
 export const LOCK_FILE = path.join(AIR_STATE_DIR, "air.lock")
 export const PID_FILE = path.join(AIR_STATE_DIR, "air.pid")
 export const LOG_FILE = path.join(AIR_DATA_DIR, "air.log")
+export const SYSTEM_LOCK_FILE = path.join(XDG_RUNTIME_DIR, "air-system.lock")
+export const RUNTIME_LOCK_FILE = path.join(XDG_RUNTIME_DIR, "air.lock")
+export const RUNTIME_PID_FILE = path.join(AIR_STATE_DIR, "air.pid")
 
 // Ensure directories exist
 export function ensureDirectories(): void {
@@ -35,6 +40,15 @@ export function ensureDirectories(): void {
             fs.mkdirSync(dir, { recursive: true, mode: 0o755 })
         }
     })
+    
+    // Ensure runtime directory exists with proper permissions
+    try {
+        if (!fs.existsSync(XDG_RUNTIME_DIR)) {
+            fs.mkdirSync(XDG_RUNTIME_DIR, { recursive: true, mode: 0o700 })
+        }
+    } catch (error) {
+        // Runtime dir creation can fail in some environments - not critical
+    }
 }
 
 // Migration from old paths (one-time, then done)

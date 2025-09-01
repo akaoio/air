@@ -1,5 +1,5 @@
 /**
- * @akaoio/air - Stacker Framework Integration (v0.0.2)
+ * @akaoio/air - Stacker Framework Integration (v0.0.1)
  * 
  * Updated to use the published @akaoio/stacker npm package
  * Features hybrid TypeScript + Shell architecture with multi-format support
@@ -20,7 +20,7 @@ import path from "path"
 export class StackerFramework {
     private stacker: Stacker
     private initialized: boolean = false
-    private version: string = "0.0.2"
+    private version: string = "0.0.1"
     
     constructor() {
         // Use the published @akaoio/stacker package

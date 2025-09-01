@@ -1,6 +1,6 @@
 name: "@akaoio/air"
 description: "Distributed P2P database system with Stacker framework integration"
-version: "2.1.0"
+version: "0.0.1"
 author: "AKAO Team"
 repository: "https://github.com/akaoio/air"
 license: "MIT"

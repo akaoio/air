@@ -1,11 +1,11 @@
 #!/bin/sh
 # Air Network Module - P2P Network Operations
-# Version: 2.1.0
+# Version: 0.0.1
 # Handles peer discovery, connectivity, network health
 
 # Module metadata
 MODULE_NAME="air-network"
-MODULE_VERSION="2.1.0"
+MODULE_VERSION="0.0.1"
 MODULE_DESCRIPTION="P2P network operations for Air"
 MODULE_DEPENDS="core"
 

@@ -1,6 +1,6 @@
 #!/bin/sh
 # Air - Modular P2P Database Management System
-# Version: 2.1.0
+# Version: 0.0.1
 # Following Stacker/Access philosophy: Modular, clean, maintainable
 
 set -e

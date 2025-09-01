@@ -1,17 +1,17 @@
 #!/bin/sh
 # Air Core Module - Foundation for P2P Operations
-# Version: 2.1.0
+# Version: 0.0.1
 # Following Manager/Access modular philosophy
 
 # Module metadata
 MODULE_NAME="air-core"
-MODULE_VERSION="2.1.0"
+MODULE_VERSION="0.0.1"
 MODULE_DESCRIPTION="Core functions for Air P2P database"
 
 # Core initialization
 air_core_init() {
     # Set core environment
-    AIR_VERSION="2.1.0"
+    AIR_VERSION="0.0.1"
     AIR_HOME="${AIR_HOME:-$HOME/air}"
     AIR_CONFIG_DIR="${AIR_CONFIG_DIR:-$HOME/.config/air}"
     AIR_DATA_DIR="${AIR_DATA_DIR:-$HOME/.local/share/air}"

@@ -1,0 +1,73 @@
+name: "air"
+version: "0.0.1"
+description: "Distributed P2P database system with Stacker framework integration"
+author: "AKAO.IO"
+license: "MIT"
+source: "gh:akaoio/air"
+homepage: "https://github.com/akaoio/air"
+repository: "https://github.com/akaoio/air.git"
+
+# Dependencies
+dependencies:
+  node: ">=18.0.0"
+  npm: ">=8.0.0"
+
+# Runtime requirements
+runtime:
+  - name: "Node.js"
+    version: ">=18.0.0"
+    required: true
+  - name: "@akaoio/gun"
+    version: "^0.2020.1241"
+    required: true
+
+# Package metadata
+tags:
+  - "p2p"
+  - "database"
+  - "real-time"
+  - "distributed"
+  - "gun"
+  - "akaoio"
+
+# Installation configuration
+install:
+  type: "service"
+  scripts:
+    - "npm install --production"
+    - "npm run build"
+  
+# Service configuration
+service:
+  name: "air"
+  description: "Air P2P Database Service"
+  type: "daemon"
+  start_command: "./air.sh start"
+  stop_command: "./air.sh stop"
+  status_command: "./air.sh status"
+  restart_command: "./air.sh restart"
+  
+# Network configuration
+network:
+  default_port: 8765
+  protocol: "http"
+  
+# Data directories (XDG compliant)
+data:
+  config_dir: "${XDG_CONFIG_HOME:-$HOME/.config}/air"
+  data_dir: "${XDG_DATA_HOME:-$HOME/.local/share}/air"
+  cache_dir: "${XDG_CACHE_HOME:-$HOME/.cache}/air"
+  log_dir: "${XDG_STATE_HOME:-$HOME/.local/state}/air"
+
+# Health check
+health:
+  endpoint: "http://localhost:8765/health"
+  interval: 30
+  timeout: 5
+
+# Environment variables
+environment:
+  AIR_PORT: "8765"
+  AIR_HOST: "localhost"
+  AIR_DATA_DIR: "${XDG_DATA_HOME:-$HOME/.local/share}/air"
+  AIR_CONFIG_DIR: "${XDG_CONFIG_HOME:-$HOME/.config}/air"

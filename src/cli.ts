@@ -72,7 +72,7 @@ const commands: CLICommand[] = [
             
             if (StackerUtils.isAvailable()) {
                 try {
-                    const version = await 'Air v2.1.0'
+                    const version = await 'Air v0.0.1'
                     
                     const stackerConfig = {}
                 } catch (error) {

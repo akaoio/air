@@ -1,11 +1,11 @@
 #!/bin/sh
 # Air Service Module - Start/Stop/Restart Operations
-# Version: 2.1.0
+# Version: 0.0.1
 # Modular design following Manager/Access patterns
 
 # Module metadata
 MODULE_NAME="air-service"
-MODULE_VERSION="2.1.0"
+MODULE_VERSION="0.0.1"
 MODULE_DESCRIPTION="Service management for Air P2P database"
 MODULE_DEPENDS="core"
 

@@ -1,549 +1,134 @@
 #!/bin/sh
-# Air Installation v2.0 - Human-Friendly Experience
-# Powered by Stacker Framework - No Hardcoded Values
-# Designed for Global Usage
+# Air P2P Database - Stacker Installation Script
+# Installs Air as a P2P database service
 
 set -e
 
-# Colors for better UX
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-MAGENTA='\033[0;35m'
-CYAN='\033[0;36m'
-WHITE='\033[1;37m'
-NC='\033[0m' # No Color
+# Get package installation directory
+PACKAGE_DIR="$(pwd)"
+echo "Installing Air P2P Database from: $PACKAGE_DIR"
 
-# Dynamic configuration - NO HARDCODED VALUES
-AIR_CONFIG_FILE="${HOME}/.config/air/install.conf"
-AIR_PROFILES_DIR="${HOME}/.config/air/profiles"
+# Check prerequisites
+echo "Checking prerequisites..."
 
-# Create config directories
-mkdir -p "$(dirname "$AIR_CONFIG_FILE")"
-mkdir -p "$AIR_PROFILES_DIR"
-
-# Display welcome with ASCII art
-show_welcome() {
-    clear
-    echo "${CYAN}"
-    cat << 'EOF'
-     ╔═══════════════════════════════════════════════════╗
-     ║                                                   ║
-     ║           ░█▀█░▀█▀░█▀▄                          ║
-     ║           ░█▀█░░█░░█▀▄                          ║
-     ║           ░▀░▀░▀▀▀░▀░▀                          ║
-     ║                                                   ║
-     ║     Distributed P2P Database for the World       ║
-     ║           Powered by Stacker Framework           ║
-     ╚═══════════════════════════════════════════════════╝
-EOF
-    echo "${NC}"
-    echo "${WHITE}Welcome to Air Installation Experience v2.0${NC}"
-    echo "${YELLOW}We'll guide you through a personalized setup${NC}"
-    echo ""
-    printf "${GREEN}Press ENTER to continue...${NC}"
-    read -r _
-}
-
-# Load or create user profile
-load_profile() {
-    echo ""
-    echo "${CYAN}═══ User Profile ═══${NC}"
-    echo ""
-    echo "Select your profile:"
-    echo "  ${GREEN}1)${NC} 🚀 Developer (optimized for development)"
-    echo "  ${GREEN}2)${NC} 🏢 Enterprise (production-ready, high security)"
-    echo "  ${GREEN}3)${NC} 👤 Personal (simple, resource-efficient)"
-    echo "  ${GREEN}4)${NC} 🌍 Global Node (contribute to worldwide network)"
-    echo "  ${GREEN}5)${NC} ⚙️  Custom (configure everything)"
-    echo "  ${GREEN}6)${NC} 📁 Load saved profile"
-    echo ""
-    printf "${YELLOW}Your choice [1-6]: ${NC}"
-    read -r profile_choice
-    
-    case "$profile_choice" in
-        1) load_developer_profile ;;
-        2) load_enterprise_profile ;;
-        3) load_personal_profile ;;
-        4) load_global_profile ;;
-        5) custom_configuration ;;
-        6) load_saved_profile ;;
-        *) echo "${RED}Invalid choice${NC}"; load_profile ;;
-    esac
-}
-
-# Developer profile - optimized for development
-load_developer_profile() {
-    echo "${GREEN}✓ Loading Developer Profile${NC}"
-    export AIR_PROFILE="developer"
-    export AIR_PORT="${AIR_PORT:-8765}"
-    export AIR_ENV="development"
-    export AIR_AUTO_UPDATE="false"
-    export AIR_MONITORING="true"
-    export AIR_P2P_MODE="local"
-    export AIR_SERVICE_TYPE="manual"
-    export AIR_LOG_LEVEL="debug"
-    export AIR_PEER_LIMIT="10"
-    export AIR_DATA_DIR="${HOME}/dev/air/data"
-}
-
-# Enterprise profile - production ready
-load_enterprise_profile() {
-    echo "${GREEN}✓ Loading Enterprise Profile${NC}"
-    export AIR_PROFILE="enterprise"
-    export AIR_PORT="${AIR_PORT:-8765}"
-    export AIR_ENV="production"
-    export AIR_AUTO_UPDATE="true"
-    export AIR_MONITORING="true"
-    export AIR_P2P_MODE="global"
-    export AIR_SERVICE_TYPE="systemd"
-    export AIR_LOG_LEVEL="info"
-    export AIR_PEER_LIMIT="1000"
-    export AIR_DATA_DIR="/var/lib/air"
-    export AIR_BACKUP="true"
-    export AIR_SECURITY="enhanced"
-}
-
-# Personal profile - simple and efficient
-load_personal_profile() {
-    echo "${GREEN}✓ Loading Personal Profile${NC}"
-    export AIR_PROFILE="personal"
-    export AIR_PORT="${AIR_PORT:-8765}"
-    export AIR_ENV="production"
-    export AIR_AUTO_UPDATE="true"
-    export AIR_MONITORING="false"
-    export AIR_P2P_MODE="hybrid"
-    export AIR_SERVICE_TYPE="cron"
-    export AIR_LOG_LEVEL="warn"
-    export AIR_PEER_LIMIT="50"
-    export AIR_DATA_DIR="${HOME}/.local/share/air"
-}
-
-# Global node profile - contribute to network
-load_global_profile() {
-    echo "${GREEN}✓ Loading Global Node Profile${NC}"
-    export AIR_PROFILE="global"
-    export AIR_PORT="${AIR_PORT:-8765}"
-    export AIR_ENV="production"
-    export AIR_AUTO_UPDATE="true"
-    export AIR_MONITORING="true"
-    export AIR_P2P_MODE="global"
-    export AIR_SERVICE_TYPE="redundant"
-    export AIR_LOG_LEVEL="info"
-    export AIR_PEER_LIMIT="unlimited"
-    export AIR_DATA_DIR="${HOME}/.local/share/air"
-    export AIR_RELAY="true"
-    export AIR_SCAN="aggressive"
-}
-
-# Custom configuration - full control
-custom_configuration() {
-    echo ""
-    echo "${CYAN}═══ Custom Configuration ═══${NC}"
-    echo ""
-    
-    # Network Configuration
-    echo "${YELLOW}Network Settings:${NC}"
-    printf "  Port number [8765]: "
-    read -r custom_port
-    AIR_PORT="${custom_port:-8765}"
-    
-    printf "  Bind address [0.0.0.0]: "
-    read -r custom_bind
-    AIR_BIND="${custom_bind:-0.0.0.0}"
-    
-    echo ""
-    echo "P2P Network Mode:"
-    echo "  1) Local only (development)"
-    echo "  2) Hybrid (local + select peers)"
-    echo "  3) Global (connect worldwide)"
-    printf "Choice [1-3]: "
-    read -r p2p_mode
-    case "$p2p_mode" in
-        1) AIR_P2P_MODE="local" ;;
-        2) AIR_P2P_MODE="hybrid" ;;
-        3) AIR_P2P_MODE="global" ;;
-        *) AIR_P2P_MODE="hybrid" ;;
-    esac
-    
-    # Service Configuration
-    echo ""
-    echo "${YELLOW}Service Configuration:${NC}"
-    echo "How should Air run?"
-    echo "  1) Manual (start/stop manually)"
-    echo "  2) Systemd service"
-    echo "  3) Cron job"
-    echo "  4) Both systemd + cron (redundant)"
-    printf "Choice [1-4]: "
-    read -r service_type
-    case "$service_type" in
-        1) AIR_SERVICE_TYPE="manual" ;;
-        2) AIR_SERVICE_TYPE="systemd" ;;
-        3) AIR_SERVICE_TYPE="cron" ;;
-        4) AIR_SERVICE_TYPE="redundant" ;;
-        *) AIR_SERVICE_TYPE="manual" ;;
-    esac
-    
-    # Advanced Options
-    echo ""
-    echo "${YELLOW}Advanced Options:${NC}"
-    
-    printf "Enable auto-updates? [y/N]: "
-    read -r auto_update
-    case "$auto_update" in
-        [yY]*) AIR_AUTO_UPDATE="true" ;;
-        *) AIR_AUTO_UPDATE="false" ;;
-    esac
-    
-    printf "Enable monitoring? [Y/n]: "
-    read -r monitoring
-    case "$monitoring" in
-        [nN]*) AIR_MONITORING="false" ;;
-        *) AIR_MONITORING="true" ;;
-    esac
-    
-    printf "Max peer connections [100]: "
-    read -r peer_limit
-    AIR_PEER_LIMIT="${peer_limit:-100}"
-    
-    printf "Log level (debug/info/warn/error) [info]: "
-    read -r log_level
-    AIR_LOG_LEVEL="${log_level:-info}"
-    
-    # Data Storage
-    echo ""
-    echo "${YELLOW}Data Storage:${NC}"
-    printf "Data directory [${HOME}/.local/share/air]: "
-    read -r data_dir
-    AIR_DATA_DIR="${data_dir:-${HOME}/.local/share/air}"
-    
-    # Save custom profile
-    printf "${GREEN}Save this configuration as profile? [y/N]: ${NC}"
-    read -r save_profile
-    if [ "$save_profile" = "y" ] || [ "$save_profile" = "Y" ]; then
-        printf "Profile name: "
-        read -r profile_name
-        save_current_profile "$profile_name"
-    fi
-}
-
-# Load saved profile
-load_saved_profile() {
-    echo ""
-    echo "${CYAN}Available Profiles:${NC}"
-    ls -1 "$AIR_PROFILES_DIR" 2>/dev/null | sed 's/\.conf$//' | nl
-    printf "${YELLOW}Select profile number: ${NC}"
-    read -r profile_num
-    
-    profile_file=$(ls -1 "$AIR_PROFILES_DIR" 2>/dev/null | sed -n "${profile_num}p")
-    if [ -f "$AIR_PROFILES_DIR/$profile_file" ]; then
-        . "$AIR_PROFILES_DIR/$profile_file"
-        echo "${GREEN}✓ Profile loaded: ${profile_file%.conf}${NC}"
-    else
-        echo "${RED}Profile not found${NC}"
-        load_profile
-    fi
-}
-
-# Save current configuration as profile
-save_current_profile() {
-    local profile_name="$1"
-    local profile_file="$AIR_PROFILES_DIR/${profile_name}.conf"
-    
-    cat > "$profile_file" << EOF
-# Air Profile: $profile_name
-# Created: $(date)
-
-export AIR_PROFILE="$profile_name"
-export AIR_PORT="${AIR_PORT}"
-export AIR_BIND="${AIR_BIND:-0.0.0.0}"
-export AIR_ENV="${AIR_ENV:-production}"
-export AIR_AUTO_UPDATE="${AIR_AUTO_UPDATE}"
-export AIR_MONITORING="${AIR_MONITORING}"
-export AIR_P2P_MODE="${AIR_P2P_MODE}"
-export AIR_SERVICE_TYPE="${AIR_SERVICE_TYPE}"
-export AIR_LOG_LEVEL="${AIR_LOG_LEVEL}"
-export AIR_PEER_LIMIT="${AIR_PEER_LIMIT}"
-export AIR_DATA_DIR="${AIR_DATA_DIR}"
-EOF
-    
-    echo "${GREEN}✓ Profile saved: $profile_name${NC}"
-}
-
-# Show configuration summary
-show_summary() {
-    echo ""
-    echo "${CYAN}═══ Configuration Summary ═══${NC}"
-    echo ""
-    echo "${WHITE}Profile:${NC} ${AIR_PROFILE:-custom}"
-    echo "${WHITE}Network:${NC}"
-    echo "  • Port: ${AIR_PORT}"
-    echo "  • Bind: ${AIR_BIND:-0.0.0.0}"
-    echo "  • P2P Mode: ${AIR_P2P_MODE}"
-    echo "  • Max Peers: ${AIR_PEER_LIMIT}"
-    echo ""
-    echo "${WHITE}Service:${NC}"
-    echo "  • Type: ${AIR_SERVICE_TYPE}"
-    echo "  • Auto-update: ${AIR_AUTO_UPDATE}"
-    echo "  • Monitoring: ${AIR_MONITORING}"
-    echo ""
-    echo "${WHITE}Storage:${NC}"
-    echo "  • Data: ${AIR_DATA_DIR}"
-    echo "  • Config: ${HOME}/.config/air"
-    echo ""
-    echo "${WHITE}Environment:${NC}"
-    echo "  • Mode: ${AIR_ENV:-production}"
-    echo "  • Log Level: ${AIR_LOG_LEVEL}"
-    echo ""
-}
-
-# Confirm installation
-confirm_installation() {
-    show_summary
-    echo "${YELLOW}═════════════════════════════${NC}"
-    printf "${GREEN}Proceed with installation? [Y/n]: ${NC}"
-    read -r confirm
-    
-    case "$confirm" in
-        [nN]*) 
-            echo "${YELLOW}Installation cancelled${NC}"
-            echo "Your configuration has been saved."
-            exit 0
-            ;;
-    esac
-}
-
-# Find and load Stacker framework
-find_stacker() {
-    # Check multiple locations for Stacker
-    for location in \
-        "./stacker" \
-        "../stacker" \
-        "${HOME}/stacker" \
-        "${HOME}/.local/lib/stacker" \
-        "/usr/local/lib/stacker"
-    do
-        if [ -f "$location/stacker.sh" ]; then
-            export STACKER_DIR="$location"
-            return 0
-        fi
-    done
-    
-    # Stacker not found - offer to install
-    echo ""
-    echo "${YELLOW}Stacker Framework not found.${NC}"
-    echo "Stacker is required for Air installation."
-    printf "${GREEN}Install Stacker Framework? [Y/n]: ${NC}"
-    read -r install_stacker
-    
-    case "$install_stacker" in
-        [nN]*) 
-            echo "${RED}Cannot proceed without Stacker Framework${NC}"
-            exit 1
-            ;;
-    esac
-    
-    echo "${CYAN}Installing Stacker Framework...${NC}"
-    git clone https://github.com/akaoio/stacker.git "${HOME}/.local/lib/stacker" || {
-        echo "${RED}Failed to install Stacker Framework${NC}"
-        exit 1
-    }
-    export STACKER_DIR="${HOME}/.local/lib/stacker"
-}
-
-# Perform installation using Manager
-perform_installation() {
-    echo ""
-    echo "${CYAN}═══ Installing Air ═══${NC}"
-    echo ""
-    
-    # Load Stacker framework
-    . "$STACKER_DIR/stacker.sh"
-    
-    # Initialize Manager for Air
-    stacker_init "air" \
-                 "https://github.com/akaoio/air.git" \
-                 "air.sh" \
-                 "Distributed P2P Database System"
-    
-    # Build installation arguments based on configuration
-    local install_args=""
-    
-    case "$AIR_SERVICE_TYPE" in
-        systemd) install_args="--service" ;;
-        cron) install_args="--cron" ;;
-        redundant) install_args="--service --cron" ;;
-    esac
-    
-    if [ "$AIR_AUTO_UPDATE" = "true" ]; then
-        install_args="$install_args --auto-update"
-    fi
-    
-    # Execute Stacker installation
-    stacker_install $install_args || {
-        echo "${RED}Installation failed${NC}"
-        exit 1
-    }
-    
-    # Create proper global command wrapper that knows where Air is installed
-    create_global_command
-    
-    # Configure Air with user settings
-    configure_air
-    
-    echo ""
-    echo "${GREEN}✓ Air installation completed successfully!${NC}"
-}
-
-# Create global command wrapper that properly locates Air installation
-create_global_command() {
-    echo "${YELLOW}Creating global air command...${NC}"
-    
-    # The clean clone directory where Air is actually installed
-    local air_clone_dir="$STACKER_CLEAN_CLONE_DIR"
-    
-    # Create the global command wrapper
-    cat > "$STACKER_INSTALL_DIR/air" << EOF
-#!/bin/sh
-# Air Global Command Wrapper
-# This wrapper knows where Air is actually installed
-
-# Air installation directory (set during installation)
-AIR_INSTALL_DIR="$air_clone_dir"
-
-# Check if Air installation exists
-if [ ! -f "\$AIR_INSTALL_DIR/air.sh" ]; then
-    echo "Error: Air installation not found at \$AIR_INSTALL_DIR"
-    echo "Please reinstall Air"
+# Check Node.js
+if ! command -v node >/dev/null 2>&1; then
+    echo "ERROR: Node.js is required but not installed"
+    echo "Please install Node.js 18+ from: https://nodejs.org/"
     exit 1
 fi
 
-# Execute Air from its installation directory
-exec "\$AIR_INSTALL_DIR/air.sh" "\$@"
+NODE_VERSION=$(node --version | cut -d'.' -f1 | tr -d 'v')
+if [ "$NODE_VERSION" -lt 18 ]; then
+    echo "ERROR: Node.js version 18+ required, found: $(node --version)"
+    exit 1
+fi
+
+# Check npm
+if ! command -v npm >/dev/null 2>&1; then
+    echo "ERROR: npm is required but not installed"
+    exit 1
+fi
+
+echo "✓ Node.js $(node --version) found"
+echo "✓ npm $(npm --version) found"
+
+# Create XDG-compliant directories
+echo "Creating XDG-compliant directories..."
+AIR_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/air"
+AIR_DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/air"
+AIR_CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/air"
+AIR_LOG_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/air"
+
+mkdir -p "$AIR_CONFIG_DIR"
+mkdir -p "$AIR_DATA_DIR"
+mkdir -p "$AIR_CACHE_DIR" 
+mkdir -p "$AIR_LOG_DIR"
+
+echo "✓ Created directory: $AIR_CONFIG_DIR"
+echo "✓ Created directory: $AIR_DATA_DIR"
+echo "✓ Created directory: $AIR_CACHE_DIR"
+echo "✓ Created directory: $AIR_LOG_DIR"
+
+# Install npm dependencies
+echo "Installing npm dependencies..."
+npm install --production --silent || {
+    echo "ERROR: Failed to install npm dependencies"
+    exit 1
+}
+echo "✓ npm dependencies installed"
+
+# Build the project
+echo "Building Air..."
+if [ -f "package.json" ] && grep -q '"build"' package.json; then
+    npm run build --silent || {
+        echo "ERROR: Failed to build Air"
+        exit 1
+    }
+    echo "✓ Air built successfully"
+else
+    echo "! No build script found, skipping build step"
+fi
+
+# Make air.sh executable
+if [ -f "air.sh" ]; then
+    chmod +x air.sh
+    echo "✓ Made air.sh executable"
+fi
+
+# Make stacker.sh executable
+if [ -f "stacker.sh" ]; then
+    chmod +x stacker.sh
+    echo "✓ Made stacker.sh executable"
+fi
+
+# Create default configuration
+if [ ! -f "$AIR_CONFIG_DIR/air.conf" ]; then
+    echo "Creating default configuration..."
+    cat > "$AIR_CONFIG_DIR/air.conf" << 'EOF'
+# Air P2P Database Configuration
+# Port for the Air node to listen on
+PORT=8765
+
+# Host to bind to (use 0.0.0.0 for all interfaces)
+HOST=localhost
+
+# Peer URLs to connect to (comma-separated)
+PEERS=
+
+# Data directory
+DATA_DIR=${AIR_DATA_DIR}
+
+# Log level (debug, info, warn, error)
+LOG_LEVEL=info
+
+# Enable development mode
+DEV_MODE=false
 EOF
-    
-    # Make it executable
-    chmod +x "$STACKER_INSTALL_DIR/air"
-    
-    echo "${GREEN}✓ Global command created at: $STACKER_INSTALL_DIR/air${NC}"
-}
+    echo "✓ Created default configuration at: $AIR_CONFIG_DIR/air.conf"
+fi
 
-# Configure Air with user settings
-configure_air() {
-    local config_file="${HOME}/.config/air/config.json"
-    
-    # Create configuration from environment
-    cat > "$config_file" << EOF
-{
-  "port": ${AIR_PORT},
-  "bind": "${AIR_BIND:-0.0.0.0}",
-  "env": "${AIR_ENV:-production}",
-  "p2p": {
-    "mode": "${AIR_P2P_MODE}",
-    "maxPeers": ${AIR_PEER_LIMIT:-100},
-    "scan": ${AIR_SCAN:-true}
-  },
-  "monitoring": ${AIR_MONITORING:-true},
-  "autoUpdate": ${AIR_AUTO_UPDATE:-false},
-  "logging": {
-    "level": "${AIR_LOG_LEVEL:-info}",
-    "file": "${AIR_DATA_DIR}/logs/air.log"
-  },
-  "storage": {
-    "dataDir": "${AIR_DATA_DIR}",
-    "configDir": "${HOME}/.config/air",
-    "stateDir": "${HOME}/.local/state/air"
-  },
-  "profile": "${AIR_PROFILE:-custom}"
-}
-EOF
-}
+# Test the installation
+echo "Testing Air installation..."
+if [ -f "air.sh" ]; then
+    if ./air.sh --help >/dev/null 2>&1; then
+        echo "✓ Air installation test passed"
+    else
+        echo "! Air installation test failed, but continuing..."
+    fi
+fi
 
-# Post-installation actions
-post_installation() {
-    echo ""
-    echo "${CYAN}═══ Next Steps ═══${NC}"
-    echo ""
-    
-    case "$AIR_SERVICE_TYPE" in
-        systemd)
-            echo "Start Air service:"
-            echo "  ${GREEN}sudo systemctl start air${NC}"
-            echo ""
-            echo "Check status:"
-            echo "  ${GREEN}sudo systemctl status air${NC}"
-            ;;
-        cron)
-            echo "Air will start automatically via cron."
-            echo ""
-            echo "Start manually:"
-            echo "  ${GREEN}air start${NC}"
-            ;;
-        manual)
-            echo "Start Air:"
-            echo "  ${GREEN}air start${NC}"
-            echo ""
-            echo "Stop Air:"
-            echo "  ${GREEN}air stop${NC}"
-            ;;
-    esac
-    
-    echo ""
-    echo "View logs:"
-    echo "  ${GREEN}air logs${NC}"
-    echo ""
-    echo "Configuration:"
-    echo "  ${GREEN}${HOME}/.config/air/config.json${NC}"
-    echo ""
-    echo "${MAGENTA}Thank you for installing Air!${NC}"
-    echo "${YELLOW}Join our global P2P network: https://air.akao.io${NC}"
-}
-
-# Main installation flow
-main() {
-    show_welcome
-    find_stacker
-    load_profile
-    confirm_installation
-    perform_installation
-    post_installation
-}
-
-# Handle arguments for non-interactive mode
-case "$1" in
-    --developer|--dev)
-        load_developer_profile
-        find_stacker
-        perform_installation
-        ;;
-    --enterprise|--prod)
-        load_enterprise_profile
-        find_stacker
-        perform_installation
-        ;;
-    --personal)
-        load_personal_profile
-        find_stacker
-        perform_installation
-        ;;
-    --global)
-        load_global_profile
-        find_stacker
-        perform_installation
-        ;;
-    --help|-h)
-        echo "Air Installation v2.0"
-        echo ""
-        echo "Usage:"
-        echo "  $0              Interactive installation"
-        echo "  $0 --developer  Developer profile"
-        echo "  $0 --enterprise Enterprise profile"
-        echo "  $0 --personal   Personal profile"
-        echo "  $0 --global     Global node profile"
-        echo ""
-        ;;
-    *)
-        main
-        ;;
-esac
+echo ""
+echo "🎉 Air P2P Database installed successfully!"
+echo ""
+echo "Configuration directory: $AIR_CONFIG_DIR"
+echo "Data directory: $AIR_DATA_DIR"
+echo "Cache directory: $AIR_CACHE_DIR"
+echo "Log directory: $AIR_LOG_DIR"
+echo ""
+echo "Next steps:"
+echo "1. Enable the package: stacker enable air"
+echo "2. Start Air: stacker service air start"
+echo "3. Check status: stacker service air status"
+echo ""
+echo "For more help: ./air.sh --help"
