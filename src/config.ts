@@ -7,7 +7,20 @@
 
 import fs from "fs"
 import { CONFIG_FILE, ensureDirectories } from "./xdg-paths.js"
-import { StackerUtils, type StackerConfig } from "./stacker.js"
+// Stacker integration handled at shell level
+// import { StackerUtils, type StackerConfig } from "./stacker.js"
+
+// Simple type definition for stacker config
+export type StackerConfig = {
+    name: string
+    description: string
+    repository: string
+    executable: string
+    version: string
+    configDir: string
+    dataDir: string
+    stackerPath: string
+}
 interface AirConfig {
     name?: string
     env?: string
@@ -36,7 +49,7 @@ const DEFAULT_CONFIG: any = {
     port: 8765,
     host: "0.0.0.0",
     stacker: {
-        enabled: StackerUtils.isAvailable(),
+        enabled: false,  // Managed via shell layer
         autoUpdate: false,
         serviceMode: 'systemd',
         monitoringEnabled: true,

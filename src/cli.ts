@@ -5,7 +5,8 @@
  * Provides CLI commands for Air management, including Stacker framework features
  */
 
-import { stacker, StackerUtils } from "./stacker.js"
+// Stacker integration handled at shell level via air.sh
+// import { stacker, StackerUtils } from "./stacker.js"
 import { config, enableStackerIntegration, disableStackerIntegration, isStackerEnabled } from "./config.js"
 import { db } from "./db.js"
 
@@ -36,10 +37,8 @@ const commands: CLICommand[] = [
         name: "stacker:enable",
         description: "Enable Stacker framework integration",
         handler: async (args) => {
-            if (!StackerUtils.isAvailable()) {
-                console.error("❌ Stacker framework not available")
-                return
-            }
+            // Stacker availability handled at shell level
+            console.log("ℹ️ Stacker integration managed via air.sh shell interface")
             
             const options: any = {}
             
@@ -70,7 +69,8 @@ const commands: CLICommand[] = [
         description: "Show Stacker framework status",
         handler: async (args) => {
             
-            if (StackerUtils.isAvailable()) {
+            // Stacker status handled via shell
+            if (false) {  // Disabled - use shell integration
                 try {
                     const version = await 'Air v0.0.1'
                     
@@ -85,10 +85,8 @@ const commands: CLICommand[] = [
         name: "stacker:install",
         description: "Install Air using Stacker framework",
         handler: async (args) => {
-            if (!StackerUtils.isAvailable()) {
-                console.error("❌ Stacker framework not available")
-                return
-            }
+            // Stacker availability handled at shell level
+            console.log("ℹ️ Stacker integration managed via air.sh shell interface")
             
             const options: any = {}
             
@@ -106,7 +104,7 @@ const commands: CLICommand[] = [
                 }
             }
             
-            await stacker.install(options)
+            console.log("Installation handled via shell: ./air.sh install")
         }
     },
     {

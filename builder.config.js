@@ -4,7 +4,7 @@
  */
 
 export default {
-    // Entry points - core Air P2P functionality with Stacker integration
+    // Entry points - core Air P2P functionality (stacker integration via shell)
     entry: [
         "src/index.ts",
         "src/main.ts", 
@@ -15,7 +15,7 @@ export default {
         "src/utils.ts",
         "src/xdg-paths.ts",
         "src/types.ts",
-        "src/stacker.ts",  // Re-enabled: Uses @akaoio/stacker npm package
+        // "src/stacker.ts",  // Disabled: Stacker integration via shell layer
         "src/cli.ts"
     ],
     
@@ -25,14 +25,14 @@ export default {
     // Output formats
     formats: ["esm", "cjs"],
     
-    // Fix module resolution in CJS builds
+    // Fix module resolution - enable proper splitting
     format: {
         cjs: {
-            splitting: false,
-            interop: true
+            splitting: true,
+            interop: "auto"
         },
         esm: {
-            splitting: false
+            splitting: true
         }
     },
     
@@ -46,7 +46,7 @@ export default {
     // External dependencies - don't bundle
     external: [
         "@akaoio/gun", 
-        "@akaoio/stacker",
+        // "@akaoio/stacker",  // Removed: Not an npm package
         "node:http",
         "node:https", 
         "node:fs",
@@ -58,9 +58,9 @@ export default {
         "child_process"
     ],
     
-    // Bundle internal modules to avoid cross-format imports
-    bundle: true,
-    noExternal: [],
+    // Bundle internal modules properly
+    bundle: false,  // Let Builder handle module resolution
+    noExternal: ["@akaoio/gun"],  // Bundle only specific dependencies
     
     // Platform target
     platform: "node"

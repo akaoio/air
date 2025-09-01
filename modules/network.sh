@@ -105,9 +105,7 @@ air_scan_local() {
 
 # Show network configuration
 air_network_info() {
-    echo "=============================================="
-    echo "  Air Network Configuration"
-    echo "=============================================="
+    echo "Air Network Configuration"
     echo ""
     
     local port="${AIR_PORT:-$(air_config_get port)}"

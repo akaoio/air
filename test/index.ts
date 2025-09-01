@@ -77,9 +77,7 @@ async function runTests() {
     }
   }
 
-  console.log('\n==================================================')
-  console.log(`📊 Results: ${passed} passed, ${failed} failed`)
-  console.log('==================================================')
+  console.log('\n📊 Results:', `${passed} passed, ${failed} failed`)
 
   if (failed > 0) {
     console.log(`\n❌ Some tests failed. @akaoio/air needs fixes.`)

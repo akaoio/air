@@ -1,0 +1,25 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { 
+            background: #000; 
+            color: #fff; 
+            font-family: 'Courier New', monospace;
+            white-space: pre;
+            padding: 20px;
+        }
+        .ansi-black { color: #000; }
+        .ansi-red { color: #f00; }
+        .ansi-green { color: #0f0; }
+        .ansi-yellow { color: #ff0; }
+        .ansi-blue { color: #00f; }
+        .ansi-magenta { color: #f0f; }
+        .ansi-cyan { color: #0ff; }
+        .ansi-white { color: #fff; }
+    </style>
+</head>
+<body>node:internal/errors:496<br>    ErrorCaptureStackTrace(err);<br>    ^<br><br>Error [ERR_INTERNAL_ASSERTION]: Code: ERR_MODULE_NOT_FOUND; The provided arguments length (2) does not match the required ones (3).<br>This is caused by either a bug in Node.js or incorrect usage of Node.js internals.<br>Please open an issue with this stack trace at https://github.com/nodejs/node/issues<br><br>[90m    at new NodeError (node:internal/errors:405:5)[39m<br>[90m    at assert (node:internal/assert:14:11)[39m<br>[90m    at getMessage (node:internal/errors:451:5)[39m<br>[90m    at new NodeError (node:internal/errors:379:21)[39m<br>[90m    at legacyMainResolve (node:internal/modules/esm/resolve:218:9)[39m<br>[90m    at packageResolve (node:internal/modules/esm/resolve:903:14)[39m<br>[90m    at moduleResolve (node:internal/modules/esm/resolve:973:20)[39m<br>[90m    at defaultResolve (node:internal/modules/esm/resolve:1193:11)[39m<br>[90m    at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:403:12)[39m<br>[90m    at ModuleLoader.resolve (node:internal/modules/esm/loader:372:25)[39m {<br>  code: <span class="ansi-green">'ERR_INTERNAL_ASSERTION'[39m<br>}<br><br>Node.js v18.19.0<br></body>
+</html>

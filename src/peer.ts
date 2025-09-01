@@ -14,7 +14,7 @@ import { fileURLToPath } from "url"
 import path from "path"
 // Using Node.js built-in fetch (Node 18+) instead of node-fetch to fix CJS compatibility
 import GUN from "@akaoio/gun"
-import "@akaoio/gun/nts.js"
+// Removed deprecated NTS import: import "@akaoio/gun/nts.js"
 import "./types.js"
 import { acquireLock, releaseLock } from "./lock-manager.js"
 import { AIR_CONFIG_DIR, AIR_DATA_DIR, AIR_STATE_DIR, CONFIG_FILE, SYSTEM_LOCK_FILE, RUNTIME_LOCK_FILE, RUNTIME_PID_FILE, ensureDirectories } from "./xdg-paths.js"

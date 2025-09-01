@@ -46,22 +46,16 @@ fi
 echo "✓ Node.js $(node --version) found"
 echo "✓ npm $(npm --version) found"
 
-# Create XDG-compliant directories
+# Create XDG-compliant directories (let stacker handle this when available)
 echo "Creating XDG-compliant directories..."
 AIR_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/air"
 AIR_DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/air"
-AIR_CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/air"
+AIR_CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/air" 
 AIR_LOG_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/air"
 
-mkdir -p "$AIR_CONFIG_DIR"
-mkdir -p "$AIR_DATA_DIR"
-mkdir -p "$AIR_CACHE_DIR" 
-mkdir -p "$AIR_LOG_DIR"
-
-echo "✓ Created directory: $AIR_CONFIG_DIR"
-echo "✓ Created directory: $AIR_DATA_DIR"
-echo "✓ Created directory: $AIR_CACHE_DIR"
-echo "✓ Created directory: $AIR_LOG_DIR"
+# Create directories efficiently  
+mkdir -p "$AIR_CONFIG_DIR" "$AIR_DATA_DIR" "$AIR_CACHE_DIR" "$AIR_LOG_DIR"
+echo "✓ Created XDG-compliant directories for Air"
 
 # Install npm dependencies
 echo "Installing npm dependencies..."

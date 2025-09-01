@@ -4,7 +4,8 @@
  */
 
 import { db } from "./db.js"
-import { stacker, StackerUtils } from "./stacker.js"
+// Stacker integration disabled - using shell-level integration via air.sh
+// import { stacker, StackerUtils } from "./stacker.js"
 import { config } from "./config.js"
 import { PID_FILE } from "./xdg-paths.js"
 import fs from "fs"
@@ -77,9 +78,10 @@ const main = async () => {
         await db.start()
         
         
-        // Register success with Stacker if available
-        if (StackerUtils.isAvailable() && config.isStackerEnabled()) {
-        }
+        // Stacker integration handled at shell level via air.sh
+        console.log("✅ Air P2P Database started successfully")
+        console.log(`📡 Port: ${config.load().port || 8765}`)
+        console.log(`📁 Data: ${config.load().dataDir || process.env.HOME + '/.local/share/air'}`)
         
     } catch (error) {
         console.error("❌ Failed to start Air:", error)

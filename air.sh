@@ -22,37 +22,48 @@ fi
 # Initialize Air with Stacker framework
 export AIR_VERSION="0.0.1"
 export AIR_HOME="$SCRIPT_DIR"
-export AIR_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/air"
-export AIR_DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/air"
-export AIR_STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/air"
-export AIR_PID_FILE="$AIR_STATE_DIR/air.pid"
 
-# Create required directories
-mkdir -p "$AIR_CONFIG_DIR" "$AIR_DATA_DIR" "$AIR_STATE_DIR"
+# Use stacker XDG directory creation if available
+if command -v stacker_require >/dev/null 2>&1 && stacker_require "core" 2>/dev/null; then
+    export STACKER_TECH_NAME="air"
+    if stacker_create_xdg_dirs 2>/dev/null; then
+        # Use stacker-created directories
+        export AIR_CONFIG_DIR="$STACKER_CONFIG_DIR"
+        export AIR_DATA_DIR="$STACKER_DATA_DIR"
+        export AIR_STATE_DIR="$STACKER_STATE_DIR"
+    fi
+fi
+
+# Fallback to manual XDG setup if stacker not available
+if [ -z "$AIR_CONFIG_DIR" ]; then
+    export AIR_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/air"
+    export AIR_DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/air"
+    export AIR_STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/air"
+    # Create required directories manually
+    mkdir -p "$AIR_CONFIG_DIR" "$AIR_DATA_DIR" "$AIR_STATE_DIR"
+fi
+
+export AIR_PID_FILE="$AIR_STATE_DIR/air.pid"
 
 # Load remaining Air-specific modules
 export AIR_MODULE_DIR="$SCRIPT_DIR/modules"
 
 # Utility functions for Air
-air_log() {
-    printf "[Air] %s\n" "$*"
-}
-
-air_error() {
-    printf "[Air ERROR] %s\n" "$*" >&2
-}
-
-air_warn() {
-    printf "[Air WARN] %s\n" "$*" >&2  
-}
-
-air_info() {
-    printf "[Air INFO] %s\n" "$*"
-}
-
-air_success() {
-    printf "[Air SUCCESS] %s\n" "$*"
-}
+# Unified logging - use stacker if available, fallback to local
+if command -v stacker_log >/dev/null 2>&1; then
+    air_log() { stacker_log "$*"; }
+    air_error() { stacker_error "$*"; }
+    air_warn() { stacker_warn "$*"; }  
+    air_info() { stacker_info "$*"; }
+    air_success() { stacker_log "SUCCESS: $*"; }
+else
+    # Fallback logging when stacker not available
+    air_log() { printf "[Air] %s\n" "$*"; }
+    air_error() { printf "[Air ERROR] %s\n" "$*" >&2; }
+    air_warn() { printf "[Air WARN] %s\n" "$*" >&2; }
+    air_info() { printf "[Air INFO] %s\n" "$*"; }
+    air_success() { printf "[Air SUCCESS] %s\n" "$*"; }
+fi
 
 # Command processing
 air_main() {
@@ -60,6 +71,37 @@ air_main() {
     shift
     
     case "$command" in
+        daemon)
+            # Daemon mode for systemd service
+            air_info "Starting Air in daemon mode..."
+            
+            # Ensure we're in the Air directory and built
+            cd "$AIR_HOME" || {
+                air_error "Air home directory not found: $AIR_HOME"
+                exit 1
+            }
+            
+            if ! air_validate_env; then
+                if [ -f "package.json" ] && command -v npm >/dev/null 2>&1; then
+                    air_info "Building Air TypeScript project..."
+                    npm run build || {
+                        air_error "Failed to build Air project"
+                        exit 1
+                    }
+                else
+                    air_error "Cannot build - npm not available"
+                    exit 1
+                fi
+            fi
+            
+            # Get port from config or use default
+            local port="${AIR_PORT:-$(air_config_get port)}"
+            port="${port:-8765}"
+            
+            # Start the Node.js process directly (systemd will manage it)
+            exec node dist/main.js
+            ;;
+        
         start)
             air_start_service "$@"
             ;;
@@ -104,6 +146,56 @@ air_main() {
         install)
             # Use Stacker for installation
             air_stacker_install "$@"
+            ;;
+            
+        service)
+            # Service management integration with Stacker
+            if command -v stacker_require >/dev/null 2>&1; then
+                export STACKER_TECH_NAME="air"
+                export STACKER_SERVICE_DESCRIPTION="Air P2P Database Service"
+                export STACKER_INSTALL_DIR="${STACKER_INSTALL_DIR:-/home/x/.local/bin}"
+                export STACKER_CLEAN_CLONE_DIR="$AIR_HOME"
+                export STACKER_SERVICE_TYPE="simple"
+                export STACKER_PID_FILE="$AIR_PID_FILE"
+                
+                # Load service module
+                if stacker_require "service" 2>/dev/null; then
+                    case "${1:-help}" in
+                        setup|install)
+                            # Use specialized Node.js service setup
+                            stacker_setup_nodejs_service
+                            ;;
+                        start)
+                            stacker_start_service
+                            ;;
+                        stop)
+                            stacker_stop_service
+                            ;;
+                        restart)
+                            stacker_restart_service
+                            ;;
+                        status)
+                            stacker_service_status
+                            ;;
+                        enable)
+                            stacker_enable_service
+                            ;;
+                        disable)
+                            stacker_disable_service
+                            ;;
+                        *)
+                            echo "Air Service Management"
+                            echo "Commands: setup start stop restart status enable disable"
+                            ;;
+                    esac
+                else
+                    air_error "Stacker service module not available"
+                    exit 1
+                fi
+            else
+                air_error "Stacker framework required for service management"
+                exit 1
+            fi
             ;;
             
         update)
@@ -368,9 +460,7 @@ air_restart_service() {
 }
 
 air_status_service() {
-    echo "=============================================="
-    echo "  Air P2P Database Status"
-    echo "=============================================="
+    echo "Air P2P Database Status"
     echo ""
     
     if air_is_running; then
@@ -527,14 +617,13 @@ air_config_set() {
 # Show help
 air_show_help() {
     cat << EOF
-==============================================
-  Air P2P Database v${AIR_VERSION} (Modular Edition)
-==============================================
+Air P2P Database v${AIR_VERSION} (Modular Edition)
 
 🚀 Usage:
   air <command> [options]
 
 📌 Core Commands:
+  daemon             Run as daemon (for systemd service)
   start              Start Air P2P database
   stop               Stop Air P2P database
   restart            Restart Air P2P database
@@ -551,6 +640,10 @@ air_show_help() {
 ⚙️  Management:
   config [show]      Show configuration
   config get KEY     Get configuration value
+  service setup      Install systemd service
+  service start      Start Air service  
+  service stop       Stop Air service
+  service status     Show service status
   update             Update Air to latest version
   install            Install Air with Manager
 

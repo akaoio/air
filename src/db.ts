@@ -5,7 +5,7 @@
 
 import { Peer } from "./peer.js"
 import { isStackerEnabled, getStackerConfig } from "./config.js"
-// import { stacker, StackerUtils } from "./stacker.js"  // Disabled: Stacker is separate cortex
+// Stacker integration handled at shell level via air.sh
 
 // Create singleton instance
 const _db = new Peer()
