@@ -4,9 +4,22 @@
 
 set -e
 
+# Check if being installed via Stacker
+if [ -z "$STACKER_PKG_NAME" ] && [ -z "$STACKER_INSTALL_MODE" ]; then
+    echo "❌ ERROR: @akaoio/air can only be installed via Stacker framework"
+    echo ""
+    echo "Please install using:"
+    echo "  stacker install gh:akaoio/air"
+    echo ""
+    echo "If you don't have Stacker installed:"
+    echo "  curl -sSL https://raw.githubusercontent.com/akaoio/stacker/main/install.sh | sh"
+    echo "  stacker install gh:akaoio/air"
+    exit 1
+fi
+
 # Get package installation directory
 PACKAGE_DIR="$(pwd)"
-echo "Installing Air P2P Database from: $PACKAGE_DIR"
+echo "Installing Air P2P Database from: $PACKAGE_DIR via Stacker..."
 
 # Check prerequisites
 echo "Checking prerequisites..."
