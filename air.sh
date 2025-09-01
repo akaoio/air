@@ -12,21 +12,46 @@ if [ -L "$SCRIPT_PATH" ]; then
 fi
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
 
-# Set Air module directory
-export AIR_MODULE_DIR="$SCRIPT_DIR/modules"
-
-# Load module loader first
-if [ -f "$AIR_MODULE_DIR/loader.sh" ]; then
-    . "$AIR_MODULE_DIR/loader.sh"
-else
-    echo "ERROR: Air module loader not found at $AIR_MODULE_DIR/loader.sh" >&2
+# Load Stacker framework (now provides all core functionality)
+if ! command -v stacker >/dev/null 2>&1; then
+    echo "ERROR: Stacker framework required but not found" >&2
+    echo "Install: curl -sSL https://raw.githubusercontent.com/akaoio/stacker/main/install.sh | sh" >&2
     exit 1
 fi
 
-# Load core module (always needed)
-air_require "core" || {
-    echo "ERROR: Failed to load core module" >&2
-    exit 1
+# Initialize Air with Stacker framework
+export AIR_VERSION="0.0.1"
+export AIR_HOME="$SCRIPT_DIR"
+export AIR_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/air"
+export AIR_DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/air"
+export AIR_STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/air"
+export AIR_PID_FILE="$AIR_STATE_DIR/air.pid"
+
+# Create required directories
+mkdir -p "$AIR_CONFIG_DIR" "$AIR_DATA_DIR" "$AIR_STATE_DIR"
+
+# Load remaining Air-specific modules
+export AIR_MODULE_DIR="$SCRIPT_DIR/modules"
+
+# Utility functions for Air
+air_log() {
+    printf "[Air] %s\n" "$*"
+}
+
+air_error() {
+    printf "[Air ERROR] %s\n" "$*" >&2
+}
+
+air_warn() {
+    printf "[Air WARN] %s\n" "$*" >&2  
+}
+
+air_info() {
+    printf "[Air INFO] %s\n" "$*"
+}
+
+air_success() {
+    printf "[Air SUCCESS] %s\n" "$*"
 }
 
 # Command processing
@@ -36,23 +61,19 @@ air_main() {
     
     case "$command" in
         start)
-            air_require "service" || exit 1
-            air_start "$@"
+            air_start_service "$@"
             ;;
             
         stop)
-            air_require "service" || exit 1
-            air_stop "$@"
+            air_stop_service "$@"
             ;;
             
         restart)
-            air_require "service" || exit 1
-            air_restart "$@"
+            air_restart_service "$@"
             ;;
             
         status)
-            air_require "service" || exit 1
-            air_status "$@"
+            air_status_service "$@"
             ;;
             
         logs|log)
@@ -64,19 +85,24 @@ air_main() {
             ;;
             
         network)
-            air_require "network" || exit 1
-            shift
-            case "$1" in
-                health) air_network_health ;;
-                info)   air_network_info ;;
-                scan)   air_scan_local ;;
-                peers)  air_peers_list ;;
-                *)      air_network_info ;;
-            esac
+            if [ -f "$AIR_MODULE_DIR/network.sh" ]; then
+                . "$AIR_MODULE_DIR/network.sh"
+                shift
+                case "$1" in
+                    health) air_network_health ;;
+                    info)   air_network_info ;;
+                    scan)   air_scan_local ;;
+                    peers)  air_peers_list ;;
+                    *)      air_network_info ;;
+                esac
+            else
+                echo "ERROR: Network module not available" >&2
+                exit 1
+            fi
             ;;
             
         install)
-            # Use Manager for installation
+            # Use Stacker for installation
             air_stacker_install "$@"
             ;;
             
@@ -86,17 +112,22 @@ air_main() {
             
         modules)
             case "$1" in
-                list)   air_list_modules ;;
-                loaded) air_list_loaded ;;
-                info)   air_module_info "$2" ;;
-                *)      air_list_modules ;;
+                list)   ls "$AIR_MODULE_DIR"/*.sh 2>/dev/null | sed 's|.*/||; s|\.sh$||' ;;
+                loaded) echo "Using Stacker framework modules" ;;
+                info)   echo "Module info for: $2" ;;
+                *)      ls "$AIR_MODULE_DIR"/*.sh 2>/dev/null | sed 's|.*/||; s|\.sh$||' ;;
             esac
             ;;
             
         peers)
             # Alias for network peers for better UX
-            air_require "network" || exit 1
-            air_peers_list
+            if [ -f "$AIR_MODULE_DIR/network.sh" ]; then
+                . "$AIR_MODULE_DIR/network.sh"
+                air_peers_list
+            else
+                echo "ERROR: Network module not available" >&2
+                exit 1
+            fi
             ;;
             
         version|--version|-v)
@@ -242,6 +273,255 @@ air_stacker_install() {
         "Air P2P Database"
     
     stacker_install "$@"
+}
+
+# Air-specific service functions using Stacker framework
+air_start_service() {
+    if air_is_running; then
+        local pid=$(air_get_pid)
+        echo "Air is already running (PID: $pid)"
+        return 0
+    fi
+    
+    echo "Starting Air P2P database..."
+    
+    # Ensure we're in the Air directory
+    cd "$AIR_HOME" || {
+        echo "ERROR: Air home directory not found: $AIR_HOME" >&2
+        return 1
+    }
+    
+    # Validate environment
+    if ! air_validate_env; then
+        if [ -f "package.json" ] && command -v npm >/dev/null 2>&1; then
+            echo "Building Air TypeScript project..."
+            npm run build || {
+                echo "ERROR: Failed to build Air project" >&2
+                return 1
+            }
+        else
+            echo "ERROR: Cannot build - npm not available" >&2
+            return 1
+        fi
+    fi
+    
+    # Get port from config or use default
+    local port="${AIR_PORT:-$(air_config_get port)}"
+    port="${port:-8765}"
+    
+    # Start the process in background
+    nohup node dist/main.js > "$AIR_DATA_DIR/air.log" 2>&1 &
+    local pid=$!
+    
+    # Save PID
+    air_save_pid "$pid"
+    
+    # Wait a moment and verify process started
+    sleep 2
+    if kill -0 "$pid" 2>/dev/null; then
+        echo "Air started successfully (PID: $pid)"
+        echo "Port: $port | Config: $AIR_CONFIG_DIR/config.json"
+        return 0
+    else
+        echo "ERROR: Failed to start Air" >&2
+        air_remove_pid
+        return 1
+    fi
+}
+
+air_stop_service() {
+    if ! air_is_running; then
+        echo "Air is not running"
+        return 0
+    fi
+    
+    local pid=$(air_get_pid)
+    echo "Stopping Air P2P database (PID: $pid)..."
+    
+    # Try graceful shutdown first
+    if kill -TERM "$pid" 2>/dev/null; then
+        # Wait for process to stop (max 10 seconds)
+        local count=0
+        while kill -0 "$pid" 2>/dev/null && [ $count -lt 10 ]; do
+            sleep 1
+            count=$((count + 1))
+        done
+        
+        # Force kill if still running
+        if kill -0 "$pid" 2>/dev/null; then
+            echo "Forcing Air shutdown..." >&2
+            kill -KILL "$pid" 2>/dev/null
+        fi
+    fi
+    
+    air_remove_pid
+    echo "Air stopped successfully"
+    return 0
+}
+
+air_restart_service() {
+    echo "Restarting Air P2P database..."
+    air_stop_service || return 1
+    sleep 1
+    air_start_service || return 1
+    return 0
+}
+
+air_status_service() {
+    echo "=============================================="
+    echo "  Air P2P Database Status"
+    echo "=============================================="
+    echo ""
+    
+    if air_is_running; then
+        local pid=$(air_get_pid)
+        local port="${AIR_PORT:-$(air_config_get port)}"
+        port="${port:-8765}"
+        
+        echo "  Status: ✅ Running"
+        echo "  PID: $pid"
+        echo "  Port: $port"
+        echo "  Config: $AIR_CONFIG_DIR/config.json"
+        echo "  Logs: $AIR_DATA_DIR/air.log"
+        
+        # Check if port is listening
+        if command -v netstat >/dev/null 2>&1; then
+            if netstat -ln 2>/dev/null | grep -q ":$port "; then
+                echo "  Network: ✅ Listening on port $port"
+            else
+                echo "  Network: ⚠️  Port $port not listening"
+            fi
+        fi
+    else
+        echo "  Status: ❌ Not running"
+        echo ""
+        echo "  Start with: air start"
+    fi
+    
+    echo ""
+    echo "Directories:"
+    echo "  Config: $AIR_CONFIG_DIR"
+    echo "  Data:   $AIR_DATA_DIR"
+    echo "  State:  $AIR_STATE_DIR"
+    echo "  Home:   $AIR_HOME"
+    echo ""
+}
+
+# Core utility functions (using Stacker patterns)
+air_is_running() {
+    if [ -f "$AIR_PID_FILE" ]; then
+        local pid=$(cat "$AIR_PID_FILE" 2>/dev/null)
+        if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+            return 0
+        fi
+    fi
+    return 1
+}
+
+air_get_pid() {
+    if air_is_running; then
+        cat "$AIR_PID_FILE"
+    else
+        return 1
+    fi
+}
+
+air_save_pid() {
+    local pid="$1"
+    echo "$pid" > "$AIR_PID_FILE"
+}
+
+air_remove_pid() {
+    rm -f "$AIR_PID_FILE"
+}
+
+air_validate_env() {
+    # Check Node.js availability
+    if ! command -v node >/dev/null 2>&1; then
+        echo "ERROR: Node.js is required but not found" >&2
+        return 1
+    fi
+    
+    # Check if dist/main.js exists
+    if [ ! -f "$AIR_HOME/dist/main.js" ]; then
+        echo "Built artifacts not found. Building..." >&2
+        return 1
+    fi
+    
+    return 0
+}
+
+air_config_get() {
+    local key="$1"
+    local config_file="$AIR_CONFIG_DIR/config.json"
+    
+    if [ ! -f "$config_file" ]; then
+        return 1
+    fi
+    
+    # Use Node.js for proper JSON parsing if available
+    if command -v node >/dev/null 2>&1; then
+        node -e "
+            const fs = require('fs');
+            try {
+                const config = JSON.parse(fs.readFileSync('$config_file', 'utf8'));
+                const value = config['$key'];
+                if (value !== undefined) {
+                    console.log(value);
+                }
+            } catch(e) {
+                process.exit(1);
+            }
+        " 2>/dev/null
+    else
+        # Fallback to basic pattern matching
+        case "$key" in
+            port)
+                grep -o '"port"[[:space:]]*:[[:space:]]*[0-9]*' "$config_file" | \
+                    sed 's/.*:[[:space:]]*//'
+                ;;
+            *)
+                grep -o "\"$key\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" "$config_file" | \
+                    sed 's/.*:[[:space:]]*"//' | sed 's/"[[:space:]]*$//'
+                ;;
+        esac
+    fi
+}
+
+air_config_set() {
+    local key="$1"
+    local value="$2"
+    local config_file="$AIR_CONFIG_DIR/config.json"
+    
+    if [ -z "$key" ] || [ -z "$value" ]; then
+        echo "ERROR: Usage: air config set <key> <value>" >&2
+        return 1
+    fi
+    
+    # Ensure config file exists
+    if [ ! -f "$config_file" ]; then
+        echo '{}' > "$config_file"
+    fi
+    
+    # Use Node.js for proper JSON manipulation if available
+    if command -v node >/dev/null 2>&1; then
+        node -e "
+            const fs = require('fs');
+            const configPath = '$config_file';
+            let config = {};
+            try {
+                config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+            } catch(e) {
+                console.error('Invalid JSON in config file, creating new config');
+            }
+            config['$key'] = '$value';
+            fs.writeFileSync(configPath, JSON.stringify(config, null, 4));
+        " 2>/dev/null && echo "Set $key = $value"
+        return $?
+    else
+        echo "ERROR: Node.js required for config management" >&2
+        return 1
+    fi
 }
 
 # Show help

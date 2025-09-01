@@ -5,29 +5,59 @@
 
 set -e
 
-# Framework initialization
-STACKER_DIR="${STACKER_DIR:-./manager}"
+# Framework initialization - Auto-detect Stacker
+detect_stacker() {
+    # Try various locations for stacker
+    if [ -f "../stacker/stacker.sh" ]; then
+        STACKER_DIR="../stacker"
+    elif command -v stacker >/dev/null 2>&1; then
+        STACKER_DIR="global"
+    elif [ -f "./manager/stacker.sh" ]; then
+        STACKER_DIR="./manager"
+    elif [ -f "$HOME/stacker/stacker.sh" ]; then
+        STACKER_DIR="$HOME/stacker"
+    else
+        echo "Error: Stacker framework not found"
+        echo "Tried: ../stacker, global command, ./manager, ~/stacker"
+        echo "Please ensure Stacker is properly installed"
+        exit 1
+    fi
+}
 
-# Check if Stacker is available
-if [ ! -f "$STACKER_DIR/stacker.sh" ]; then
-    echo "Error: Stacker framework not found at $STACKER_DIR"
-    echo "Please ensure Stacker is properly installed"
-    exit 1
+# Detect and load Stacker
+detect_stacker
+
+if [ "$STACKER_DIR" = "global" ]; then
+    # Use global stacker command
+    if ! command -v stacker >/dev/null 2>&1; then
+        echo "Error: Global stacker command not found"
+        exit 1
+    fi
+else
+    # Load local stacker framework
+    if [ ! -f "$STACKER_DIR/stacker.sh" ]; then
+        echo "Error: Stacker framework not found at $STACKER_DIR"
+        exit 1
+    fi
+    . "$STACKER_DIR/stacker.sh"
 fi
 
-# Load Stacker framework
-. "$STACKER_DIR/stacker.sh"
-
-# Initialize Manager for Air scan
-stacker_init "air-scan" \
-             "https://github.com/akaoio/air.git" \
-             "scan" \
-             "Air P2P Network Scan"
-
-# Configuration paths (XDG compliant via Manager)
-SCAN_CONFIG="${SCAN_CONFIG:-$STACKER_CONFIG_DIR/scan.json}"
-SCAN_STATE="${SCAN_STATE:-$STACKER_STATE_DIR/scan.state}"
-SCAN_LOG="${SCAN_LOG:-$STACKER_DATA_DIR/scan.log}"
+# Initialize configuration paths
+if [ "$STACKER_DIR" != "global" ] && [ -n "$STACKER_CONFIG_DIR" ]; then
+    # Use stacker paths if available
+    SCAN_CONFIG="${SCAN_CONFIG:-$STACKER_CONFIG_DIR/scan.json}"
+    SCAN_STATE="${SCAN_STATE:-$STACKER_STATE_DIR/scan.state}"
+    SCAN_LOG="${SCAN_LOG:-$STACKER_DATA_DIR/scan.log}"
+else
+    # Use XDG paths directly
+    XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+    XDG_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
+    XDG_STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}"
+    
+    SCAN_CONFIG="${SCAN_CONFIG:-$XDG_CONFIG_HOME/air/scan.json}"
+    SCAN_STATE="${SCAN_STATE:-$XDG_STATE_HOME/air/scan.state}"
+    SCAN_LOG="${SCAN_LOG:-$XDG_DATA_HOME/air/scan.log}"
+fi
 
 # Default values - domain-agnostic
 DEFAULT_SCAN_METHOD="multicast"  # multicast, dns, dht, manual
@@ -251,14 +281,18 @@ show_peers() {
     fi
 }
 
-# Check if Air is running
+# Basic air_is_running implementation for standalone scan usage
 air_is_running() {
-    if [ -f "$STACKER_STATE_DIR/air.pid" ]; then
-        local pid=$(cat "$STACKER_STATE_DIR/air.pid")
-        kill -0 "$pid" 2>/dev/null
-    else
-        false
+    local pid_file="${AIR_PID_FILE:-$HOME/.local/state/air/air.pid}"
+    
+    if [ -f "$pid_file" ]; then
+        local pid
+        pid=$(cat "$pid_file" 2>/dev/null)
+        if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+            return 0
+        fi
     fi
+    return 1
 }
 
 # Configure scan for a specific environment
