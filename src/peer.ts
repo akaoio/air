@@ -447,10 +447,13 @@ export class Peer {
                 peers: this.config[this.env].peers
             }
             
-            // Use shared data directory for all Air instances - SINGLE DATA SOURCE
+            // Use writable data directory for all Air instances - SINGLE DATA SOURCE
             const sharedDataPath = path.join(this.dataDir, 'shared')
             fs.mkdirSync(sharedDataPath, { recursive: true })
             gunConfig.file = sharedDataPath
+            
+            // Disable GUN stats to prevent EROFS errors
+            gunConfig.stats = false
             
             
             this.gun = GUN(gunConfig)
