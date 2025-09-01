@@ -65,26 +65,50 @@ function logStartupInfo(): void {
  */
 const main = async () => {
     try {
-        // Initialize Stacker framework integration
-        await initializeStacker()
+        // Initialize Stacker framework integration with error boundary
+        await initializeStacker().catch(error => {
+            console.warn("Stacker integration failed, continuing without:", error.message)
+        })
         
-        // Write PID file for process management
-        writePidFile()
+        // Write PID file for process management with error boundary
+        try {
+            writePidFile()
+        } catch (error) {
+            console.warn("PID file creation failed:", error.message)
+        }
         
-        // Log startup information
-        logStartupInfo()
+        // Log startup information with error boundary
+        try {
+            logStartupInfo()
+        } catch (error) {
+            console.warn("Startup logging failed:", error.message)
+        }
         
-        // Start the Air P2P database
-        await db.start()
+        // Start the Air P2P database with comprehensive error handling
+        await db.start().catch(error => {
+            console.error("Database startup failed:", error.message)
+            throw error // Re-throw as this is critical
+        })
         
-        
-        // Stacker integration handled at shell level via air.sh
-        console.log("✅ Air P2P Database started successfully")
-        console.log(`📡 Port: ${config.load().port || 8765}`)
-        console.log(`📁 Data: ${config.load().dataDir || process.env.HOME + '/.local/share/air'}`)
+        // Success logging with error boundaries
+        try {
+            console.log("✅ Air P2P Database started successfully")
+            console.log(`📡 Port: ${config.load().port || 8765}`)
+            console.log(`📁 Data: ${config.load().dataDir || process.env.HOME + '/.local/share/air'}`)
+        } catch (error) {
+            console.warn("Success logging failed:", error.message)
+        }
         
     } catch (error) {
         console.error("❌ Failed to start Air:", error)
+        // Graceful shutdown attempt
+        try {
+            if (fs.existsSync(PID_FILE)) {
+                fs.unlinkSync(PID_FILE)
+            }
+        } catch (cleanupError) {
+            console.error("Cleanup failed:", cleanupError.message)
+        }
         process.exit(1)
     }
 }
