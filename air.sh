@@ -71,11 +71,9 @@ air_main() {
     shift
     
     case "$command" in
-        daemon)
-            # Daemon mode for systemd service
-            air_info "Starting Air in daemon mode..."
+        start)
+            air_info "Starting Air P2P database..."
             
-            # Ensure we're in the Air directory and built
             cd "$AIR_HOME" || {
                 air_error "Air home directory not found: $AIR_HOME"
                 exit 1
@@ -88,34 +86,50 @@ air_main() {
                         air_error "Failed to build Air project"
                         exit 1
                     }
-                else
-                    air_error "Cannot build - npm not available"
-                    exit 1
                 fi
             fi
             
-            # Get port from config or use default
-            local port="${AIR_PORT:-$(air_config_get port)}"
-            port="${port:-8765}"
-            
-            # Start the Node.js process directly (systemd will manage it)
-            exec node dist/main.js
+            # Simple daemon start
+            node dist/main.js &
+            echo $! > "$AIR_PID_FILE"
+            echo "Air started successfully (PID: $(cat "$AIR_PID_FILE"))"
+            echo "Port: $AIR_PORT | Config: $AIR_CONFIG_FILE"
             ;;
         
-        start)
-            air_start_service "$@"
-            ;;
-            
         stop)
-            air_stop_service "$@"
+            if [ -f "$AIR_PID_FILE" ]; then
+                PID=$(cat "$AIR_PID_FILE")
+                if kill "$PID" 2>/dev/null; then
+                    echo "Air stopped (PID: $PID)"
+                    rm -f "$AIR_PID_FILE"
+                else
+                    echo "Air process not found"
+                    rm -f "$AIR_PID_FILE"
+                fi
+            else
+                echo "Air not running"
+            fi
             ;;
             
         restart)
-            air_restart_service "$@"
+            "$0" stop && sleep 2 && "$0" start
             ;;
             
         status)
-            air_status_service "$@"
+            if [ -f "$AIR_PID_FILE" ] && kill -0 "$(cat "$AIR_PID_FILE")" 2>/dev/null; then
+                PID=$(cat "$AIR_PID_FILE")
+                echo "Air P2P Database Status"
+                echo ""
+                echo "  Status: ✅ Running"
+                echo "  PID: $PID"
+                echo "  Port: $AIR_PORT"
+                echo "  Home: $SCRIPT_DIR"
+            else
+                echo "Air P2P Database Status"
+                echo ""
+                echo "  Status: ❌ Not running"
+                rm -f "$AIR_PID_FILE" 2>/dev/null
+            fi
             ;;
             
         logs|log)
@@ -368,7 +382,15 @@ air_stacker_install() {
 }
 
 # Air-specific service functions using Stacker framework
-air_start_service() {
+# REMOVED: air_start_service() - use stacker service management
+air_start_service() { echo "ERROR: Use 'stacker service air start'"; exit 1; }
+air_stop_service() { echo "ERROR: Use 'stacker service air stop'"; exit 1; }
+air_restart_service() { echo "ERROR: Use 'stacker service air restart'"; exit 1; }
+air_status_service() { echo "ERROR: Use 'stacker service air status'"; exit 1; }
+air_show_logs() { echo "ERROR: Use 'stacker service air logs'"; exit 1; }
+
+# Legacy function for compatibility
+legacy_air_start_service() {
     if air_is_running; then
         local pid=$(air_get_pid)
         echo "Air is already running (PID: $pid)"
